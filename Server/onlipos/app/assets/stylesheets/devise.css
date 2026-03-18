@@ -1,0 +1,260 @@
+/* --- 認証画面 (ログイン・登録) 用スタイル --- */
+
+/* 全体のラッパー: hero-sectionのようなグラデーション背景 */
+.auth-wrapper {
+  background: linear-gradient(to bottom, #eff6ff, white);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1.5rem;
+}
+
+/* 認証カード: .card のスタイルをベースに */
+.auth-container {
+  background: white;
+  padding: 2.5rem;
+  border-radius: 1.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+  border-top: 8px solid var(--primary); /* .card-online のアクセントカラー */
+  width: 90%; /* 画面幅いっぱいにならず、左右に余白を残す */
+  max-width: 400px;
+  margin: 2rem auto; /* 上下にも余白を追加し、中央揃えを確実に */
+  box-sizing: border-box;
+}
+
+/* タイトル: .subtitle h2 のスタイルを適用 */
+.auth-container h2 {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #111827;
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+/* フォームフィールド */
+.field {
+  margin-bottom: 1.25rem;
+}
+
+.field label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--secondary);
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+/* 入力エリア */
+input[type="email"],
+input[type="password"],
+input[type="text"] {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d1d5db; /* Gray-300 */
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  color: #111827;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="text"]:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* チェックボックス (Remember meなど) */
+.field.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.field.checkbox input {
+  width: auto;
+  accent-color: var(--primary);
+  margin: 0;
+}
+
+.field.checkbox label {
+  margin-bottom: 0;
+  font-weight: normal;
+}
+
+/* ラジオボタン (アカウント種別など) */
+.field input[type="radio"] {
+  width: auto;
+  margin-right: 0.25rem;
+  vertical-align: middle;
+}
+
+.field input[type="radio"] + label {
+  display: inline-block;
+  width: auto;
+  margin-bottom: 0;
+  margin-right: 1.5rem;
+  vertical-align: middle;
+  font-weight: normal;
+  cursor: pointer;
+}
+
+/* ボタン: .btn-signup のスタイルを適用 */
+.actions input[type="submit"],
+.actions button {
+  width: 100%;
+  background: var(--primary);
+  color: white;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 1.5rem;
+  transition: opacity 0.2s;
+}
+
+.actions input[type="submit"]:hover,
+.actions button:hover {
+  opacity: 0.9;
+}
+
+/* リンク集 (ログイン、パスワード忘れなど) */
+.auth-links {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  text-align: center;
+}
+
+.auth-links a {
+  color: var(--secondary);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.auth-links a:hover {
+  color: var(--primary);
+}
+
+/* エラーメッセージ */
+#error_explanation {
+  background-color: #fee2e2;
+  color: #991b1b;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
+  border: 1px solid #fecaca;
+}
+
+#error_explanation h2 {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+  text-align: left;
+}
+
+#error_explanation ul {
+  padding-left: 1.5rem;
+  margin: 0;
+}
+
+/* バリデーションエラー時のレイアウト崩れ防止 (姓名の横並び維持など) */
+.field_with_errors {
+  display: contents;
+}
+
+/* スマートフォン対応 */
+@media (max-width: 768px) {
+  .auth-container {
+    padding: 1.5rem;
+    border-radius: 1rem;
+  }
+
+  .auth-container h2 {
+    font-size: 1.5rem;
+  }
+}
+
+/* --- フラッシュメッセージ (notice, alert) --- */
+.notice, .alert {
+  padding: 1rem 1.5rem;
+  margin: 1rem auto;
+  width: 90%;
+  max-width: 600px;
+  border-radius: 0.5rem;
+  text-align: center;
+  font-weight: 500;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+}
+
+/* メッセージが空の場合は非表示にする */
+.notice:empty, .alert:empty {
+  display: none;
+}
+
+.notice {
+  background-color: #eff6ff; /* blue-50: primaryに合わせた薄い青 */
+  color: #1e40af; /* blue-800 */
+  border: 1px solid #dbeafe; /* blue-100 */
+}
+
+.alert {
+  background-color: #fee2e2; /* red-100: エラー表示と統一 */
+  color: #991b1b; /* red-800 */
+  border: 1px solid #fecaca; /* red-200 */
+}
+
+/* --- 編集画面用の追加スタイル --- */
+
+/* 補足テキスト (パスワード変更なしの場合など) */
+.field-hint {
+  font-size: 0.85rem;
+  color: var(--secondary);
+  font-weight: normal;
+  margin-left: 0.5rem;
+}
+
+/* 区切り線 */
+.divider {
+  margin: 2rem 0;
+  border: 0;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* 危険なアクションエリア (アカウント削除) */
+.danger-zone h3 {
+  font-size: 1.25rem;
+  color: #991b1b;
+  margin-bottom: 0.5rem;
+  text-align: center;
+  font-weight: bold;
+}
+
+.danger-zone p {
+  text-align: center;
+  color: var(--secondary);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+/* 削除ボタン (赤色) */
+.actions button.btn-danger {
+  background-color: #ef4444;
+  margin-top: 0;
+}
+
+.actions button.btn-danger:hover {
+  background-color: #dc2626;
+}

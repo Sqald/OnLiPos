@@ -1,0 +1,88 @@
+/* --- トップページ (LP) 専用スタイル --- */
+/* ※共通レイアウトは layout.css、変数は variables.css を参照 */
+
+/* --- ヒーローセクション (メインビジュアル) --- */
+.hero-section {
+  background: linear-gradient(to bottom, #eff6ff, white);
+  padding: 6rem 1.5rem;
+  text-align: center;
+}
+
+.hero-content h1 {
+  font-size: 3.5rem;
+  line-height: 1.2;
+  color: #111827;
+  margin-bottom: 1.5rem;
+}
+
+.highlight { color: var(--primary); }
+
+.cta-group {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+/* --- 特徴・スタイル紹介グリッド --- */
+.features-grid, .styles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 2rem;
+  max-width: 1100px;
+  margin: 4rem auto;
+  padding: 0 1.5rem;
+}
+
+/* LP固有のカード装飾 */
+.card-online { border-top-color: var(--primary); }
+
+/* --- スマートフォン対応 (LP固有) --- */
+@media (max-width: 768px) {
+  /* ヒーローエリアの文字サイズ調整 */
+  .hero-content h1 {
+    font-size: 2.25rem;
+  }
+
+  .hero-content p {
+    font-size: 1rem;
+    padding: 0 1rem;
+  }
+
+  /* ボタンを縦並びにして押しやすくする */
+  .cta-group {
+    flex-direction: column;
+    padding: 0 2rem;
+  }
+
+  /* グリッドの余白調整 */
+  .features-grid, .styles-grid {
+    grid-template-columns: 1fr; /* 強制的に1カラムにする */
+    margin: 2rem auto;
+  }
+}
+
+.terms-container {
+    font-family: sans-serif;
+    line-height: 1.6;
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 2rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+  }
+  .terms-container h1, .terms-container h2 {
+    border-bottom: 2px solid #eee;
+    padding-bottom: 0.5rem;
+  }
+  .terms-container h1 {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+  .terms-container h2 {
+    margin-top: 2rem;
+  }
+  .terms-container p, .terms-container li {
+    color: #333;
+  }

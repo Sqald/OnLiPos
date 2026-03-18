@@ -1,0 +1,72 @@
+<div class="dashboard-container">
+  <%= render 'dashboard/shared/menu' %>
+
+  <div class="dashboard-content card">
+    <div class="subtitle d-flex justify-content-between align-items-center">
+      <h2>店舗在庫</h2>
+    </div>
+
+    <div class="filters mb-3">
+      <%= form_with url: dashboard_store_stocks_path, method: :get, local: true do |f| %>
+        <div class="filter-row">
+          <div class="filter-item">
+            <%= f.label :jan_code, "JANコード" %><br>
+            <%= f.text_field :jan_code, value: @jan_code, class: "form-control", placeholder: "JANコードを入力" %>
+          </div>
+          <div class="filter-item">
+            <br>
+            <%= f.submit "検索", class: "btn-signup" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <% if @jan_code.blank? %>
+      <div class="empty-message">
+        <p>JANコードを入力して検索してください。</p>
+      </div>
+    <% elsif @product.nil? %>
+      <div class="empty-message">
+        <p>該当する商品が見つかりませんでした。</p>
+      </div>
+    <% else %>
+      <h3 class="mb-3"><%= @product.name %> (<%= @product.code %>) の店舗別在庫</h3>
+
+      <% if @store_stocks.empty? %>
+        <div class="empty-message">
+          <p>在庫情報は登録されていません。</p>
+        </div>
+      <% else %>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>店舗名</th>
+              <th class="text-right">在庫数量</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @store_stocks.each do |store_stock| %>
+              <tr>
+                <td><%= store_stock.store.name %></td>
+                <td class="text-right">
+                  <%= form_with model: [:dashboard, store_stock], method: :patch, local: true, class: "d-inline" do |f| %>
+                    <%= hidden_field_tag :jan_code, @jan_code %>
+                    <div class="d-flex justify-content-end align-items-center gap-2">
+                      <%= f.number_field :quantity,
+                            value: store_stock.quantity,
+                            class: "form-control form-control-sm",
+                            style: "width: 100px; text-align: right;" %>
+                      <%= f.submit "更新", class: "btn-sm btn-outline" %>
+                    </div>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% end %>
+    <% end %>
+  </div>
+</div>
+

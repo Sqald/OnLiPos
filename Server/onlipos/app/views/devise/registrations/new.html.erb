@@ -1,0 +1,66 @@
+<div class="auth-wrapper">
+  <div class="auth-container">
+    <h2>新規登録</h2>
+
+    <%= form_for(resource, as: resource_name, url: registration_path(resource_name)) do |f| %>
+      <%= render "devise/shared/error_messages", resource: resource %>
+
+      <div class="field">
+        <%= f.label :user_type, "アカウント種別" %><br />
+        <%= f.radio_button :user_type, "individual", checked: true %>
+        <%= f.label :user_type_individual, "個人" %>
+        <%= f.radio_button :user_type, "corporate" %>
+        <%= f.label :user_type_corporate, "法人" %>
+      </div>
+
+      <div class="field">
+        <%= f.label :company_name %><br />
+        <%= f.text_field :company_name, placeholder: "法人の場合のみ入力" %>
+      </div>
+
+      <div class="field">
+        <%= f.label :last_name, "担当者氏名" %><br />
+        <%= f.text_field :last_name, placeholder: "姓", style: "width: 45%; display: inline-block; margin-right: 4%;" %>
+        <%= f.text_field :first_name, placeholder: "名", style: "width: 45%; display: inline-block;" %>
+      </div>
+
+      <div class="field">
+        <%= f.label :login_name %><br />
+        <%= f.text_field :login_name, placeholder: "半角英数4~16文字" %>
+      </div>
+
+      <div class="field">
+        <%= f.label :email %><br />
+        <%= f.email_field :email, autofocus: true, autocomplete: "email" %>
+      </div>
+
+      <div class="field">
+        <%= f.label :password %>
+        <% if @minimum_password_length %>
+        <em>(<%= @minimum_password_length %>文字以上)</em>
+        <% end %><br />
+        <%= f.password_field :password, autocomplete: "new-password" %>
+      </div>
+
+      <div class="field">
+        <%= f.label :password_confirmation %><br />
+        <%= f.password_field :password_confirmation, autocomplete: "new-password" %>
+      </div>
+
+      <div class="field">
+        <%= f.check_box :terms_of_service %>
+        <%= f.label :terms_of_service do %>
+          <%= link_to "利用規約", "/terms", target: "_blank" %>に同意する
+        <% end %>
+      </div>
+
+      <div class="actions">
+        <%= f.submit "アカウント登録" %>
+      </div>
+    <% end %>
+
+    <div class="auth-links">
+      <%= render "devise/shared/links" %>
+    </div>
+  </div>
+</div>

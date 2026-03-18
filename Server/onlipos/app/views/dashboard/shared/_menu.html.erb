@@ -1,0 +1,31 @@
+<div class="dashboard-menu">
+  <ul>
+    <li>
+      <%= link_to "ダッシュボード", dashboard_root_path, class: "menu-item #{controller_name == 'dashboards' ? 'active' : ''}" %>
+    </li>
+    <li>
+      <%= link_to "店舗管理", dashboard_stores_path, class: "menu-item #{controller_name == 'stores' ? 'active' : ''}" %>
+    </li>
+    <li>
+      <%= link_to "商品管理", dashboard_products_path, class: "menu-item #{controller_name == 'products' ? 'active' : ''}" %>
+    </li>
+    <li>
+      <%= link_to "従業員管理", dashboard_employees_path, class: "menu-item #{controller_name == 'employees' ? 'active' : ''}" %>
+    </li>
+    <li>
+      <%= link_to "端末設定", dashboard_provisionings_path, class: "menu-item #{controller_name == 'provisionings' ? 'active' : ''}" %>
+    </li>
+    <li>
+      <%= link_to "売上一覧", dashboard_sales_path, class: "menu-item #{controller_name == 'sales' ? 'active' : ''}" %>
+    </li>
+    <li>
+      <%= link_to "レジ金履歴", dashboard_cash_logs_path, class: "menu-item #{controller_name == 'cash_logs' ? 'active' : ''}" %>
+    </li>
+    <li>
+      <%= link_to "店舗在庫", dashboard_store_stocks_path, class: "menu-item #{controller_name == 'store_stocks' ? 'active' : ''}" %>
+    </li>
+    <li>
+      <%= link_to "入出庫履歴", dashboard_stock_movements_path, class: "menu-item #{controller_name == 'stock_movements' ? 'active' : ''}" %>
+    </li>
+  </ul>
+</div>

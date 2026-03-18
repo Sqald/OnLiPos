@@ -1,0 +1,87 @@
+<div class="dashboard-container">
+  <%= render 'dashboard/shared/menu' %>
+
+  <div class="dashboard-content card">
+    <div class="subtitle d-flex justify-content-between align-items-center">
+      <h2>売上一覧</h2>
+    </div>
+
+    <div class="filters mb-3">
+      <%= form_with url: dashboard_sales_path, method: :get, local: true do |f| %>
+        <div class="filter-row">
+          <div class="filter-item">
+            <%= f.label :store_id, "店舗" %><br>
+            <%= f.select :store_id,
+                  options_from_collection_for_select(@stores, :id, :name, params[:store_id]),
+                  include_blank: "すべて",
+                  class: "form-control" %>
+          </div>
+          <div class="filter-item">
+            <%= f.label :from, "期間（自）" %><br>
+            <%= f.date_field :from, value: params[:from], class: "form-control" %>
+          </div>
+          <div class="filter-item">
+            <%= f.label :to, "期間（至）" %><br>
+            <%= f.date_field :to, value: params[:to], class: "form-control" %>
+          </div>
+          <div class="filter-item">
+            <br>
+            <%= f.submit "検索", class: "btn-signup" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <% if !params[:store_id].present? && !params[:from].present? && !params[:to].present? %>
+      <div class="empty-message">
+        <p>店舗または期間を指定して検索してください。</p>
+      </div>
+    <% elsif @sales.empty? %>
+      <div class="empty-message">
+        <p>該当する売上はありません。</p>
+      </div>
+    <% else %>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>日時</th>
+            <th>店舗</th>
+            <th>POS端末</th>
+            <th>レシート番号</th>
+            <th>支払方法</th>
+            <th class="text-right">金額</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @sales.each do |sale| %>
+            <tr>
+              <td><%= l sale.created_at, format: :short %></td>
+              <td><%= sale.store.name %></td>
+              <td><%= sale.pos_token&.ascii_name || "-" %></td>
+              <td><%= link_to sale.receipt_number, dashboard_sale_detail_path(sale), class: "link" %></td>
+              <td>
+                <% if sale.sale_payments.any? %>
+                  <ul class="list-unstyled mb-0">
+                    <% sale.sale_payments.each do |p| %>
+                      <li>
+                        <%= I18n.t("enum.sale.payment_method.#{p.method}", default: p.method) %>
+                        (<%= number_to_currency(p.amount, unit: "¥") %>)
+                      </li>
+                    <% end %>
+                  </ul>
+                <% else %>
+                  <%= I18n.t("enum.sale.payment_method.#{sale.payment_method}", default: sale.payment_method) %>
+                <% end %>
+              </td>
+              <td class="text-right"><%= number_to_currency(sale.total_amount, unit: "¥") %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+
+      <div class="pagination-wrapper">
+        <%= paginate @sales %>
+      </div>
+    <% end %>
+  </div>
+</div>

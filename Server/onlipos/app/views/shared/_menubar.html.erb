@@ -1,0 +1,10 @@
+<div class="nav-links">
+    <% if user_signed_in? %>
+        <%= link_to "マイページ", edit_user_registration_path %>
+        <%= link_to "ダッシュボード", dashboard_root_path %>
+        <%= link_to "ログアウト", destroy_user_session_path, data: { turbo_method: :delete } %>
+    <% else %>
+        <%= link_to "ログイン", new_user_session_path %>
+        <%= link_to "無料で始める", new_user_registration_path, class: "btn-signup" %>
+    <% end %>
+</div>

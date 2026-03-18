@@ -1,0 +1,101 @@
+<div class="dashboard-container">
+  <%= render 'dashboard/shared/menu' %>
+
+  <div class="dashboard-content card">
+    <div class="subtitle d-flex justify-content-between align-items-center">
+      <h2>レジ金履歴</h2>
+    </div>
+
+    <div class="filters mb-3">
+      <%= form_with url: dashboard_cash_logs_path, method: :get, local: true do |f| %>
+        <div class="filter-row">
+          <div class="filter-item">
+            <%= f.label :store_id, "店舗" %><br>
+            <%= f.select :store_id,
+                  options_from_collection_for_select(@stores, :id, :name, params[:store_id]),
+                  include_blank: "すべて",
+                  class: "form-control" %>
+          </div>
+          <div class="filter-item">
+            <%= f.label :pos_token_id, "POS端末" %><br>
+            <%= f.select :pos_token_id,
+                  options_for_select(
+                    @stores.flat_map(&:pos_tokens).map { |pt| [ "#{pt.store.name} / #{pt.name}", pt.id ] },
+                    params[:pos_token_id]
+                  ),
+                  include_blank: "すべて",
+                  class: "form-control" %>
+          </div>
+          <div class="filter-item">
+            <%= f.label :from, "日付（自）" %><br>
+            <%= f.date_field :from, value: params[:from], class: "form-control" %>
+          </div>
+          <div class="filter-item">
+            <%= f.label :to, "日付（至）" %><br>
+            <%= f.date_field :to, value: params[:to], class: "form-control" %>
+          </div>
+          <div class="filter-item">
+            <%= f.label :kind, "種別" %><br>
+            <%= f.select :kind,
+                  options_for_select(
+                    [["すべて", ""], ["開設", "open"], ["チェック", "check"], ["精算", "close"]],
+                    params[:kind]
+                  ),
+                  {}, class: "form-control" %>
+          </div>
+          <div class="filter-item">
+            <br>
+            <%= f.submit "検索", class: "btn-signup" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <% if !params[:store_id].present? && !params[:pos_token_id].present? && !params[:from].present? && !params[:to].present? && !params[:kind].present? %>
+      <div class="empty-message">
+        <p>店舗・端末・日付・種別のいずれかを指定して検索してください。</p>
+      </div>
+    <% elsif @cash_logs.empty? %>
+      <div class="empty-message">
+        <p>該当するレジ金履歴はありません。</p>
+      </div>
+    <% else %>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>日付</th>
+            <th>店舗</th>
+            <th>POS端末</th>
+            <th>担当者</th>
+            <th>種別</th>
+            <th class="text-right">レジ金合計</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @cash_logs.each do |log| %>
+            <tr>
+              <td><%= log.open_date %></td>
+              <td><%= log.pos_token.store.name %></td>
+              <td><%= log.pos_token.name %></td>
+              <td><%= log.employee.name %></td>
+              <td>
+                <% if log.is_start? %>
+                  開設
+                <% elsif log.is_end? %>
+                  精算
+                <% else %>
+                  チェック
+                <% end %>
+              </td>
+              <td class="text-right"><%= number_to_currency(log.total_amount, unit: "¥") %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+
+      <div class="pagination-wrapper">
+        <%= paginate @cash_logs %>
+      </div>
+    <% end %>
+  </div>
+</div>

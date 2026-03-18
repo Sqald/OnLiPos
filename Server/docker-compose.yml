@@ -1,0 +1,55 @@
+services:
+  rails:
+    build: 
+      context: ./onlipos/
+    volumes:
+      - ./onlipos/:/rails
+    environment:
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_NAME: ${DB_NAME}
+      HOST_NAME: ${HOST_NAME}
+      HOST_PORT: ${HOST_PORT}
+      SMTP_ADDRESS: ${SMTP_ADDRESS}
+      SMTP_DOMAIN: ${SMTP_DOMAIN}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER_NAME: ${SMTP_USER_NAME}
+      SMTP_MAIL_ADDRESS: ${SMTP_MAIL_ADDRESS}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    container_name: postgres
+    image: postgres:${POSTGRES_DOCKER_VERSION}
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - postgres:/var/lib/postgresql/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  nginx:
+    build:
+      context: ./nginx/
+      args:
+        - NGINX_DOCKER_VERSION=${NGINX_DOCKER_VERSION}
+    volumes:
+      - ./nginx/ssl:/ssl
+    ports:
+      - 80:80
+      - 443:443
+    depends_on:
+      - postgres
+      - rails
+
+volumes:
+  postgres:
+    

@@ -1,0 +1,101 @@
+<div class="dashboard-container">
+  <%= render 'dashboard/shared/menu' %>
+  
+  <div class="card login-id-card">
+    <h3 class="login-id-label">POS端末ログインID (企業ID)</h3>
+    <p class="login-id-value"><%= current_user.login_name %></p>
+    <p class="login-id-note">※ POS端末でログインする際は、このIDと各端末のID,パスワードを入力してください。</p>
+  </div>
+
+  <section class="dashboard-section">
+    <div class="section-header">
+      <h2>店舗一覧</h2>
+      <%= link_to "店舗を追加", new_dashboard_store_path, class: "btn-signup" %>
+    </div>
+    
+    <div class="card card-table">
+      <% if @stores.any? %>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>店舗名</th>
+              <th>店舗ID</th>
+              <th>登録日</th>
+              <th>POS台数</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @stores.each do |store| %>
+              <tr>
+                <td><%= store.name %></td>
+                <td><%= store.ascii_name %></td>
+                <td><%= store.created_at.strftime('%Y/%m/%d') %></td>
+                <td><%= store.pos_tokens.size %>台</td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% else %>
+        <div class="empty-message">
+          <p>店舗がまだ登録されていません。</p>
+        </div>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-header">
+      <h2>POS端末一覧</h2>
+      <%= link_to "POS端末を追加", new_dashboard_pos_device_path, class: "btn-signup" %>
+    </div>
+
+    <% if @stores.any? { |s| s.pos_tokens.any? } %>
+      <% @stores.each do |store| %>
+        <% if store.pos_tokens.any? %>
+          <div class="store-pos-group">
+            <h3 class="store-pos-title"><%= store.name %> (<%= store.ascii_name %>)</h3>
+            <div class="card card-table">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>端末名</th>
+                    <th>端末ID</th>
+                    <th>ステータス</th>
+                    <th>最終利用</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% store.pos_tokens.each do |pos| %>
+                    <tr>
+                      <td><%= pos.name %></td>
+                      <td><%= pos.ascii_name %></td>
+                      <td>
+                        <% if pos.last_used_at && pos.last_used_at > 1.hour.ago %>
+                          <span class="status-badge status-active">稼働中</span>
+                        <% else %>
+                          <span class="status-badge status-inactive">停止中</span>
+                        <% end %>
+                      </td>
+                      <td><%= pos.last_used_at ? pos.last_used_at.strftime('%Y/%m/%d %H:%M') : '-' %></td>
+                      <td>
+                        <%= button_to "PW再設定", dashboard_pos_device_update_password_path(pos), method: :patch, data: { turbo_confirm: "パスワードを再設定しますか？\n新しいパスワードが画面に表示されます。" }, class: "btn-sm btn-outline" %>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+    <% else %>
+      <div class="card">
+        <div class="empty-message">
+          <p>POS端末がまだ登録されていません。</p>
+        </div>
+      </div>
+    <% end %>
+  </section>
+
+</div>

@@ -1,0 +1,86 @@
+<div class="dashboard-container">
+  <%= render 'dashboard/shared/menu' %>
+
+  <div class="dashboard-content card">
+    <div class="subtitle d-flex justify-content-between align-items-center">
+      <h2>売上詳細</h2>
+    </div>
+
+    <div class="mb-3">
+      <table class="data-table">
+        <tbody>
+          <tr>
+            <th>日時</th>
+            <td><%= l @sale.created_at, format: :long %></td>
+          </tr>
+          <tr>
+            <th>店舗</th>
+            <td><%= @sale.store.name %></td>
+          </tr>
+          <tr>
+            <th>レシート番号</th>
+            <td><%= @sale.receipt_number %></td>
+          </tr>
+          <tr>
+            <th>POS端末</th>
+            <td><%= @sale.pos_token&.ascii_name || "-" %></td>
+          </tr>
+          <tr>
+            <th>合計金額</th>
+            <td><%= number_to_currency(@sale.total_amount, unit: "¥") %></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>支払い内訳</h3>
+    <table class="data-table mb-4">
+      <thead>
+        <tr>
+          <th>方法</th>
+          <th class="text-right">金額</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if @sale.sale_payments.any? %>
+          <% @sale.sale_payments.each do |p| %>
+            <tr>
+              <td><%= I18n.t("enum.sale.payment_method.#{p.method}", default: p.method) %></td>
+              <td class="text-right"><%= number_to_currency(p.amount, unit: "¥") %></td>
+            </tr>
+          <% end %>
+        <% else %>
+          <tr>
+            <td><%= I18n.t("enum.sale.payment_method.#{@sale.payment_method}", default: @sale.payment_method) %></td>
+            <td class="text-right"><%= number_to_currency(@sale.total_amount, unit: "¥") %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+
+    <h3>明細</h3>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>商品コード</th>
+          <th>商品名</th>
+          <th class="text-right">数量</th>
+          <th class="text-right">単価</th>
+          <th class="text-right">小計</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @sale.saledetails.each do |d| %>
+          <tr>
+            <td><%= d.product_id || "-" %></td>
+            <td><%= d.product_name %></td>
+            <td class="text-right"><%= d.quantity %></td>
+            <td class="text-right"><%= number_to_currency(d.unit_price, unit: "¥") %></td>
+            <td class="text-right"><%= number_to_currency(d.subtotal, unit: "¥") %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>
+

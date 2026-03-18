@@ -1,0 +1,89 @@
+<div class="dashboard-container">
+  <%= render 'dashboard/shared/menu' %>
+
+  <div class="dashboard-content card">
+    <div class="subtitle d-flex justify-content-between align-items-center">
+      <h2>在庫入出庫履歴</h2>
+    </div>
+
+    <div class="filters mb-3">
+      <%= form_with url: dashboard_stock_movements_path, method: :get, local: true do |f| %>
+        <div class="filter-row">
+          <div class="filter-item">
+            <%= f.label :store_id, "店舗" %><br>
+            <%= f.select :store_id,
+                  options_from_collection_for_select(@stores, :id, :name, params[:store_id]),
+                  include_blank: "すべて",
+                  class: "form-control" %>
+          </div>
+          <div class="filter-item">
+            <%= f.label :from, "日付（自）" %><br>
+            <%= f.date_field :from, value: params[:from], class: "form-control" %>
+          </div>
+          <div class="filter-item">
+            <%= f.label :to, "日付（至）" %><br>
+            <%= f.date_field :to, value: params[:to], class: "form-control" %>
+          </div>
+          <div class="filter-item">
+            <br>
+            <%= f.submit "検索", class: "btn-signup" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <% if !params[:store_id].present? && !params[:from].present? && !params[:to].present? %>
+      <div class="empty-message">
+        <p>店舗または日時を指定して検索してください。</p>
+      </div>
+    <% elsif @movements.empty? %>
+      <div class="empty-message">
+        <p>該当する入出庫履歴はありません。</p>
+      </div>
+    <% else %>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>日時</th>
+            <th>店舗</th>
+            <th>商品</th>
+            <th class="text-right">数量変化</th>
+            <th>理由</th>
+            <th>関連売上</th>
+            <th>担当者 / POS</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @movements.each do |m| %>
+            <tr>
+              <td><%= l m.created_at, format: :short %></td>
+              <td><%= m.store.name %></td>
+              <td><%= "#{m.product.name} (#{m.product.code})" %></td>
+              <td class="text-right"><%= m.quantity_change %></td>
+              <td><%= m.reason %></td>
+              <td>
+                <% if m.sale %>
+                  <%= link_to m.sale.receipt_number, dashboard_sale_detail_path(m.sale), class: "link" %>
+                <% else %>
+                  -
+                <% end %>
+              </td>
+              <td>
+                <% if m.employee %>
+                  <%= m.employee.name %>
+                <% end %>
+                <% if m.pos_token %>
+                  (<%= m.pos_token.name || m.pos_token.ascii_name %>)
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+
+      <div class="pagination-wrapper">
+        <%= paginate @movements %>
+      </div>
+    <% end %>
+  </div>
+</div>

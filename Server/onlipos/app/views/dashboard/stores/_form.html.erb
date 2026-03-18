@@ -1,0 +1,47 @@
+<%= form_with(model: [:dashboard, store], local: true, class: "dashboard-form") do |f| %>
+  <% if store.errors.any? %>
+    <div id="error_explanation">
+      <h2><%= pluralize(store.errors.count, "件のエラー") %>が発生しました:</h2>
+      <ul>
+        <% store.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="field">
+    <%= f.label :name, "店舗名" %>
+    <%= f.text_field :name, placeholder: "例: 渋谷店" %>
+  </div>
+
+  <div class="field">
+    <%= f.label :ascii_name, "店舗ID (半角英数)" %>
+    <% if store.new_record? %>
+      <%= f.text_field :ascii_name, placeholder: "例: shibuya01" %>
+      <p class="text-sm-muted">※ POS端末のログイン時に使用します。登録後は変更できません。</p>
+    <% else %>
+      <%= f.text_field :ascii_name, disabled: true, class: "form-input-disabled" %>
+    <% end %>
+  </div>
+
+  <div class="field">
+    <%= f.label :phone_number, "電話番号" %>
+    <%= f.text_field :phone_number, placeholder: "例: 03-1234-5678" %>
+  </div>
+
+  <div class="field">
+    <%= f.label :address, "住所" %>
+    <%= f.text_field :address, placeholder: "例: 東京都渋谷区..." %>
+  </div>
+
+  <div class="field">
+    <%= f.label :description, "店舗説明・備考" %>
+    <%= f.text_area :description, rows: 3, class: "form-select", style: "height: auto;" %>
+  </div>
+
+  <div class="actions">
+    <%= f.submit store.new_record? ? "登録する" : "更新する", class: "btn-signup" %>
+    <%= link_to "キャンセル", dashboard_stores_path, class: "link-cancel" %>
+  </div>
+<% end %>

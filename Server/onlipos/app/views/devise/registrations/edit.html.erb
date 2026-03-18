@@ -1,0 +1,80 @@
+<div class="auth-wrapper">
+  <div class="auth-container">
+    <h2><%= t('.title') %></h2>
+
+    <%= form_for(resource, as: resource_name, url: registration_path(resource_name), html: { method: :put }) do |f| %>
+      <%= render "devise/shared/error_messages", resource: resource %>
+
+      <div class="field">
+        <%= f.label :user_type %><br />
+        <%= f.radio_button :user_type, "individual" %>
+        <%= f.label :user_type_individual, t('devise.registrations.new.user_type_individual') %>
+        <%= f.radio_button :user_type, "corporate" %>
+        <%= f.label :user_type_corporate, t('devise.registrations.new.user_type_corporate') %>
+      </div>
+
+      <div class="field">
+        <%= f.label :company_name %><br />
+        <%= f.text_field :company_name, placeholder: t('devise.registrations.new.company_name_placeholder') %>
+      </div>
+
+      <div class="field">
+        <%= f.label :last_name, t('devise.registrations.new.full_name_label') %><br />
+        <%= f.text_field :last_name, placeholder: t('devise.registrations.new.last_name_placeholder'), style: "width: 45%; display: inline-block; margin-right: 4%;" %>
+        <%= f.text_field :first_name, placeholder: t('devise.registrations.new.first_name_placeholder'), style: "width: 45%; display: inline-block;" %>
+      </div>
+
+      <div class="field">
+        <%= f.label :login_name %><br />
+        <%= f.text_field :login_name, placeholder: "半角英数4~16文字" %>
+      </div>
+
+      <div class="field">
+        <%= f.label :email %><br />
+        <%= f.email_field :email, autofocus: true, autocomplete: "email" %>
+      </div>
+
+      <% if devise_mapping.confirmable? && resource.pending_reconfirmation? %>
+        <div class="alert">現在、<%= resource.unconfirmed_email %> の確認待ちです</div>
+      <% end %>
+
+      <div class="field">
+        <%= f.label :password %>
+        <span class="field-hint"><%= t('.leave_blank') %></span>
+        <% if @minimum_password_length %>
+          <span class="field-hint"><%= t('.password_min_length', count: @minimum_password_length) %></span>
+        <% end %><br />
+        <%= f.password_field :password, autocomplete: "new-password" %>
+      </div>
+
+      <div class="field">
+        <%= f.label :password_confirmation %><br />
+        <%= f.password_field :password_confirmation, autocomplete: "new-password" %>
+      </div>
+
+      <div class="field">
+        <%= f.label :current_password %>
+        <span class="field-hint"><%= t('.need_current_password') %></span><br />
+        <%= f.password_field :current_password, autocomplete: "current-password" %>
+      </div>
+
+      <div class="actions">
+        <%= f.submit t('.submit') %>
+      </div>
+    <% end %>
+
+    <div class="divider"></div>
+
+    <div class="danger-zone">
+      <h3><%= t('.cancel_title') %></h3>
+      <p><%= t('.cancel_text') %></p>
+      <div class="actions" style="margin-top: 0;">
+        <%= button_to t('.cancel_button'), registration_path(resource_name), data: { confirm: t('.are_you_sure'), turbo_confirm: t('.are_you_sure') }, method: :delete, class: "btn-danger" %>
+      </div>
+    </div>
+
+    <div class="auth-links">
+      <%= link_to t('.back'), :back %>
+    </div>
+  </div>
+</div>

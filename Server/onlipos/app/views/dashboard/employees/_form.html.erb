@@ -1,0 +1,95 @@
+<%= form_with(model: [:dashboard, employee], local: true, class: "auth-container dashboard-form-card") do |f| %>
+  <% if employee.errors.any? %>
+    <div id="error_explanation">
+      <h2>入力内容にエラーがあります:</h2>
+      <ul>
+        <% employee.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="field">
+    <%= f.label :code, "従業員番号 (1-12桁)" %>
+    <%= f.text_field :code, placeholder: "例: 1001", autofocus: true %>
+  </div>
+
+  <div class="field">
+    <%= f.label :name, "従業員名" %>
+    <%= f.text_field :name, placeholder: "例: 山田 太郎" %>
+  </div>
+
+  <div class="field">
+    <%= f.label :pin, "PINコード (4-6桁の数字)" %>
+    <%= f.password_field :pin, placeholder: "数字のみ" %>
+    <p class="field-hint">※ POS端末でのログインに使用します。変更しない場合は空欄にしてください。</p>
+  </div>
+
+  <div class="field">
+    <%= f.label :pin_confirmation, "PINコード (確認)" %>
+    <%= f.password_field :pin_confirmation, placeholder: "確認のため再入力" %>
+  </div>
+
+  <div class="field">
+    <label>所属店舗</label>
+    
+    <div class="store-selection-box">
+      <div class="store-selection-header">
+        <label class="checkbox-label-bold">
+          <%= f.check_box :is_all_stores, id: "select-all-stores", class: "store-checkbox-master" %>
+          全店舗を選択
+        </label>
+      </div>
+      
+      <div class="store-grid">
+        <%= f.collection_check_boxes :store_ids, @stores, :id, :name do |b| %>
+          <div class="checkbox-item">
+            <%= b.check_box(class: "store-checkbox") %>
+            <%= b.label(class: "store-label") %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <%= f.submit "保存する", class: "btn-signup" %>
+    <%= link_to "キャンセル", dashboard_employees_path, class: "link-cancel" %>
+  </div>
+<% end %>
+
+<script>
+  // Turbo Driveに対応するため turbo:load イベントを使用
+  document.addEventListener('turbo:load', function() {
+    const selectAll = document.getElementById('select-all-stores');
+    const checkboxes = document.querySelectorAll('.store-checkbox');
+
+    if (!selectAll || checkboxes.length === 0) return;
+
+    // 初期状態の判定: is_all_storesがONなら、個別のチェックボックスも全てONにする（表示上の整合性）
+    const updateSelectAllState = () => {
+      if (selectAll.checked) {
+        checkboxes.forEach(cb => cb.checked = true);
+      }
+    };
+    updateSelectAllState();
+
+    // 「全店舗」クリック時
+    selectAll.addEventListener('change', function() {
+      checkboxes.forEach(cb => cb.checked = this.checked);
+    });
+
+    // 個別のチェックボックスクリック時
+    checkboxes.forEach(cb => {
+      cb.addEventListener('change', function() {
+        // 個別が外されたら「全店舗」フラグも外す
+        if (!this.checked) {
+          selectAll.checked = false;
+        }
+        // 注意: 個別を全て手動でONにしても、意図的な「全店舗所属」とは限らないため
+        // selectAllを自動でONにはしない仕様とします。
+      });
+    });
+  });
+</script>

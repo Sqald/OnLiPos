@@ -1,0 +1,349 @@
+/* --- ダッシュボード画面用スタイル --- */
+
+.dashboard-container {
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 0 2rem;
+}
+
+/* --- ダッシュボードメニュー --- */
+.dashboard-menu {
+  margin-bottom: 2rem;
+}
+
+.dashboard-menu ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.dashboard-menu li {
+  margin: 0;
+}
+
+.menu-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  background-color: white;
+  color: var(--secondary);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+.menu-item:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background-color: #eff6ff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.menu-item.active {
+  color: var(--primary);
+  border-color: var(--primary);
+  background-color: #eff6ff;
+}
+
+.menu-item-disabled {
+  background-color: #f3f4f6;
+  color: #9ca3af;
+  border-color: transparent;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.menu-item-disabled:hover {
+  color: #9ca3af;
+  border-color: transparent;
+  background-color: #f3f4f6;
+  transform: none;
+  box-shadow: none;
+}
+
+/* --- セクション --- */
+.dashboard-section {
+  margin-bottom: 4rem;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.section-header h2 {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #111827;
+}
+
+/* --- データテーブル --- */
+.card-table {
+  padding: 0;
+  overflow: hidden;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.data-table th {
+  padding: 1rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+  background-color: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  font-weight: 600;
+}
+
+.data-table td {
+  padding: 1rem;
+  color: #111827;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* --- ステータスバッジ --- */
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.status-active { background-color: #d1fae5; color: #065f46; }
+.status-inactive { background-color: #f3f4f6; color: #4b5563; }
+
+/* --- 空の状態 --- */
+.empty-message { padding: 2rem; text-align: center; color: #6b7280; }
+
+/* --- 店舗・POSグループ --- */
+.store-pos-group { margin-bottom: 2.5rem; }
+.store-pos-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 1rem;
+  padding-left: 0.75rem;
+  border-left: 4px solid var(--primary);
+}
+
+/* --- ボタン類 --- */
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  display: inline-block;
+  text-decoration: none;
+  text-align: center;
+}
+
+.btn-danger-outline {
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
+.btn-danger-outline:hover {
+  background-color: #fef2f2;
+  color: #dc2626;
+}
+
+.btn-outline {
+  background: transparent;
+  border-color: #d1d5db;
+  color: #4b5563;
+}
+.btn-outline:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+/* --- ログインID表示エリア --- */
+.login-id-card {
+  margin-bottom: 3rem;
+  text-align: center;
+}
+
+.login-id-label {
+  font-size: 1rem;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.login-id-value {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--primary);
+  letter-spacing: 0.05em;
+}
+
+.login-id-note {
+  font-size: 0.875rem;
+  color: #4b5563;
+  margin-top: 0.5rem;
+}
+
+/* --- フォーム用追加スタイル --- */
+.dashboard-form-card {
+  max-width: 600px !important;
+  margin: 0 auto;
+}
+
+.text-sm-muted {
+  font-size: 0.8em;
+  color: #6b7280;
+}
+
+.store-selection-box {
+  background: #f9fafb;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+}
+
+.store-selection-header {
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.checkbox-label-bold {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: bold;
+  margin-bottom: 0 !important;
+}
+
+.store-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.5rem;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+}
+
+.store-checkbox {
+  margin-right: 0.5rem !important;
+}
+
+.store-label {
+  cursor: pointer;
+  font-weight: normal;
+  margin-bottom: 0 !important;
+}
+
+.link-cancel {
+  display: block;
+  text-align: center;
+  margin-top: 1rem;
+  color: #6b7280;
+  text-decoration: none;
+}
+
+.link-cancel:hover {
+  color: var(--secondary);
+  text-decoration: underline;
+}
+
+/* --- フォーム要素 --- */
+.form-select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  color: #111827;
+  box-sizing: border-box;
+  background-color: white;
+}
+
+input.form-input-disabled {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  box-sizing: border-box;
+  background-color: #f3f4f6;
+  color: #6b7280;
+}
+
+/* --- ページネーション --- */
+.pagination-wrapper {
+  padding: 1rem;
+  display: flex;
+  justify-content: center;
+}
+
+.pagination {
+  display: flex;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.pagination span a, .pagination span.current, .pagination span.gap {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  text-decoration: none;
+  color: var(--secondary);
+  font-size: 0.9rem;
+}
+
+.pagination span.current {
+  background-color: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.pagination span a:hover {
+  background-color: #f3f4f6;
+}
+
+/* --- フォーム追加スタイル --- */
+textarea.form-select {
+  font-family: inherit;
+}
+
+.radio-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.radio-group input[type="radio"] {
+  margin-right: 0.25rem;
+}
+
+.radio-group label {
+  margin-bottom: 0;
+  cursor: pointer;
+  font-weight: normal;
+}

@@ -1,0 +1,51 @@
+<%= form_with(model: [:dashboard, product], local: true, class: "dashboard-form") do |f| %>
+  <% if product.errors.any? %>
+    <div id="error_explanation">
+      <h2><%= pluralize(product.errors.count, "件のエラー") %>が発生しました:</h2>
+      <ul>
+        <% product.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="field">
+    <%= f.label :code, "商品コード" %>
+    <%= f.text_field :code, placeholder: "例: P0001" %>
+  </div>
+
+  <div class="field">
+    <%= f.label :name, "商品名" %>
+    <%= f.text_field :name, placeholder: "例: オリジナルTシャツ" %>
+  </div>
+
+  <div class="field">
+    <%= f.label :price, "基本価格 (税込)" %>
+    <%= f.number_field :price, placeholder: "例: 1000" %>
+  </div>
+
+  <div class="field">
+    <%= f.label :description, "商品説明" %>
+    <%= f.text_area :description, rows: 4, class: "form-select", style: "height: auto;" %>
+  </div>
+
+  <div class="field">
+    <%= f.label :status, "ステータス" %>
+    <div class="radio-group">
+      <%= f.radio_button :status, :active, checked: product.active? || product.new_record? %>
+      <%= f.label :status_active, "有効" %>
+      
+      <%= f.radio_button :status, :discontinued %>
+      <%= f.label :status_discontinued, "廃盤" %>
+    </div>
+  </div>
+
+  <div class="actions">
+  <%= f.button product.new_record? ? "登録する" : "更新する", 
+      type: "button", 
+      class: "btn-signup", 
+      onclick: "this.form.submit();" %>
+  <%= link_to "キャンセル", dashboard_products_path, class: "link-cancel" %>
+</div>
+<% end %>

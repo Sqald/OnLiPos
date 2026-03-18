@@ -1,0 +1,239 @@
+ja:
+  activerecord:
+    errors:
+      messages:
+        record_invalid: "バリデーションに失敗しました: %{errors}"
+        restrict_dependent_destroy:
+          has_one: "%{record}が存在しているので削除できません"
+          has_many: "%{record}が存在しているので削除できません"
+      models:
+        employee:
+          attributes:
+            pin:
+              invalid: "は4〜6桁の数字で入力してください"
+    models:
+      user: "ユーザー"
+      store: "店舗"
+      pos_token: "POS端末"
+      employee: "従業員"
+    attributes:
+      user:
+        company_name: "会社名"
+        last_name: "姓"
+        first_name: "名"
+        user_type: "アカウント種別"
+        email: "メールアドレス"
+        login_name: "POS端末ログインID"
+        password: "パスワード"
+        password_confirmation: "パスワード（確認）"
+        current_password: "現在のパスワード"
+      store:
+        name: "店舗名"
+        ascii_name: "店舗ID"
+        user: "オーナー"
+      pos_token:
+        name: "端末名"
+        ascii_name: "端末ID"
+        store: "店舗"
+        password: "パスワード"
+        password_confirmation: "パスワード（確認）"
+      employee:
+        name: "従業員名"
+        pin: "PINコード"
+        pin_confirmation: "PINコード（確認）"
+        is_all_stores: "全店舗所属"
+        stores: "所属店舗"
+  date:
+    abbr_day_names:
+    - 日
+    - 月
+    - 火
+    - 水
+    - 木
+    - 金
+    - 土
+    abbr_month_names:
+    - 
+    - 1月
+    - 2月
+    - 3月
+    - 4月
+    - 5月
+    - 6月
+    - 7月
+    - 8月
+    - 9月
+    - 10月
+    - 11月
+    - 12月
+    day_names:
+    - 日曜日
+    - 月曜日
+    - 火曜日
+    - 水曜日
+    - 木曜日
+    - 金曜日
+    - 土曜日
+    formats:
+      default: "%Y/%m/%d"
+      long: "%Y年%m月%d日(%a)"
+      short: "%m/%d"
+    month_names:
+    - 
+    - 1月
+    - 2月
+    - 3月
+    - 4月
+    - 5月
+    - 6月
+    - 7月
+    - 8月
+    - 9月
+    - 10月
+    - 11月
+    - 12月
+    order:
+    - :year
+    - :month
+    - :day
+  time:
+    am: 午前
+    formats:
+      default: "%Y年%m月%d日(%a) %H:%M:%S"
+      long: "%Y年%m月%d日(%a) %H時%M分%S秒 %z"
+      short: "%d日 %H:%M"
+    pm: 午後
+  errors:
+    format: "%{attribute}%{message}"
+    messages:
+      accepted: "を受諾してください"
+      blank: "を入力してください"
+      confirmation: "と%{attribute}の入力が一致しません"
+      empty: "を入力してください"
+      equal_to: "は%{count}にしてください"
+      even: "は偶数にしてください"
+      exclusion: "は予約されています"
+      greater_than: "は%{count}より大きい値にしてください"
+      greater_than_or_equal_to: "は%{count}以上の値にしてください"
+      inclusion: "は一覧にありません"
+      invalid: "は不正な値です"
+      less_than: "は%{count}より小さい値にしてください"
+      less_than_or_equal_to: "は%{count}以下の値にしてください"
+      model_invalid: "バリデーションに失敗しました: %{errors}"
+      not_a_number: "は数値で入力してください"
+      not_an_integer: "は整数で入力してください"
+      odd: "は奇数にしてください"
+      other_than: "は%{count}以外の値にしてください"
+      present: "は入力しないでください"
+      required: "を入力してください"
+      taken: "はすでに存在します"
+      too_long: "は%{count}文字以内で入力してください"
+      too_short: "は%{count}文字以上で入力してください"
+      wrong_length: "は%{count}文字で入力してください"
+      # Devise specific errors
+      already_confirmed: "は既に登録済みです。ログインしてください。"
+      confirmation_period_expired: "の期限が切れました。%{period} までに確認する必要があります。新しくリクエストしてください。"
+      expired: "の期限が切れました。新しくリクエストしてください。"
+      not_found: "は見つかりませんでした。"
+      not_locked: "は凍結されていません。"
+      not_saved:
+        one: "エラーが発生したため %{resource} は保存されませんでした:"
+        other: "%{count} 件のエラーが発生したため %{resource} は保存されませんでした:"
+  devise:
+    confirmations:
+      confirmed: "メールアドレスの確認が完了しました。"
+      send_instructions: "メールアドレスの確認方法に関するメールを数分以内に送信します。"
+      send_paranoid_instructions: "あなたのメールアドレスが登録されている場合、メールアドレスの確認方法に関するメールを数分以内に送信します。"
+      new:
+        resend_confirmation_instructions: "確認メールの再送信"
+    failure:
+      already_authenticated: "すでにログインしています。"
+      inactive: "アカウントが有効化されていません。"
+      invalid: "%{authentication_keys}またはパスワードが違います。"
+      locked: "アカウントが凍結されています。"
+      last_attempt: "あなたのアカウントが凍結される前に、あと1回試行できます。"
+      not_found_in_database: "%{authentication_keys}またはパスワードが違います。"
+      timeout: "セッションの有効期限が切れました。もう一度ログインしてください。"
+      unauthenticated: "アカウント登録もしくはログインしてください。"
+      unconfirmed: "メールアドレスの本人確認が必要です。"
+    mailer:
+      confirmation_instructions:
+        subject: "メールアドレス確認のお願い"
+      reset_password_instructions:
+        subject: "パスワードの再設定"
+      unlock_instructions:
+        subject: "アカウントの凍結解除"
+      email_changed:
+        subject: "メールアドレスの変更"
+      password_change:
+        subject: "パスワードの変更"
+    omniauth_callbacks:
+      failure: "%{kind} アカウントによる認証に失敗しました。理由: %{reason}"
+      success: "%{kind} アカウントによる認証に成功しました。"
+    passwords:
+      no_token: "このページにはアクセスできません。パスワード再設定メールのリンクからアクセスしていることを確認してください。"
+      send_instructions: "パスワードの再設定方法に関するメールを数分以内に送信します。"
+      send_paranoid_instructions: "あなたのメールアドレスが登録されている場合、パスワードの再設定リンクを記載したメールを数分以内に送信します。"
+      updated: "パスワードが正しく変更されました。ログインしました。"
+      updated_not_active: "パスワードが正しく変更されました。"
+      new:
+        forgot_your_password: "パスワードを忘れましたか？"
+        send_me_reset_password_instructions: "パスワード再設定メールを送信"
+    registrations:
+      new:
+        title: "新規登録"
+        user_type_individual: "個人"
+        user_type_corporate: "法人"
+        company_name_placeholder: "法人の場合のみ入力"
+        full_name_label: "担当者氏名"
+        last_name_placeholder: "姓"
+        first_name_placeholder: "名"
+      edit:
+        title: "アカウント編集"
+        leave_blank: "(変更しない場合は空欄)"
+        password_min_length: "(%{count}文字以上)"
+        need_current_password: "(変更には現在のパスワードが必要です)"
+        submit: "更新する"
+        cancel_title: "アカウント削除"
+        cancel_text: "気に入らないですか？ アカウントを削除できます。"
+        cancel_button: "アカウントを削除する"
+        are_you_sure: "本当に削除しますか？"
+        leave_blank_if_you_don_t_want_to_change_it: "変更しない場合は空欄にしてください"
+        we_need_your_current_password_to_confirm_your_changes: "変更を確認するため現在のパスワードが必要です"
+        back: "戻る"
+      destroyed: "アカウントを削除しました。またのご利用をお待ちしております。"
+      signed_up: "アカウント登録が完了しました。"
+      signed_up_but_inactive: "アカウント登録が完了しました。しかし、アカウントが有効化されていないためログインできません。"
+      signed_up_but_locked: "アカウント登録が完了しました。しかし、アカウントが凍結されているためログインできません。"
+      signed_up_but_unconfirmed: "本人確認用のメールを送信しました。メール内のリンクからアカウントを有効化してください。"
+      update_needs_confirmation: "アカウント情報を変更しました。変更されたメールアドレスの本人確認のため、本人確認用メールを確認してください。"
+      updated: "アカウント情報を変更しました。"
+      updated_but_not_signed_in: "アカウント情報を変更しました。パスワードが変更されたため、再度ログインしてください。"
+    sessions:
+      signed_in: "ログインしました。"
+      signed_out: "ログアウトしました。"
+      already_signed_out: "ログアウトしました。"
+    unlocks:
+      send_instructions: "アカウントの凍結解除方法に関するメールを数分以内に送信します。"
+      send_paranoid_instructions: "アカウントが存在する場合、アカウントの凍結解除方法に関するメールを数分以内に送信します。"
+      unlocked: "アカウントを凍結解除しました。ログインしてください。"
+      new:
+        resend_unlock_instructions: "凍結解除メールの再送信"
+    shared:
+      links:
+        sign_in: "ログイン"
+        sign_up: "アカウント登録"
+        forgot_your_password: "パスワードを忘れましたか？"
+        didn_t_receive_confirmation_instructions: "確認メールが届きませんか？"
+        didn_t_receive_unlock_instructions: "凍結解除メールが届きませんか？"
+        sign_in_with_provider: "%{provider} でログイン"
+  api:
+    v1:
+      pos_devices:
+        login:
+          failure: "認証情報が無効です"
+        top_user_login:
+          failure: "従業員コードまたはPINが正しくありません"
+        open:
+          employee_not_found: "従業員が見つかりません"
+          success: "開店処理が完了しました"

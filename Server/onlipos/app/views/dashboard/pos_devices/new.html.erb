@@ -1,0 +1,54 @@
+<div class="auth-wrapper">
+  <div class="auth-container">
+    <h2>POS端末登録</h2>
+
+    <%= form_with(model: @pos_token, url: dashboard_pos_devices_path ,local: true) do |f| %>
+      <% if @pos_token.errors.any? %>
+        <div id="error_explanation">
+          <h2><%= pluralize(@pos_token.errors.count, "error") %> prohibited this pos_token from being saved:</h2>
+          <ul>
+            <% @pos_token.errors.full_messages.each do |message| %>
+              <li><%= message %></li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+
+      <div class="field">
+        <%= f.label :store_id %>
+        <%= f.collection_select :store_id, @stores, :id, :name, { prompt: "選択してください" }, { class: "form-select", required: true } %>
+      </div>
+
+      <div class="field">
+        <%= f.label :provisioning_id, "端末設定 (プロビジョニング)" %>
+        <%= f.collection_select :provisioning_id, @provisionings, :id, :name, { include_blank: "指定なし" }, { class: "form-select" } %>
+        <span class="field-hint">レシートプリンター等の設定を紐付けます</span>
+      </div>
+
+      <div class="field">
+        <%= f.label :name %>
+        <%= f.text_field :name, placeholder: "例: レジカウンター1", autofocus: true, required: true %>
+        <span class="field-hint">管理用の名前を入力してください（※店舗内で重複しない名前）</span>
+      </div>
+
+      <div class="field">
+        <%= f.label :ascii_name %>
+        <%= f.text_field :ascii_name, placeholder: "半角英数3~16文字", required: true %>
+        <span class="field-hint">端末を識別するIDを入力してください（※半角英数字）</span>
+      </div>
+
+      <div class="field">
+        <label>パスワード</label>
+        <input type="text" value="登録時に自動生成されます" disabled class="form-input-disabled">
+      </div>
+
+      <div class="actions">
+        <%= f.submit "登録する" %>
+      </div>
+    <% end %>
+
+    <div class="auth-links">
+      <%= link_to "戻る", :back %>
+    </div>
+  </div>
+</div>

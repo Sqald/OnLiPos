@@ -1,0 +1,63 @@
+<div class="dashboard-container">
+  <%= render 'dashboard/shared/menu' %>
+
+  <div class="dashboard-content card">
+    <div class="subtitle d-flex justify-content-between align-items-center mb-3">
+      <h2>商品一覧</h2>
+      <div class="d-flex gap-2">
+        <%= link_to "商品登録", new_dashboard_product_path, class: "btn-signup" %>
+      </div>
+    </div>
+
+    <%# --- ここから追加 --- %>
+    <div class="card my-4">
+      <div class="card-body">
+        <h3 class="card-title">CSVで一括登録</h3>
+        <p class="text-muted">
+          ヘッダー: <strong>code, name, price, description, status</strong> を含むCSVファイルを選択してください。<br>
+          statusは <strong>active</strong> または <strong>discontinued</strong> を指定します。
+        </p>
+        <%= form_with(url: import_dashboard_products_path, multipart: true, local: true, class: "d-flex align-items-end") do |form| %>
+          <div class="field me-3">
+            <%= form.label :file, "CSVファイル", class: "form-label" %>
+            <%= form.file_field :file, accept: 'text/csv', class: "form-control" %>
+          </div>
+          <div class="actions">
+            <%= form.submit "インポート", class: "btn-signup" %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+    <%# --- ここまで追加 --- %>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>商品コード</th>
+          <th>商品名</th>
+          <th>基本価格</th>
+          <th>ステータス</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @products.each do |product| %>
+          <tr>
+            <td><%= product.code %></td>
+            <td><%= product.name %></td>
+            <td><%= number_to_currency(product.price) %></td>
+            <td>
+              <span class="status-badge <%= product.active? ? 'status-active' : 'status-inactive' %>">
+                <%= product.status_i18n %>
+              </span>
+            </td>
+            <td>
+              <%= link_to "編集", edit_dashboard_product_path(product), class: "btn-sm btn-outline" %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+    <%= paginate @products %>
+  </div>
+</div>
