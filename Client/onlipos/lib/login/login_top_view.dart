@@ -5,7 +5,7 @@ import 'package:onlipos/startup/open_view.dart';
 import 'package:onlipos/provisioning/provisioning_view.dart';
 
 class LoginTopView extends StatefulWidget {
-  const LoginTopView({Key? key}) : super(key: key);
+  const LoginTopView({super.key});
 
   @override
   _LoginTopViewState createState() => _LoginTopViewState();

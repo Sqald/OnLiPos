@@ -1,15 +1,15 @@
 <section class="hero-section">
   <div class="hero-content">
-    <h1>店舗管理を、<br><span class="highlight">もっと自由でスマートに。</span></h1>
-    <p>複数店舗・複数端末のPOSデータをリアルタイムに統括。あなたのビジネスに合わせた最適な運用環境を提供します。</p>
+    <h1>OnLiPos<br><span class="highlight">Self-Managed Edition</span></h1>
+    <p>自社環境で安全に運用するためのセルフマネージド版です。店舗データを自社インフラで一元管理し、運用ポリシーに合わせて柔軟に拡張できます。</p>
     
     <div class="cta-group">
       <% if user_signed_in? %>
         <%= link_to "ダッシュボードを開く", dashboard_root_path, class: "btn-primary" %>
       <% else %>
-        <%= link_to "今すぐアカウントを作成", new_user_registration_path, class: "btn-primary" %>
+        <%= link_to "サインイン", new_user_session_path, class: "btn-primary" %>
       <% end %>
-      <a href="#styles" class="btn-secondary">スタイルを詳しく見る</a>
+      <a href="#self-managed" class="btn-secondary">運用方針を見る</a>
     </div>
   </div>
 </section>
@@ -18,21 +18,21 @@
   <div class="features-grid">
     <div class="feature-card">
       <div class="icon icon-blue"></div>
-      <h3>多店舗・多端末管理</h3>
-      <p>全店舗の売上、在庫データを一つの画面で集約管理。</p>
+      <h3>オンプレミス運用</h3>
+      <p>クラウド依存を抑え、自社ネットワーク内で安定したPOS運用を実現します。</p>
     </div>
     
     <div class="feature-card">
       <div class="icon icon-green"></div>
-      <h3>データ統括取得</h3>
-      <p>店舗を横断した高度な分析が可能。経営判断を加速させます。</p>
+      <h3>データ主権の確保</h3>
+      <p>売上・在庫・操作ログを自社管理し、監査要件や社内規定に対応しやすくします。</p>
     </div>
   </div>
 </section>
 
-<section id="styles" class="styles-comparison">
+<section id="self-managed" class="styles-comparison">
   <div class="subtitle">
-    <h2>ビジネスに合わせた2つの運用スタイル</h2>
+    <h2>セルフマネージド運用の基本方針</h2>
   </div>
   
   <div class="styles-grid">
@@ -40,24 +40,25 @@
       <span class="label">Self-Managed</span>
       <h3>セルフマネージド</h3>
       <ul>
-        <li>自社サーバ環境への構築</li>
-        <li>完全なデータコントロール</li>
+        <li>自社サーバ環境への導入・運用</li>
+        <li>バックアップ/監視を含む運用ルールを自社で統制</li>
+        <li>店舗運用に合わせた設定変更・拡張が可能</li>
       </ul>
-      <a class="btn-solid">ドキュメント</a>
+      <a class="btn-solid" href="/terms">利用規約を確認</a>
     </div>
 
     <div class="card card-online">
-      <span class="label">Online</span>
-      <h3>オンライン</h3>
+      <span class="label">Operation</span>
+      <h3>運用導線</h3>
       <ul>
-        <li>構築不要、即日利用可能</li>
-        <li>専用サイトからどこでも管理</li>
+        <li>初期導入後はダッシュボードから日次運用</li>
+        <li>端末追加や店舗設定は管理画面から実施</li>
       </ul>
       
       <% if user_signed_in? %>
-        <%= link_to "管理画面へ移動", root_path, class: "btn-solid" %>
+        <%= link_to "管理画面へ移動", dashboard_root_path, class: "btn-solid" %>
       <% else %>
-        <%= link_to "今すぐ申し込む", new_user_registration_path, class: "btn-solid" %>
+        <%= link_to "サインイン", new_user_session_path, class: "btn-solid" %>
       <% end %>
     </div>
   </div>

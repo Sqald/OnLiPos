@@ -204,7 +204,7 @@ class _OpenViewState extends State<OpenView> {
                         ],
                       ),
                     );
-                  }).toList(),
+                  }),
                 ],
               ),
             ),

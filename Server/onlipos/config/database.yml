@@ -11,7 +11,7 @@ default: &default
   host: postgres
   port: 5432
   username: <%= ENV['DB_USER'] %>
-  password: <%= ENV['DB_PASS'] %>
+  password: <%= File.exist?('/run/secrets/db_password') ? File.read('/run/secrets/db_password').strip : ENV.fetch('DB_PASS', '') %>
 
 development:
   <<: *default

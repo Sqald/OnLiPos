@@ -286,7 +286,7 @@ class _CashCheckViewState extends State<CashCheckView> {
                         ],
                       ),
                     );
-                  }).toList(),
+                  }),
                 ],
               ),
             ),

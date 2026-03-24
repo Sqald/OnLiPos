@@ -33,7 +33,7 @@ module Onlipos
       domain:               ENV['SMTP_DOMAIN'],
       port:                 ENV['SMTP_PORT'] || 587, # 値がなければ587を使う
       user_name:            ENV['SMTP_USER_NAME'],
-      password:             ENV['SMTP_PASSWORD'],
+      password:             File.exist?('/run/secrets/smtp_password') ? File.read('/run/secrets/smtp_password').strip : ENV.fetch('SMTP_PASSWORD', ''),
       authentication:       'plain',
       enable_starttls_auto: true
     }

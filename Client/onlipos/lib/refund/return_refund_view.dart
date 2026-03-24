@@ -38,8 +38,12 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
 
   @override
   void dispose() {
-    for (final c in _codeControllers) c.dispose();
-    for (final c in _pinControllers) c.dispose();
+    for (final c in _codeControllers) {
+      c.dispose();
+    }
+    for (final c in _pinControllers) {
+      c.dispose();
+    }
     _receiptNumberController.dispose();
     super.dispose();
   }

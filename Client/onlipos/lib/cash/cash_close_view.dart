@@ -307,7 +307,7 @@ class _CashCloseViewState extends State<CashCloseView> {
                         ],
                       ),
                     );
-                  }).toList(),
+                  }),
                 ],
               ),
             ),

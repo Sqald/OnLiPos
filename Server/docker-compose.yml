@@ -2,11 +2,9 @@ services:
   rails:
     build: 
       context: ./onlipos/
-    volumes:
-      - ./onlipos/:/rails
     environment:
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
       DB_USER: ${DB_USER}
-      DB_PASS: ${DB_PASS}
       DB_NAME: ${DB_NAME}
       HOST_NAME: ${HOST_NAME}
       HOST_PORT: ${HOST_PORT}
@@ -15,7 +13,9 @@ services:
       SMTP_PORT: ${SMTP_PORT}
       SMTP_USER_NAME: ${SMTP_USER_NAME}
       SMTP_MAIL_ADDRESS: ${SMTP_MAIL_ADDRESS}
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
+    secrets:
+      - db_password
+      - smtp_password
     depends_on:
       postgres:
         condition: service_healthy
@@ -25,10 +25,12 @@ services:
     image: postgres:${POSTGRES_DOCKER_VERSION}
     environment:
       POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASS}
       POSTGRES_DB: ${DB_NAME}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
     volumes:
       - postgres:/var/lib/postgresql/
+    secrets:
+      - db_password
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 10s
@@ -52,4 +54,9 @@ services:
 
 volumes:
   postgres:
-    
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  smtp_password:
+    file: ./secrets/smtp_password.txt
