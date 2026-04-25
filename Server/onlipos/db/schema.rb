@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_13_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_15_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -56,6 +56,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_13_100000) do
     t.index ["store_id", "employee_id"], name: "index_employees_stores_on_store_id_and_employee_id"
   end
 
+  create_table "hold_orders", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.jsonb "items", default: [], null: false
+    t.integer "operator_id", null: false
+    t.string "operator_name", null: false
+    t.bigint "store_id", null: false
+    t.integer "total_amount", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["store_id"], name: "index_hold_orders_on_store_id"
+  end
+
   create_table "pos_tokens", force: :cascade do |t|
     t.string "ascii_name"
     t.datetime "created_at", null: false
@@ -84,6 +95,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_13_100000) do
     t.index ["store_id"], name: "index_prices_on_store_id"
   end
 
+  create_table "product_bundle_items", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "product_bundle_id", null: false
+    t.bigint "product_id", null: false
+    t.integer "quantity", default: 1, null: false
+    t.datetime "updated_at", null: false
+    t.index ["product_bundle_id", "product_id"], name: "index_product_bundle_items_on_product_bundle_id_and_product_id", unique: true
+    t.index ["product_bundle_id"], name: "index_product_bundle_items_on_product_bundle_id"
+    t.index ["product_id"], name: "index_product_bundle_items_on_product_id"
+  end
+
+  create_table "product_bundles", force: :cascade do |t|
+    t.string "code", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.integer "price", default: 0, null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["user_id", "code"], name: "index_product_bundles_on_user_id_and_code", unique: true
+    t.index ["user_id"], name: "index_product_bundles_on_user_id"
+  end
+
   create_table "products", force: :cascade do |t|
     t.string "code", null: false
     t.datetime "created_at", null: false
@@ -91,6 +125,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_13_100000) do
     t.string "name", null: false
     t.integer "price", default: 0, null: false
     t.integer "status", default: 0, null: false
+    t.integer "tax_rate", default: 10, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.index ["user_id", "code"], name: "index_products_on_user_id_and_code", unique: true
@@ -158,6 +193,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_13_100000) do
     t.integer "quantity", default: 1, null: false
     t.bigint "sale_id", null: false
     t.integer "subtotal", null: false
+    t.integer "tax_amount", default: 0, null: false
+    t.integer "tax_rate", default: 0, null: false
     t.integer "unit_price", null: false
     t.datetime "updated_at", null: false
     t.index ["product_id"], name: "index_saledetails_on_product_id"
@@ -170,6 +207,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_13_100000) do
     t.bigint "pos_token_id"
     t.string "receipt_number", null: false
     t.bigint "store_id", null: false
+    t.integer "subtotal_ex_tax", default: 0, null: false
+    t.integer "tax_amount", default: 0, null: false
     t.integer "total_amount", null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
@@ -222,6 +261,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_13_100000) do
     t.index ["user_id"], name: "index_stores_on_user_id"
   end
 
+  create_table "table_orders", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.jsonb "items", default: [], null: false
+    t.bigint "store_id", null: false
+    t.string "table_number", null: false
+    t.datetime "updated_at", null: false
+    t.index ["store_id", "table_number"], name: "index_table_orders_on_store_id_and_table_number", unique: true
+    t.index ["store_id"], name: "index_table_orders_on_store_id"
+  end
+
+  create_table "transfer_orders", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.jsonb "items", default: [], null: false
+    t.integer "operator_id", null: false
+    t.string "operator_name", null: false
+    t.bigint "store_id", null: false
+    t.string "table_number"
+    t.integer "total_amount", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["store_id"], name: "index_transfer_orders_on_store_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.string "company_name"
     t.datetime "confirmation_sent_at"
@@ -254,6 +315,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_13_100000) do
     t.index ["unlock_token"], name: "index_users_on_unlock_token", unique: true
   end
 
+  add_foreign_key "hold_orders", "stores"
+  add_foreign_key "table_orders", "stores"
+  add_foreign_key "transfer_orders", "stores"
   add_foreign_key "cash_logs", "employees"
   add_foreign_key "cash_logs", "pos_tokens"
   add_foreign_key "employees", "users"
@@ -261,6 +325,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_13_100000) do
   add_foreign_key "pos_tokens", "stores"
   add_foreign_key "prices", "products"
   add_foreign_key "prices", "stores"
+  add_foreign_key "product_bundle_items", "product_bundles"
+  add_foreign_key "product_bundle_items", "products"
+  add_foreign_key "product_bundles", "users"
   add_foreign_key "products", "users"
   add_foreign_key "provisionings", "stores"
   add_foreign_key "provisionings", "users"

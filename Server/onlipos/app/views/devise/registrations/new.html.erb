@@ -47,13 +47,6 @@
         <%= f.password_field :password_confirmation, autocomplete: "new-password" %>
       </div>
 
-      <div class="field">
-        <%= f.check_box :terms_of_service %>
-        <%= f.label :terms_of_service do %>
-          <%= link_to "利用規約", "/terms", target: "_blank" %>に同意する
-        <% end %>
-      </div>
-
       <div class="actions">
         <%= f.submit "アカウント登録" %>
       </div>

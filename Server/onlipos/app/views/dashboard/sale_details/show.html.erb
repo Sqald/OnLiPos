@@ -26,9 +26,32 @@
             <td><%= @sale.pos_token&.ascii_name || "-" %></td>
           </tr>
           <tr>
-            <th>合計金額</th>
+            <th>合計金額（税込）</th>
             <td><%= number_to_currency(@sale.total_amount, unit: "¥") %></td>
           </tr>
+          <% if @sale.subtotal_ex_tax > 0 %>
+          <tr>
+            <th>税抜小計</th>
+            <td><%= number_to_currency(@sale.subtotal_ex_tax, unit: "¥") %></td>
+          </tr>
+          <tr>
+            <th>消費税合計</th>
+            <td><%= number_to_currency(@sale.tax_amount, unit: "¥") %></td>
+          </tr>
+          <% end %>
+
+          <% if @sale.refunds.exists? %>
+          <tr>
+            <th>返品状態</th>
+            <td>
+              <% @sale.refunds.each do |refund| %>
+                <span class="status-badge status-inactive">返品済</span>
+                <%= link_to refund.refund_receipt_number, dashboard_refund_path(refund), class: "link" %>
+                （返金額: <%= number_to_currency(refund.total_amount, unit: "¥") %>）
+              <% end %>
+            </td>
+          </tr>
+          <% end %>
         </tbody>
       </table>
     </div>
@@ -67,16 +90,18 @@
           <th class="text-right">数量</th>
           <th class="text-right">単価</th>
           <th class="text-right">小計</th>
+          <th class="text-right">税率</th>
         </tr>
       </thead>
       <tbody>
         <% @sale.saledetails.each do |d| %>
           <tr>
-            <td><%= d.product_id || "-" %></td>
+            <td><%= d.product&.code || "-" %></td>
             <td><%= d.product_name %></td>
             <td class="text-right"><%= d.quantity %></td>
             <td class="text-right"><%= number_to_currency(d.unit_price, unit: "¥") %></td>
             <td class="text-right"><%= number_to_currency(d.subtotal, unit: "¥") %></td>
+            <td class="text-right"><%= d.tax_rate > 0 ? "#{d.tax_rate}%" : "-" %></td>
           </tr>
         <% end %>
       </tbody>

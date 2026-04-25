@@ -3,6 +3,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../login/login_top_view.dart';
 import '../provisioning/provisioning_view.dart';
+import '../sale/offline_sale_repository.dart';
 
 /// 業務中に安全に実行できる範囲の設定画面。
 ///
@@ -21,6 +22,7 @@ class _SettingsViewState extends State<SettingsView> {
 
   String? _storeName;
   String? _printerIp;
+  int _offlinePendingCount = 0;
   bool _loading = true;
 
   @override
@@ -32,10 +34,12 @@ class _SettingsViewState extends State<SettingsView> {
   Future<void> _loadSettings() async {
     final storeName = await _storage.read(key: 'StoreName');
     final printerIp = await _storage.read(key: 'PrinterIP');
+    final offlineCount = await OfflineSaleRepository().getPendingCount();
     if (!mounted) return;
     setState(() {
       _storeName = storeName;
       _printerIp = printerIp;
+      _offlinePendingCount = offlineCount;
       _loading = false;
     });
   }
@@ -110,6 +114,17 @@ class _SettingsViewState extends State<SettingsView> {
                     child: ListTile(
                       title: const Text('レシートプリンターIP'),
                       subtitle: Text(_printerIp ?? '未設定'),
+                    ),
+                  ),
+                  Card(
+                    child: ListTile(
+                      title: const Text('未送信オフライン会計'),
+                      subtitle: Text(_offlinePendingCount > 0
+                          ? '$_offlinePendingCount 件（マスタ同期時に自動送信）'
+                          : 'なし'),
+                      trailing: _offlinePendingCount > 0
+                          ? const Icon(Icons.warning_amber, color: Colors.orange)
+                          : const Icon(Icons.check_circle, color: Colors.green),
                     ),
                   ),
                   const SizedBox(height: 24),

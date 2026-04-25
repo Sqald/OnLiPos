@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <title><%= content_for(:title) || "エラー | OnLiPos" %></title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
+  </head>
+  <body>
+    <header class="main-header">
+      <nav class="nav-container">
+        <a href="/" class="Logo"><div class="logo">OnLiPos</div></a>
+      </nav>
+    </header>
+    <main>
+      <%= yield %>
+    </main>
+    <footer class="main-footer">
+      <div class="copyright">
+        <p>&copy; 2026 OnLiPos Project. All rights reserved.</p>
+      </div>
+    </footer>
+  </body>
+</html>

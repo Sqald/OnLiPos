@@ -29,6 +29,24 @@
           <%= f.collection_select :store_id, @stores, :id, :name, { prompt: "店舗を選択" }, { class: "form-control" } %>
         </div>
 
+        <div class="form-group">
+          <%= f.label :store_mode, "店舗モード" %>
+          <%= f.select :store_mode,
+            [['標準', 'standard'], ['飲食店モード', 'restaurant'], ['小売店モード', 'retail']],
+            { selected: 'standard' },
+            { class: "form-control" } %>
+          <p class="form-hint">飲食店モード: 売上登録時に卓番を入力します。小売店モード: 保留・呼び出し機能が使えます。</p>
+        </div>
+
+        <div class="form-group">
+          <%= f.label :pos_role, "POS ロール" %>
+          <%= f.select :pos_role,
+            [['標準（スキャン＋会計）', 'standard'], ['ホスト機（待ち受けモードあり）', 'host'], ['クライアント機（転送専用）', 'client']],
+            { selected: 'standard' },
+            { class: "form-control" } %>
+          <p class="form-hint">ホスト機: レジカウンターなど会計を担う端末。クライアント機: フロア持ち歩きタブレットなど、ホストに転送して会計する端末。</p>
+        </div>
+
         <hr class="my-4">
         <h3 class="text-lg font-bold mb-4">ハードウェア設定</h3>
 

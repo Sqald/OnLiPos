@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:onlipos/cash/cash_check_view.dart';
 import 'package:onlipos/cash/cash_close_view.dart';
 import 'package:onlipos/login/operator_input_view.dart';
 import 'package:onlipos/inventory/inventory_inout_view.dart';
 import 'package:onlipos/refund/return_refund_view.dart';
+import 'package:onlipos/sale/host_waiting_view.dart';
 import 'package:onlipos/settings/settings_view.dart';
 
-class MenuTopView extends StatelessWidget {
+class MenuTopView extends StatefulWidget {
   final int employeeId;
   final String employeeName;
 
@@ -15,6 +17,27 @@ class MenuTopView extends StatelessWidget {
     required this.employeeId,
     required this.employeeName,
   });
+
+  @override
+  State<MenuTopView> createState() => _MenuTopViewState();
+}
+
+class _MenuTopViewState extends State<MenuTopView> {
+  String _posRole = 'standard';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPosRole();
+  }
+
+  Future<void> _loadPosRole() async {
+    const storage = FlutterSecureStorage();
+    final role = await storage.read(key: 'PosRole') ?? 'standard';
+    if (mounted) setState(() => _posRole = role);
+  }
+
+  bool get _isHost => _posRole == 'host';
 
   @override
   Widget build(BuildContext context) {
@@ -28,11 +51,43 @@ class MenuTopView extends StatelessWidget {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          if (_isHost)
+            Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.green[800],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.computer, size: 14, color: Colors.white),
+                  SizedBox(width: 4),
+                  Text('ホスト機', style: TextStyle(fontSize: 12, color: Colors.white)),
+                ],
+              ),
+            ),
+          if (_posRole == 'client')
+            Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2D89EF),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.tablet_android, size: 14, color: Colors.white),
+                  SizedBox(width: 4),
+                  Text('クライアント機', style: TextStyle(fontSize: 12, color: Colors.white)),
+                ],
+              ),
+            ),
           Center(
             child: Padding(
               padding: const EdgeInsets.only(right: 16.0),
               child: Text(
-                '担当: $employeeName',
+                '担当: ${widget.employeeName}',
                 style: const TextStyle(fontSize: 16),
               ),
             ),
@@ -62,33 +117,81 @@ class MenuTopView extends StatelessWidget {
                 children: [
                   // 売上登録ボタン（メイン機能）
                   _MenuTile(
-                    title: '売上登録',
+                    title: '売上登録\n(スキャン)',
                     icon: Icons.point_of_sale,
                     color: const Color(0xFF2D89EF), // Metro Blue
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (context) => const OperatorInputView(),
+                          builder: (context) =>
+                              const OperatorInputView(isListView: false),
                         ),
                       );
                     },
                   ),
-                  // 将来的な機能（プレースホルダー）
                   _MenuTile(
-                    title: 'レジ金チェック',
-                    icon: Icons.account_balance_wallet,
-                    color: const Color(0xFFE3A21A), // Metro Orange
+                    title: '売上登録\n(一覧)',
+                    icon: Icons.list_alt,
+                    color: const Color(0xFF2B5797), // Metro Dark Blue
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (context) => CashCheckView(
-                            employeeId: employeeId,
-                            employeeName: employeeName,
-                          ),
+                          builder: (context) =>
+                              const OperatorInputView(isListView: true),
                         ),
                       );
                     },
                   ),
+                  // ホスト機のみ：待ち受けモード
+                  if (_isHost)
+                    _MenuTile(
+                      title: '待ち受け\nモード',
+                      icon: Icons.inbox,
+                      color: const Color(0xFF107C10), // Metro Green
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => HostWaitingView(
+                              operatorName: widget.employeeName,
+                              operatorId: widget.employeeId,
+                            ),
+                          ),
+                        );
+                      },
+                    )
+                  else
+                    _MenuTile(
+                      title: 'レジ金チェック',
+                      icon: Icons.account_balance_wallet,
+                      color: const Color(0xFFE3A21A), // Metro Orange
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => CashCheckView(
+                              employeeId: widget.employeeId,
+                              employeeName: widget.employeeName,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  // ホスト機は待ち受けタイルを追加したのでレジ金チェックを次の行に
+                  if (_isHost)
+                    _MenuTile(
+                      title: 'レジ金チェック',
+                      icon: Icons.account_balance_wallet,
+                      color: const Color(0xFFE3A21A), // Metro Orange
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => CashCheckView(
+                              employeeId: widget.employeeId,
+                              employeeName: widget.employeeName,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   _MenuTile(
                     title: 'レジ精算',
                     icon: Icons.receipt_long,
@@ -97,8 +200,8 @@ class MenuTopView extends StatelessWidget {
                       Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (context) => CashCloseView(
-                            employeeId: employeeId,
-                            employeeName: employeeName,
+                            employeeId: widget.employeeId,
+                            employeeName: widget.employeeName,
                           ),
                         ),
                       );
@@ -124,7 +227,8 @@ class MenuTopView extends StatelessWidget {
                       Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (context) => ReturnRefundView(
-                            operatorName: employeeName,
+                            operatorName: widget.employeeName,
+                            operatorId: widget.employeeId,
                           ),
                         ),
                       );
@@ -167,12 +271,11 @@ class _MenuTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // タップ不可（未実装）の場合は色を薄くする
     final tileColor = onTap != null ? color : color.withOpacity(0.4);
 
     return Material(
       color: tileColor,
-      borderRadius: BorderRadius.circular(0), // Metro UIは角丸なしが基本だが、好みで調整可
+      borderRadius: BorderRadius.circular(0),
       child: InkWell(
         onTap: onTap,
         child: Container(

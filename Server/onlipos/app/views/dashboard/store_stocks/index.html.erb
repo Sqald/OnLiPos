@@ -65,6 +65,35 @@
             <% end %>
           </tbody>
         </table>
+
+        <% if @store_stocks.size >= 2 %>
+          <h3 class="mt-4 mb-2">店舗間在庫移動</h3>
+          <%= form_with url: transfer_dashboard_store_stocks_path, method: :post, local: true do |f| %>
+            <%= hidden_field_tag :jan_code, @jan_code %>
+            <div class="filter-row">
+              <div class="filter-item">
+                <%= label_tag :from_store_id, "移動元" %><br>
+                <%= select_tag :from_store_id,
+                      options_from_collection_for_select(@store_stocks.map(&:store), :id, :name),
+                      class: "form-control" %>
+              </div>
+              <div class="filter-item">
+                <%= label_tag :to_store_id, "移動先" %><br>
+                <%= select_tag :to_store_id,
+                      options_from_collection_for_select(@store_stocks.map(&:store), :id, :name),
+                      class: "form-control" %>
+              </div>
+              <div class="filter-item">
+                <%= label_tag :quantity, "移動数量" %><br>
+                <%= number_field_tag :quantity, 1, min: 1, class: "form-control", style: "width: 100px;" %>
+              </div>
+              <div class="filter-item">
+                <br>
+                <%= submit_tag "移動する", class: "btn-signup" %>
+              </div>
+            </div>
+          <% end %>
+        <% end %>
       <% end %>
     <% end %>
   </div>

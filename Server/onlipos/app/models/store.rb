@@ -5,6 +5,9 @@ class Store < ApplicationRecord
   has_many :store_stocks, dependent: :destroy
   has_many :sales, dependent: :destroy
   has_many :stocked_products, through: :store_stocks, source: :product
+  has_many :table_orders, dependent: :destroy
+  has_many :hold_orders, dependent: :destroy
+  has_many :transfer_orders, dependent: :destroy
   has_and_belongs_to_many :employees
 
   delegate :products, to: :user

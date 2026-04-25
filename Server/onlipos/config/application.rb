@@ -24,23 +24,9 @@ module Onlipos
     # config.time_zone = "Central Time (US & Canada)"
     # config.eager_load_paths << Rails.root.join("extras")
     config.hosts << "rails:3000"
-    config.hosts << ENV['HOST_NAME'] || "localhost"
+    config.hosts << ENV['HOST_NAME'] if ENV['HOST_NAME'].present?
     config.time_zone = "Tokyo"
     config.i18n.default_locale = :ja
-
-    config.action_mailer.smtp_settings = {
-      address:              ENV['SMTP_ADDRESS'],
-      domain:               ENV['SMTP_DOMAIN'],
-      port:                 ENV['SMTP_PORT'] || 587, # 値がなければ587を使う
-      user_name:            ENV['SMTP_USER_NAME'],
-      password:             File.exist?('/run/secrets/smtp_password') ? File.read('/run/secrets/smtp_password').strip : ENV.fetch('SMTP_PASSWORD', ''),
-      authentication:       'plain',
-      enable_starttls_auto: true
-    }
-
-    config.action_mailer.default_url_options = { 
-      host: ENV['HOST_NAME'], 
-      port: ENV['HOST_PORT'] || 3000 
-    }
+    config.exceptions_app = self.routes
   end
 end

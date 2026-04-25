@@ -44,9 +44,9 @@ class OpenApi {
         }),
       );
 
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
+      try {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } catch (_) {
         return {'success': false, 'message': 'サーバーエラー: ${response.statusCode}'};
       }
     } catch (e) {

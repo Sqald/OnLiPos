@@ -5,14 +5,23 @@ import 'package:onlipos/sale/escpos/lan_recipt_api.dart';
 
 class PaymentView extends StatefulWidget {
   final String operatorName;
+  final int operatorId;
   final int totalAmount;
+  final int subtotalExTax;
+  final int taxAmount;
   final List<Map<String, dynamic>> saleDetails;
+  /// 飲食店モード時の卓番など、レシートに追記する情報（例: '卓 3'）
+  final String? extraInfo;
 
   const PaymentView({
     super.key,
     required this.operatorName,
+    required this.operatorId,
     required this.totalAmount,
+    this.subtotalExTax = 0,
+    this.taxAmount = 0,
     required this.saleDetails,
+    this.extraInfo,
   });
 
   @override
@@ -97,6 +106,9 @@ class _PaymentViewState extends State<PaymentView> {
       final response = await _api.sendSale(
         totalAmount: widget.totalAmount,
         receiptNumber: "", // サーバー側で自動生成させるため空文字
+        employeeId: widget.operatorId,
+        subtotalExTax: widget.subtotalExTax,
+        taxAmount: widget.taxAmount,
         details: widget.saleDetails,
         payments: _payments
             .map((p) => {
@@ -117,18 +129,25 @@ class _PaymentViewState extends State<PaymentView> {
         await ReceiptPrinter().printReceipt(
           receiptNumber: receiptNo,
           totalAmount: widget.totalAmount,
+          subtotalExTax: widget.subtotalExTax,
+          taxAmount: widget.taxAmount,
           details: widget.saleDetails,
           paymentMethods: paymentList,
           change: tenderedCash > 0 ? tenderedCash - cashPayment : 0,
           tenderedCash: tenderedCash,
+          extraInfo: widget.extraInfo,
         );
       } catch (e) {
         print("Printing failed: $e");
       }
 
       if (mounted) {
+        final isOffline = response['offline'] == true;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('会計が完了しました'), backgroundColor: Colors.green),
+          SnackBar(
+            content: Text(isOffline ? 'オフライン会計として保存しました（後で自動送信）' : '会計が完了しました'),
+            backgroundColor: isOffline ? Colors.orange : Colors.green,
+          ),
         );
         // 直前の画面（スキャン画面等）に戻り、完了フラグ(true)を渡す
         Navigator.of(context).pop(true);
@@ -136,7 +155,7 @@ class _PaymentViewState extends State<PaymentView> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('エラー: '), backgroundColor: Colors.red),
+          SnackBar(content: Text('エラー: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -246,7 +265,12 @@ class _PaymentViewState extends State<PaymentView> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildSummaryRow('合計金額', widget.totalAmount, isTotal: true),
+              _buildSummaryRow('合計金額（税込）', widget.totalAmount, isTotal: true),
+              if (widget.subtotalExTax > 0) ...[
+                const SizedBox(height: 4),
+                _buildSummaryRow('税抜小計', widget.subtotalExTax, small: true),
+                _buildSummaryRow('消費税', widget.taxAmount, small: true),
+              ],
               const Divider(height: 32),
               _buildSummaryRow('支払済', _paidAmount),
               const SizedBox(height: 16),
@@ -312,17 +336,19 @@ class _PaymentViewState extends State<PaymentView> {
     return content;
   }
 
-  Widget _buildSummaryRow(String label, int amount, {bool isTotal = false, Color? color}) {
+  Widget _buildSummaryRow(String label, int amount, {bool isTotal = false, bool small = false, Color? color}) {
+    final labelSize = isTotal ? 24.0 : small ? 13.0 : 20.0;
+    final amountSize = isTotal ? 40.0 : small ? 15.0 : 32.0;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(fontSize: isTotal ? 24 : 20, fontWeight: isTotal ? FontWeight.bold : FontWeight.normal)),
+        Text(label, style: TextStyle(fontSize: labelSize, fontWeight: isTotal ? FontWeight.bold : FontWeight.normal, color: small ? Colors.grey[600] : null)),
         Text(
           '¥ $amount',
           style: TextStyle(
-            fontSize: isTotal ? 40 : 32,
-            fontWeight: FontWeight.bold,
-            color: color ?? Colors.black87,
+            fontSize: amountSize,
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+            color: small ? Colors.grey[600] : (color ?? Colors.black87),
           ),
         ),
       ],
@@ -437,49 +463,53 @@ class _CashTenderViewState extends State<CashTenderView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('お預かり金入力 - 担当: ${widget.operatorName}')),
-      body: Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 600),
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('現金支払額: ¥${widget.totalCashAmount}', style: const TextStyle(fontSize: 24), textAlign: TextAlign.center),
-              const SizedBox(height: 32),
-              TextField(
-                controller: _controller,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                autofocus: true,
-                textAlign: TextAlign.center,
-                decoration: const InputDecoration(
-                  labelText: 'お預かり金',
-                  prefixText: '¥ ',
-                  border: OutlineInputBorder(),
+      body: SingleChildScrollView(
+        child: Center(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 600),
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('現金支払額: ¥${widget.totalCashAmount}',
+                    style: const TextStyle(fontSize: 24), textAlign: TextAlign.center),
+                const SizedBox(height: 32),
+                TextField(
+                  controller: _controller,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  autofocus: true,
+                  textAlign: TextAlign.center,
+                  decoration: const InputDecoration(
+                    labelText: 'お預かり金',
+                    prefixText: '¥ ',
+                    border: OutlineInputBorder(),
+                  ),
+                  style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold),
                 ),
-                style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 32),
-              Text(
-                'お釣り: ¥${_change >= 0 ? _change : '-' }',
-                style: TextStyle(
-                  fontSize: 40,
-                  fontWeight: FontWeight.bold,
-                  color: _change >= 0 ? Colors.blue : Colors.grey,
+                const SizedBox(height: 32),
+                Text(
+                  'お釣り: ¥${_change >= 0 ? _change : '-'}',
+                  style: TextStyle(
+                    fontSize: 40,
+                    fontWeight: FontWeight.bold,
+                    color: _change >= 0 ? Colors.blue : Colors.grey,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 48),
-              SizedBox(
-                height: 64,
-                child: ElevatedButton(
-                  onPressed: _canFinish ? () => Navigator.of(context).pop(_tender) : null,
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-                  child: const Text('会計完了', style: TextStyle(fontSize: 24)),
+                const SizedBox(height: 48),
+                SizedBox(
+                  height: 64,
+                  child: ElevatedButton(
+                    onPressed: _canFinish ? () => Navigator.of(context).pop(_tender) : null,
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green, foregroundColor: Colors.white),
+                    child: const Text('会計完了', style: TextStyle(fontSize: 24)),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

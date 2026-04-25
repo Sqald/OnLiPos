@@ -5,7 +5,7 @@ class Api::V1::RefundsController < Api::V1::BaseController
   def sale_by_receipt
     receipt_number = params[:receipt_number].to_s.strip
     if receipt_number.blank?
-      render json: { success: false, message: "レシート番号を入力してください" }, status: :ok
+      render json: { success: false, message: "レシート番号を入力してください" }, status: :bad_request
       return
     end
 
@@ -15,7 +15,7 @@ class Api::V1::RefundsController < Api::V1::BaseController
       .find_by(receipt_number: receipt_number)
 
     unless sale
-      render json: { success: false, message: "該当する会計が見つかりません" }, status: :ok
+      render json: { success: false, message: "該当する会計が見つかりません" }, status: :not_found
       return
     end
 
@@ -57,12 +57,12 @@ class Api::V1::RefundsController < Api::V1::BaseController
     details_param = params[:details]
 
     if receipt_number.blank?
-      render json: { success: false, message: "レシート番号を指定してください" }, status: :ok
+      render json: { success: false, message: "レシート番号を指定してください" }, status: :bad_request
       return
     end
 
     if employee_ids.size < 2
-      render json: { success: false, message: "返品には2名以上の従業員認証が必要です" }, status: :ok
+      render json: { success: false, message: "返品には2名以上の従業員認証が必要です" }, status: :forbidden
       return
     end
 
@@ -70,24 +70,25 @@ class Api::V1::RefundsController < Api::V1::BaseController
     employees = owner.employees.where(id: employee_ids)
     employees = employees.select { |e| e.is_all_stores || e.stores.exists?(@current_pos.store_id) }
     if employees.size < 2
-      render json: { success: false, message: "認証された従業員が不足しているか、店舗権限がありません" }, status: :ok
+      render json: { success: false, message: "認証された従業員が不足しているか、店舗権限がありません" }, status: :forbidden
       return
     end
 
     sale = Sale.where(store_id: @current_pos.store_id, user_id: @current_pos.store.user_id)
+               .includes(saledetails: :product)
                .find_by(receipt_number: receipt_number)
     unless sale
-      render json: { success: false, message: "該当する会計が見つかりません" }, status: :ok
+      render json: { success: false, message: "該当する会計が見つかりません" }, status: :not_found
       return
     end
 
     if sale.refunds.exists?
-      render json: { success: false, message: "この会計はすでに返品済みです" }, status: :ok
+      render json: { success: false, message: "この会計はすでに返品済みです" }, status: :unprocessable_entity
       return
     end
 
     unless details_param.is_a?(Array) && details_param.any?
-      render json: { success: false, message: "返品明細を1件以上指定してください" }, status: :ok
+      render json: { success: false, message: "返品明細を1件以上指定してください" }, status: :bad_request
       return
     end
 
@@ -100,24 +101,24 @@ class Api::V1::RefundsController < Api::V1::BaseController
 
     detail_items = detail_items.reject { |_sid, qty| qty <= 0 }
     if detail_items.empty?
-      render json: { success: false, message: "返品する数量を指定してください" }, status: :ok
+      render json: { success: false, message: "返品する数量を指定してください" }, status: :bad_request
       return
     end
 
-    sale_detail_ids = sale.saledetails.pluck(:id)
     saledetails_by_id = sale.saledetails.index_by(&:id)
+    sale_detail_ids   = saledetails_by_id.keys
 
     refund_details_build = []
     total_refund = 0
 
     detail_items.each do |saledetail_id, return_qty|
       unless sale_detail_ids.include?(saledetail_id)
-        render json: { success: false, message: "無効な明細IDです" }, status: :ok
+        render json: { success: false, message: "無効な明細IDです" }, status: :unprocessable_entity
         return
       end
       sd = saledetails_by_id[saledetail_id]
       if return_qty > sd.quantity
-        render json: { success: false, message: "返品数量が販売数量を超えています: #{sd.product_name}" }, status: :ok
+        render json: { success: false, message: "返品数量が販売数量を超えています: #{sd.product_name}" }, status: :unprocessable_entity
         return
       end
       subtotal = sd.unit_price * return_qty
@@ -127,6 +128,12 @@ class Api::V1::RefundsController < Api::V1::BaseController
 
     refund = nil
     ActiveRecord::Base.transaction do
+      sale.lock!
+      if sale.refunds.exists?
+        render json: { success: false, message: "この会計はすでに返品済みです" }, status: :unprocessable_entity
+        raise ActiveRecord::Rollback
+      end
+
       refund = Refund.create!(
         sale: sale,
         store: sale.store,
@@ -149,6 +156,7 @@ class Api::V1::RefundsController < Api::V1::BaseController
       # 元会計を「すべて返品」として在庫を全明細分戻す。
       # 未返品分はクライアントで再会計するため、ここで全量戻しておく。
       store = sale.store
+      refund_employee = employees.first
       sale.saledetails.each do |sd|
         product = sd.product
         next unless product
@@ -161,6 +169,7 @@ class Api::V1::RefundsController < Api::V1::BaseController
             store_stock: store_stock,
             sale: sale,
             pos_token: @current_pos,
+            employee: refund_employee,
             quantity_change: sd.quantity,
             reason: "return"
           )
@@ -175,6 +184,6 @@ class Api::V1::RefundsController < Api::V1::BaseController
       total_refund_amount: refund.total_amount
     }, status: :created
   rescue ActiveRecord::RecordInvalid => e
-    render json: { success: false, message: e.message }, status: :ok
+    render json: { success: false, message: e.message }, status: :unprocessable_entity
   end
 end

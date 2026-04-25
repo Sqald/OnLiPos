@@ -1,0 +1,74 @@
+<div class="dashboard-container">
+  <%= render 'dashboard/shared/menu' %>
+
+  <div class="dashboard-content card">
+    <div class="subtitle d-flex justify-content-between align-items-center">
+      <h2>返品一覧</h2>
+    </div>
+
+    <div class="filters mb-3">
+      <%= form_with url: dashboard_refunds_path, method: :get, local: true do |f| %>
+        <div class="filter-row">
+          <div class="filter-item">
+            <%= f.label :store_id, "店舗" %><br>
+            <%= f.select :store_id,
+                  options_from_collection_for_select(@stores, :id, :name, params[:store_id]),
+                  include_blank: "すべて",
+                  class: "form-control" %>
+          </div>
+          <div class="filter-item">
+            <%= f.label :from, "期間（自）" %><br>
+            <%= f.date_field :from, value: params[:from], class: "form-control" %>
+          </div>
+          <div class="filter-item">
+            <%= f.label :to, "期間（至）" %><br>
+            <%= f.date_field :to, value: params[:to], class: "form-control" %>
+          </div>
+          <div class="filter-item">
+            <br>
+            <%= f.submit "検索", class: "btn-signup" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <% if !params[:store_id].present? && !params[:from].present? && !params[:to].present? %>
+      <div class="empty-message">
+        <p>店舗または期間を指定して検索してください。</p>
+      </div>
+    <% elsif @refunds.empty? %>
+      <div class="empty-message">
+        <p>該当する返品はありません。</p>
+      </div>
+    <% else %>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>返品日時</th>
+            <th>店舗</th>
+            <th>返品レシート番号</th>
+            <th>元レシート番号</th>
+            <th class="text-right">返金額</th>
+            <th>詳細</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @refunds.each do |refund| %>
+            <tr>
+              <td><%= l refund.created_at, format: :short %></td>
+              <td><%= refund.store.name %></td>
+              <td><%= refund.refund_receipt_number %></td>
+              <td><%= link_to refund.sale.receipt_number, dashboard_sale_detail_path(refund.sale), class: "link" %></td>
+              <td class="text-right"><%= number_to_currency(refund.total_amount, unit: "¥") %></td>
+              <td><%= link_to "詳細", dashboard_refund_path(refund), class: "btn-sm btn-outline" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+
+      <div class="pagination-wrapper">
+        <%= paginate @refunds %>
+      </div>
+    <% end %>
+  </div>
+</div>

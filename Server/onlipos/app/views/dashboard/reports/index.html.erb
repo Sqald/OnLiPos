@@ -1,0 +1,142 @@
+<div class="dashboard-container">
+  <%= render 'dashboard/shared/menu' %>
+
+  <div class="dashboard-content card">
+    <div class="subtitle d-flex justify-content-between align-items-center">
+      <h2>売上レポート</h2>
+      <% if search_performed? && (@daily_summary.any? || @product_ranking.any?) %>
+        <%= link_to "CSVダウンロード",
+              dashboard_reports_path(format: :csv, store_id: params[:store_id], from: params[:from], to: params[:to]),
+              class: "btn-signup" %>
+      <% end %>
+    </div>
+
+    <div class="filters mb-3">
+      <%= form_with url: dashboard_reports_path, method: :get, local: true do |f| %>
+        <div class="filter-row">
+          <div class="filter-item">
+            <%= f.label :store_id, "店舗" %><br>
+            <%= f.select :store_id,
+                  options_from_collection_for_select(@stores, :id, :name, params[:store_id]),
+                  { include_blank: "すべて" }, class: "form-control" %>
+          </div>
+          <div class="filter-item">
+            <%= f.label :from, "期間（自）" %><br>
+            <%= f.date_field :from, value: params[:from], class: "form-control" %>
+          </div>
+          <div class="filter-item">
+            <%= f.label :to, "期間（至）" %><br>
+            <%= f.date_field :to, value: params[:to], class: "form-control" %>
+          </div>
+          <div class="filter-item">
+            <br>
+            <%= f.submit "集計", class: "btn-signup" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <% unless search_performed? %>
+      <div class="empty-message">
+        <p>店舗または期間を指定して集計してください。</p>
+      </div>
+    <% else %>
+
+      <%# サマリーカード %>
+      <div class="d-flex gap-3 mb-4" style="flex-wrap: wrap;">
+        <div class="card" style="padding: 16px 24px; min-width: 180px;">
+          <div style="color: #888; font-size: 13px;">売上合計</div>
+          <div style="font-size: 28px; font-weight: bold; color: #e53935;"><%= number_to_currency(@total_sales_amount, unit: "¥") %></div>
+        </div>
+        <div class="card" style="padding: 16px 24px; min-width: 180px;">
+          <div style="color: #888; font-size: 13px;">取引件数</div>
+          <div style="font-size: 28px; font-weight: bold;"><%= @total_sales_count %> 件</div>
+        </div>
+        <% if @total_sales_count > 0 %>
+        <div class="card" style="padding: 16px 24px; min-width: 180px;">
+          <div style="color: #888; font-size: 13px;">客単価</div>
+          <div style="font-size: 28px; font-weight: bold;"><%= number_to_currency(@total_sales_amount / @total_sales_count, unit: "¥") %></div>
+        </div>
+        <% end %>
+      </div>
+
+      <%# 日次売上 %>
+      <% if @daily_summary.any? %>
+        <h3>日次売上</h3>
+        <table class="data-table mb-4">
+          <thead>
+            <tr>
+              <th>日付</th>
+              <th class="text-right">件数</th>
+              <th class="text-right">売上金額</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @daily_summary.each do |row| %>
+              <tr>
+                <td><%= row[:day] %></td>
+                <td class="text-right"><%= row[:count] %> 件</td>
+                <td class="text-right"><%= number_to_currency(row[:amount], unit: "¥") %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% end %>
+
+      <%# 月次売上 %>
+      <% if @monthly_summary.any? %>
+        <h3>月次売上</h3>
+        <table class="data-table mb-4">
+          <thead>
+            <tr>
+              <th>年月</th>
+              <th class="text-right">件数</th>
+              <th class="text-right">売上金額</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @monthly_summary.each do |row| %>
+              <tr>
+                <td><%= row[:month] %></td>
+                <td class="text-right"><%= row[:count] %> 件</td>
+                <td class="text-right"><%= number_to_currency(row[:amount], unit: "¥") %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% end %>
+
+      <%# 商品別売上ランキング %>
+      <% if @product_ranking.any? %>
+        <h3>商品別売上ランキング（上位20件）</h3>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>順位</th>
+              <th>商品名</th>
+              <th class="text-right">販売数</th>
+              <th class="text-right">売上金額</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @product_ranking.each_with_index do |row, idx| %>
+              <tr>
+                <td><%= idx + 1 %></td>
+                <td><%= row[:name] %></td>
+                <td class="text-right"><%= row[:quantity] %> 個</td>
+                <td class="text-right"><%= number_to_currency(row[:amount], unit: "¥") %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% end %>
+
+      <% if @daily_summary.empty? && @product_ranking.empty? %>
+        <div class="empty-message">
+          <p>該当する売上データがありません。</p>
+        </div>
+      <% end %>
+
+    <% end %>
+  </div>
+</div>

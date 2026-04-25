@@ -7,8 +7,9 @@ import 'package:onlipos/sale/payment_view.dart';
 
 class ReturnRefundView extends StatefulWidget {
   final String operatorName;
+  final int operatorId;
 
-  const ReturnRefundView({super.key, this.operatorName = '担当者'});
+  const ReturnRefundView({super.key, this.operatorName = '担当者', this.operatorId = 0});
 
   @override
   State<ReturnRefundView> createState() => _ReturnRefundViewState();
@@ -64,18 +65,27 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
       return;
     }
     setState(() => _authLoading[index] = true);
-    final today = DateTime.now();
-    final openDate =
-        '${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-    final result = await LoginApi.userLogin(code: code, pin: pin, openDate: openDate);
-    setState(() {
-      _authLoading[index] = false;
-      if (result['success'] == true) {
-        _employeeIds[index] = result['employee_id'] as int?;
-        _employeeNames[index] = result['employee_name'] as String?;
+    final result = await LoginApi.verifyEmployee(code: code, pin: pin);
+    setState(() => _authLoading[index] = false);
+
+    if (result['success'] == true) {
+      final newId = result['employee_id'] as int?;
+      // 同一担当者による二重認証を防ぐ
+      final otherIndex = 1 - index;
+      if (newId != null && _employeeIds[otherIndex] == newId) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('同一の担当者による2名認証はできません'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
       }
-    });
-    if (result['success'] != true) {
+      setState(() {
+        _employeeIds[index] = newId;
+        _employeeNames[index] = result['employee_name'] as String?;
+      });
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(result['message']?.toString() ?? '認証に失敗しました'),
@@ -294,6 +304,7 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
           MaterialPageRoute(
             builder: (context) => PaymentView(
               operatorName: widget.operatorName,
+              operatorId: widget.operatorId,
               totalAmount: keptTotal,
               saleDetails: keptDetails,
             ),

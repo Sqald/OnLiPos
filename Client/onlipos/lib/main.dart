@@ -15,6 +15,18 @@ void main() async {
   // Flutterのバインディングを初期化（非同期処理の前に必須）
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Flutter Linux GTK バックエンドの既知バグ:
+  // physical/logical=0 のキーイベントで assertion が飛ぶ (debug build のみ)。
+  // release build では assertion が無効なので問題ないが、開発中にアプリが落ちないよう
+  // ここでキャッチして無視する。
+  PlatformDispatcher.instance.onError = (error, stack) {
+    if (error is AssertionError &&
+        error.message.toString().contains('data.physical != 0')) {
+      return true; // 握りつぶす
+    }
+    return false; // その他のエラーはFlutterに委ねる
+  };
+
   // デスクトップ環境向けにsqflite_common_ffiを初期化
   if (!kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS)) {
     sqfliteFfiInit();

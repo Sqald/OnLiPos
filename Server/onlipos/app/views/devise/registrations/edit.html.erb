@@ -34,10 +34,6 @@
         <%= f.email_field :email, autofocus: true, autocomplete: "email" %>
       </div>
 
-      <% if devise_mapping.confirmable? && resource.pending_reconfirmation? %>
-        <div class="alert">現在、<%= resource.unconfirmed_email %> の確認待ちです</div>
-      <% end %>
-
       <div class="field">
         <%= f.label :password %>
         <span class="field-hint"><%= t('.leave_blank') %></span>

@@ -24,12 +24,12 @@ class Dashboard::CashLogsController < Dashboard::BaseController
     end
 
     if params[:from].present?
-      from_date = Date.parse(params[:from]) rescue nil
+      from_date = Date.strptime(params[:from], '%Y-%m-%d') rescue nil
       scope = scope.where("open_date >= ?", from_date) if from_date
     end
 
     if params[:to].present?
-      to_date = Date.parse(params[:to]) rescue nil
+      to_date = Date.strptime(params[:to], '%Y-%m-%d') rescue nil
       scope = scope.where("open_date <= ?", to_date) if to_date
     end
 

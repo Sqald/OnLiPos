@@ -10,6 +10,7 @@ class Product < ApplicationRecord
   validates :code, presence: true, uniqueness: { scope: :user_id }
   validates :name, presence: true
   validates :price, numericality: { greater_than_or_equal_to: 0 }
+  validates :tax_rate, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
   enum :status, { active: 0, discontinued: 1 }
 
@@ -17,38 +18,36 @@ class Product < ApplicationRecord
     status == "active" ? "有効" : "廃盤"
   end
 
-  # CSVインポート処理
+  # CSVインポート処理（既存商品は更新、新規商品は追加）
   def self.import(file, user)
     imported_count = 0
-    skipped_codes = []
+    updated_count = 0
     errors = []
 
     # headers: true で1行目をヘッダーとして扱います
-    # with_index(2) で行番号を2から開始します (エラー表示用)
+    # with_index(2) で行番号を2から開始します（エラー表示用）
     # BOM|UTF-8 でBOM付きファイルも許容する
     path = file.respond_to?(:path) ? file.path : file
     CSV.foreach(path, headers: true, encoding: 'BOM|UTF-8').with_index(2) do |row, row_num|
-      # 既存の商品コードがある場合はスキップ
-      if user.products.exists?(code: row["code"])
-        skipped_codes << row["code"]
-        next
-      end
+      attrs = row.to_hash.slice(*updatable_attributes)
+      code = attrs["code"].to_s.strip
+      next if code.blank?
 
-      product = user.products.new
-      # CSVのカラムと属性をマッピング
-      product.attributes = row.to_hash.slice(*updatable_attributes)
+      product = user.products.find_or_initialize_by(code: code)
+      is_new = product.new_record?
+      product.attributes = attrs
 
       if product.save
-        imported_count += 1
+        is_new ? imported_count += 1 : updated_count += 1
       else
         errors << "L#{row_num}: #{product.errors.full_messages.join(', ')}"
       end
     end
-    { imported_count: imported_count, skipped: skipped_codes, errors: errors }
+    { imported_count: imported_count, updated_count: updated_count, errors: errors }
   end
 
   # CSVで許可する属性のリスト
   def self.updatable_attributes
-    ["code", "name", "price", "description", "status"]
+    ["code", "name", "price", "description", "status", "tax_rate"]
   end
 end

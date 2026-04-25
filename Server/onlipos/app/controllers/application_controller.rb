@@ -11,7 +11,7 @@ class ApplicationController < ActionController::Base
 
   def configure_permitted_parameters
     # 新規登録時 (sign_up) に許可するキーを追加
-    devise_parameter_sanitizer.permit(:sign_up, keys: [:login_name,:user_type, :company_name, :last_name, :first_name, :terms_of_service])
+    devise_parameter_sanitizer.permit(:sign_up, keys: [:login_name, :user_type, :company_name, :last_name, :first_name])
     # アカウント編集時 (account_update) に許可するキーを追加
     devise_parameter_sanitizer.permit(:account_update, keys: [:login_name, :user_type, :company_name, :last_name, :first_name])
   end

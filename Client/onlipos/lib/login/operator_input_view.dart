@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:onlipos/login/login_api.dart';
 import 'package:onlipos/sale/sale_scan_view.dart';
+import 'package:onlipos/sale/sale_list_view.dart';
+import 'package:onlipos/sale/table_number_input_view.dart';
 
 class OperatorInputView extends StatefulWidget {
-  const OperatorInputView({super.key});
+  final bool isListView;
+  const OperatorInputView({super.key, this.isListView = false});
 
   @override
   State<OperatorInputView> createState() => _OperatorInputViewState();
@@ -36,15 +40,42 @@ class _OperatorInputViewState extends State<OperatorInputView> {
     });
 
     try {
-      final operatorName = await LoginApi.validateOperator(operatorCode);
+      final operator = await LoginApi.validateOperator(operatorCode);
 
       if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => SaleScanView(operatorName: operatorName),
-          ),
-        );
+        const storage = FlutterSecureStorage();
+        final storeMode = await storage.read(key: 'StoreMode') ?? 'standard';
+
+        if (!mounted) return;
+
+        // 飲食店モード（スキャン画面のみ）：卓番入力画面を経由する
+        if (!widget.isListView && storeMode == 'restaurant') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TableNumberInputView(
+                operatorName: operator.name,
+                operatorId: operator.id,
+              ),
+            ),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => widget.isListView
+                  ? SaleListView(
+                      operatorName: operator.name,
+                      operatorId: operator.id,
+                    )
+                  : SaleScanView(
+                      operatorName: operator.name,
+                      operatorId: operator.id,
+                      storeMode: storeMode,
+                    ),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

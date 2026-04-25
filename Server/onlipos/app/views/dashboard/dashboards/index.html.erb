@@ -80,6 +80,7 @@
                       <td><%= pos.last_used_at ? pos.last_used_at.strftime('%Y/%m/%d %H:%M') : '-' %></td>
                       <td>
                         <%= button_to "PW再設定", dashboard_pos_device_update_password_path(pos), method: :patch, data: { turbo_confirm: "パスワードを再設定しますか？\n新しいパスワードが画面に表示されます。" }, class: "btn-sm btn-outline" %>
+                        <%= button_to "削除", dashboard_pos_device_path(pos), method: :delete, data: { turbo_confirm: "「#{pos.name}」を削除しますか？\nこの端末は以後ログインできなくなります。この操作は取り消せません。" }, class: "btn-sm btn-danger-outline" %>
                       </td>
                     </tr>
                   <% end %>

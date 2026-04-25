@@ -10,6 +10,9 @@
       <%= link_to "商品管理", dashboard_products_path, class: "menu-item #{controller_name == 'products' ? 'active' : ''}" %>
     </li>
     <li>
+      <%= link_to "セット商品", dashboard_product_bundles_path, class: "menu-item #{controller_name == 'product_bundles' ? 'active' : ''}" %>
+    </li>
+    <li>
       <%= link_to "従業員管理", dashboard_employees_path, class: "menu-item #{controller_name == 'employees' ? 'active' : ''}" %>
     </li>
     <li>
@@ -17,6 +20,9 @@
     </li>
     <li>
       <%= link_to "売上一覧", dashboard_sales_path, class: "menu-item #{controller_name == 'sales' ? 'active' : ''}" %>
+    </li>
+    <li>
+      <%= link_to "売上レポート", dashboard_reports_path, class: "menu-item #{controller_name == 'reports' ? 'active' : ''}" %>
     </li>
     <li>
       <%= link_to "レジ金履歴", dashboard_cash_logs_path, class: "menu-item #{controller_name == 'cash_logs' ? 'active' : ''}" %>

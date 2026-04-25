@@ -8,7 +8,7 @@ class ProductImportJob < ApplicationJob
     result = Product.import(file_path, user)
 
     # ログに結果を出力 (サーバーログで確認可能)
-    Rails.logger.info "CSV Import Finished: #{result[:imported_count]} imported, #{result[:skipped].size} skipped, #{result[:errors].size} errors."
+    Rails.logger.info "CSV Import Finished: #{result[:imported_count]} imported, #{result[:updated_count]} updated, #{result[:errors].size} errors."
     if result[:errors].any?
       Rails.logger.error "CSV Import Errors: #{result[:errors].join(', ')}"
     end

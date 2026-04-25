@@ -31,6 +31,11 @@
   </div>
 
   <div class="field">
+    <%= f.label :tax_rate, "消費税率 (%)" %>
+    <%= f.number_field :tax_rate, placeholder: "例: 10", min: 0, value: product.new_record? ? 10 : product.tax_rate %>
+  </div>
+
+  <div class="field">
     <%= f.label :status, "ステータス" %>
     <div class="radio-group">
       <%= f.radio_button :status, :active, checked: product.active? || product.new_record? %>

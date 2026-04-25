@@ -39,13 +39,10 @@ class InventoryApi {
         }),
       );
 
-      if (response.statusCode == 200) {
+      try {
         return jsonDecode(response.body) as Map<String, dynamic>;
-      } else {
-        return {
-          'success': false,
-          'message': 'サーバーエラー: ${response.statusCode}',
-        };
+      } catch (_) {
+        return {'success': false, 'message': 'サーバーエラー: ${response.statusCode}'};
       }
     } catch (e) {
       return {
@@ -55,4 +52,3 @@ class InventoryApi {
     }
   }
 }
-

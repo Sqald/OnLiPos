@@ -1,5 +1,7 @@
 class Api::V1::BaseController < Api::BaseController
   before_action :authenticate_pos_token
+  rescue_from ActiveRecord::RecordNotFound,
+              with: -> { render json: { success: false, message: "リソースが見つかりません" }, status: :not_found }
 
   private
 

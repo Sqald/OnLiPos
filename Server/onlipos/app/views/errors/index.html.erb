@@ -1,0 +1,46 @@
+<% content_for :title, "HTTPエラーコード一覧 | OnLiPos" %>
+
+<div class="dashboard-container">
+  <div class="subtitle" style="margin-top: 2rem;">
+    <h2>HTTP エラーコード一覧</h2>
+  </div>
+  <p style="text-align: center; color: #6b7280; margin-bottom: 2.5rem; font-size: 0.95rem;">
+    各エラーをクリックするとエラーページのプレビューが表示されます。
+  </p>
+
+  <div class="errors-list-section">
+    <div class="section-header">
+      <h2>クライアントエラー</h2>
+      <span class="status-badge status-active">4xx</span>
+    </div>
+    <div class="error-grid">
+      <% @client_errors.each do |code, info| %>
+        <%= link_to errors_path(status: code), class: "error-item client" do %>
+          <div class="error-item-code"><%= code %></div>
+          <div>
+            <div class="error-item-title"><%= info[:title] %></div>
+            <div class="error-item-desc"><%= info[:ja] %></div>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="errors-list-section">
+    <div class="section-header">
+      <h2>サーバーエラー</h2>
+      <span class="status-badge status-inactive">5xx</span>
+    </div>
+    <div class="error-grid">
+      <% @server_errors.each do |code, info| %>
+        <%= link_to errors_path(status: code), class: "error-item server" do %>
+          <div class="error-item-code"><%= code %></div>
+          <div>
+            <div class="error-item-title"><%= info[:title] %></div>
+            <div class="error-item-desc"><%= info[:ja] %></div>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+</div>

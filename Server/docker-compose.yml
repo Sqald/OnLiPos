@@ -1,21 +1,16 @@
 services:
   rails:
-    build: 
+    build:
       context: ./onlipos/
     environment:
-      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
       DB_USER: ${DB_USER}
       DB_NAME: ${DB_NAME}
-      HOST_NAME: ${HOST_NAME}
-      HOST_PORT: ${HOST_PORT}
-      SMTP_ADDRESS: ${SMTP_ADDRESS}
-      SMTP_DOMAIN: ${SMTP_DOMAIN}
-      SMTP_PORT: ${SMTP_PORT}
-      SMTP_USER_NAME: ${SMTP_USER_NAME}
-      SMTP_MAIL_ADDRESS: ${SMTP_MAIL_ADDRESS}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      HOST_NAME: ${HOST_NAME:-}
+      FORCE_SSL: ${FORCE_SSL:-false}
+      SENTRY_DSN: ${SENTRY_DSN:-}
     secrets:
       - db_password
-      - smtp_password
     depends_on:
       postgres:
         condition: service_healthy
@@ -45,6 +40,7 @@ services:
         - NGINX_DOCKER_VERSION=${NGINX_DOCKER_VERSION}
     volumes:
       - ./nginx/ssl:/ssl
+      - ./onlipos/public:/rails/public:ro
     ports:
       - 80:80
       - 443:443
@@ -52,11 +48,29 @@ services:
       - postgres
       - rails
 
+  backup:
+    image: postgres:${POSTGRES_DOCKER_VERSION}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        while true; do
+          PGPASSWORD=$$(cat /run/secrets/db_password) pg_dump -h postgres -U ${DB_USER} ${DB_NAME} | gzip > /backup/onlipos_$$(date +%Y%m%d_%H%M%S).sql.gz
+          find /backup -name '*.sql.gz' -mtime +30 -delete
+          sleep 86400
+        done
+    volumes:
+      - ./backups:/backup
+    secrets:
+      - db_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   postgres:
 
 secrets:
   db_password:
     file: ./secrets/db_password.txt
-  smtp_password:
-    file: ./secrets/smtp_password.txt

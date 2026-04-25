@@ -2,7 +2,13 @@ class Dashboard::ProductsController < Dashboard::BaseController
   before_action :set_product, only: [:edit, :update, :destroy]
 
   def index
-    @products = current_user.products.order(created_at: :desc).page(params[:page]).per(20)
+    scope = current_user.products
+    if params[:q].present?
+      q = "%#{params[:q]}%"
+      scope = scope.where("name ILIKE ? OR code ILIKE ?", q, q)
+    end
+    scope = scope.where(status: params[:status]) if params[:status].present?
+    @products = scope.order(:code).page(params[:page]).per(50)
   end
 
   def new
@@ -49,7 +55,7 @@ class Dashboard::ProductsController < Dashboard::BaseController
 
     # アップロードされたファイルを一時保存 (リクエスト終了後もJobから参照できるようにするため)
     uploaded_file = params[:file]
-    file_path = Rails.root.join('tmp', "import_products_#{Time.now.to_i}_#{SecureRandom.hex(4)}.csv")
+    file_path = Rails.root.join('tmp', "import_products_#{Time.now.to_i}_#{SecureRandom.hex(16)}.csv")
     Rails.cache.write(lock_key, true, expires_in: 30.minutes)
     IO.copy_stream(uploaded_file.tempfile, file_path)
 
@@ -66,6 +72,6 @@ class Dashboard::ProductsController < Dashboard::BaseController
   end
 
   def product_params
-    params.require(:product).permit(:code, :name, :price, :description, :status)
+    params.require(:product).permit(:code, :name, :price, :description, :status, :tax_rate)
   end
 end

@@ -172,147 +172,203 @@ class _CashCloseViewState extends State<CashCloseView> {
     );
   }
 
+  Widget _buildDenominationInputs() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          const Text('金種別枚数入力',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
+          ..._denominations.map((denomination) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 100,
+                    child: Text(
+                      '¥${_formatCurrency(denomination)}',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  Expanded(
+                    child: TextField(
+                      controller: _controllers[denomination],
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.right,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        suffixText: '枚',
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummarySection({bool compact = false}) {
+    return Container(
+      color: Colors.grey[100],
+      padding: EdgeInsets.all(compact ? 16 : 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('担当者: ${widget.employeeName}',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          SizedBox(height: compact ? 8 : 24),
+          const Text('レジ内現金 合計（締め）',
+              style: TextStyle(fontSize: 16, color: Colors.grey)),
+          Text(
+            '¥${_formatCurrency(_totalAmount)}',
+            style: TextStyle(
+              fontSize: compact ? 32 : 40,
+              fontWeight: FontWeight.bold,
+              color: Colors.red,
+            ),
+          ),
+          if (_lastAmount != null || _expectedAmount != null || _diffAmount != null)
+            Card(
+              margin: const EdgeInsets.only(top: 8),
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('精算前の状況',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                    if (_lastLoggedAt != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4.0, bottom: 6.0),
+                        child: Text('前回チェック: ${_lastLoggedAt!.toLocal()}',
+                            style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                      ),
+                    if (_lastAmount != null) _buildResultRow('前回レジ金', _lastAmount!),
+                    if (_expectedAmount != null) _buildResultRow('想定レジ金', _expectedAmount!),
+                    _buildResultRow('今回レジ金（締め）', _totalAmount),
+                    if (_diffAmount != null)
+                      _buildResultRow('差異', _diffAmount!, highlight: _diffAmount != 0),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('レジ精算'),
-      ),
-      body: Row(
-        children: [
-          Expanded(
-            flex: 2,
-            child: Container(
-              color: Colors.grey[100],
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '担当者: ${widget.employeeName}',
-                    style:
-                        const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'レジ内現金 合計（締め）',
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
-                  ),
-                  Text(
-                    '¥${_formatCurrency(_totalAmount)}',
-                    style: const TextStyle(
-                      fontSize: 40,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red,
+      appBar: AppBar(title: const Text('レジ精算')),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // 幅 600px 未満はスマホ向け縦レイアウト
+          if (constraints.maxWidth < 600) {
+            return Column(
+              children: [
+                _buildSummarySection(compact: true),
+                Expanded(child: _buildDenominationInputs()),
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _submit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: _isLoading
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : const Text('精算を確定', style: TextStyle(fontSize: 18)),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  if (_lastAmount != null || _expectedAmount != null || _diffAmount != null)
-                    Card(
-                      margin: const EdgeInsets.only(top: 8),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              '精算前の状況',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ],
+            );
+          }
+          // 幅 600px 以上はタブレット/デスクトップ向け横レイアウト
+          return Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: Container(
+                  color: Colors.grey[100],
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('担当者: ${widget.employeeName}',
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 24),
+                      const Text('レジ内現金 合計（締め）',
+                          style: TextStyle(fontSize: 16, color: Colors.grey)),
+                      Text('¥${_formatCurrency(_totalAmount)}',
+                          style: const TextStyle(
+                              fontSize: 40, fontWeight: FontWeight.bold, color: Colors.red)),
+                      const SizedBox(height: 24),
+                      if (_lastAmount != null || _expectedAmount != null || _diffAmount != null)
+                        Card(
+                          margin: const EdgeInsets.only(top: 8),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('精算前の状況',
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                if (_lastLoggedAt != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4.0, bottom: 8.0),
+                                    child: Text('前回チェック: ${_lastLoggedAt!.toLocal()}',
+                                        style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                  ),
+                                if (_lastAmount != null) _buildResultRow('前回レジ金', _lastAmount!),
+                                if (_expectedAmount != null)
+                                  _buildResultRow('想定レジ金', _expectedAmount!),
+                                _buildResultRow('今回レジ金（締め）', _totalAmount),
+                                if (_diffAmount != null)
+                                  _buildResultRow('差異', _diffAmount!, highlight: _diffAmount != 0),
+                              ],
                             ),
-                            if (_lastLoggedAt != null)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 4.0, bottom: 8.0),
-                                child: Text(
-                                  '前回チェック: ${_lastLoggedAt!.toLocal()}',
-                                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                                ),
-                              ),
-                            if (_lastAmount != null)
-                              _buildResultRow('前回レジ金', _lastAmount!),
-                            if (_expectedAmount != null)
-                              _buildResultRow('想定レジ金', _expectedAmount!),
-                            _buildResultRow('今回レジ金（締め）', _totalAmount),
-                            if (_diffAmount != null)
-                              _buildResultRow(
-                                '差異',
-                                _diffAmount!,
-                                highlight: _diffAmount != 0,
-                              ),
-                          ],
+                          ),
+                        ),
+                      const Spacer(),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 60,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _submit,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                          ),
+                          child: _isLoading
+                              ? const CircularProgressIndicator(color: Colors.white)
+                              : const Text('精算を確定', style: TextStyle(fontSize: 20)),
                         ),
                       ),
-                    ),
-                  const Spacer(),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 60,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _submit,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: _isLoading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text('精算を確定', style: TextStyle(fontSize: 20)),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-          Expanded(
-            flex: 3,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  const Text(
-                    '金種別枚数入力',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 20),
-                  ..._denominations.map((denomination) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16.0),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 100,
-                            child: Text(
-                              '¥${_formatCurrency(denomination)}',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              textAlign: TextAlign.right,
-                            ),
-                          ),
-                          const SizedBox(width: 20),
-                          Expanded(
-                            child: TextField(
-                              controller: _controllers[denomination],
-                              keyboardType: TextInputType.number,
-                              textAlign: TextAlign.right,
-                              decoration: const InputDecoration(
-                                border: OutlineInputBorder(),
-                                suffixText: '枚',
-                                contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 16,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-          ),
-        ],
+              Expanded(flex: 3, child: _buildDenominationInputs()),
+            ],
+          );
+        },
       ),
     );
   }

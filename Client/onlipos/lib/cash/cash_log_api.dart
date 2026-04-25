@@ -12,6 +12,14 @@ import 'package:http/http.dart' as http;
 class CashLogApi {
   static const _storage = FlutterSecureStorage();
 
+  static Map<String, dynamic> _parseResponse(http.Response response) {
+    try {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (_) {
+      return {'success': false, 'message': 'サーバーエラー: ${response.statusCode}'};
+    }
+  }
+
   Future<Map<String, dynamic>> _postCashLog({
     required String path,
     required int employeeId,
@@ -53,15 +61,7 @@ class CashLogApi {
           'cash_drawer': cashDrawerJson,
         }),
       );
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
-      } else {
-        return {
-          'success': false,
-          'message': 'サーバーエラー: ${response.statusCode}',
-        };
-      }
+      return _parseResponse(response);
     } catch (e) {
       // 例外メッセージはユーザー向けに簡略化して返し、ネットワーク詳細やスタックトレースを
       // そのまま表示しないことで情報漏えいを防ぎます。
@@ -126,15 +126,7 @@ class CashLogApi {
           'Accept': 'application/json',
         },
       );
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
-      } else {
-        return {
-          'success': false,
-          'message': 'サーバーエラー: ${response.statusCode}',
-        };
-      }
+      return _parseResponse(response);
     } catch (e) {
       return {
         'success': false,
@@ -143,4 +135,3 @@ class CashLogApi {
     }
   }
 }
-

@@ -1,9 +1,11 @@
 #!/bin/sh
 
+# 証明書ファイルのパス (例)
 CERT_FILE="/ssl/server.crt"
 KEY_FILE="/ssl/server.key"
 CONF_FILE="/etc/nginx/conf.d/ssl_settings.generated"
 
+# 証明書があるかチェック
 if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
     echo "SSL証明書が見つかりました。HTTPS (443) を有効にします。"
     # 設定ファイルに中身を書き込む
@@ -15,5 +17,6 @@ if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
 EOF
 else
     echo "SSL証明書がありません。HTTP (80) のみで起動します。"
+    # 空ファイルを作る（これがないとincludeでエラーになるため）
     echo "" > $CONF_FILE
 fi

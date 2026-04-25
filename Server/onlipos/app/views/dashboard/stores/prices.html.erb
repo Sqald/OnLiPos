@@ -1,0 +1,50 @@
+<div class="dashboard-container">
+  <%= render 'dashboard/shared/menu' %>
+
+  <div class="dashboard-content card">
+    <div class="subtitle d-flex justify-content-between align-items-center">
+      <h2><%= @store.name %> — 店舗別価格設定</h2>
+      <%= link_to "← 店舗一覧に戻る", dashboard_stores_path, class: "btn-sm btn-outline" %>
+    </div>
+
+    <p style="color: #666; margin-bottom: 16px;">
+      空欄の場合は商品の基本価格が使われます。基本価格と同じ値を入力した場合も基本価格扱いになります。
+    </p>
+
+    <%= form_with url: update_prices_dashboard_store_path(@store), method: :patch, local: true do |f| %>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>商品コード</th>
+            <th>商品名</th>
+            <th class="text-right">基本価格</th>
+            <th class="text-right" style="min-width: 140px;">この店舗の価格</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @products.each do |product| %>
+            <% override = @prices_by_product_id[product.id] %>
+            <tr>
+              <td><%= product.code %></td>
+              <td><%= product.name %></td>
+              <td class="text-right">¥<%= product.price %></td>
+              <td class="text-right">
+                <%= text_field_tag "price_overrides[#{product.id}]",
+                      override&.amount,
+                      placeholder: product.price.to_s,
+                      class: "form-control text-right",
+                      style: "width: 120px; display: inline-block;",
+                      type: "number",
+                      min: "0" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+
+      <div style="margin-top: 24px;">
+        <%= f.submit "保存する", class: "btn-signup" %>
+      </div>
+    <% end %>
+  </div>
+</div>

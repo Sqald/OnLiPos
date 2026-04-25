@@ -15,6 +15,14 @@ class RefundApi {
     return '$normalized|$token';
   }
 
+  static Map<String, dynamic> _parseResponse(http.Response response) {
+    try {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (_) {
+      return {'success': false, 'message': 'サーバーエラー: ${response.statusCode}'};
+    }
+  }
+
   /// レシート番号で売上を取得（返品対象の会計）
   static Future<Map<String, dynamic>> getSaleByReceipt(String receiptNumber) async {
     final urlToken = await _baseUrlAndToken();
@@ -35,10 +43,7 @@ class RefundApi {
           'Accept': 'application/json',
         },
       );
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
-      }
-      return {'success': false, 'message': 'サーバーエラー: ${response.statusCode}'};
+      return _parseResponse(response);
     } catch (e) {
       return {'success': false, 'message': '通信エラー: $e'};
     }
@@ -73,13 +78,7 @@ class RefundApi {
           'details': details,
         }),
       );
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
-      }
-      final body = response.statusCode == 200
-          ? jsonDecode(response.body) as Map<String, dynamic>
-          : <String, dynamic>{'message': 'サーバーエラー: ${response.statusCode}'};
-      return {'success': false, 'message': body['message'] ?? 'エラー'};
+      return _parseResponse(response);
     } catch (e) {
       return {'success': false, 'message': '通信エラー: $e'};
     }

@@ -27,6 +27,7 @@
                 <td><%= store.phone_number.presence || '-' %></td>
                 <td><%= store.created_at.strftime('%Y/%m/%d') %></td>
                 <td>
+                  <%= link_to "価格設定", prices_dashboard_store_path(store), class: "btn-sm btn-outline" %>
                   <%= link_to "編集", edit_dashboard_store_path(store), class: "btn-sm btn-outline" %>
                   <%= link_to "削除", dashboard_store_path(store), data: { turbo_method: :delete, turbo_confirm: "本当に削除しますか？\n紐付いているPOS端末や在庫情報も削除されます。" }, class: "btn-sm btn-danger-outline" %>
                 </td>

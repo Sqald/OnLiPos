@@ -1,4 +1,29 @@
-class Api::V1::ProductsController < Api::V1::BaseController 
+class Api::V1::ProductsController < Api::V1::BaseController
+  def lookup
+    code = params[:code].to_s.strip
+    return render json: { success: false, message: 'code is required' }, status: :bad_request if code.blank?
+
+    current_store = @current_pos.store
+    product = current_store.products.find_by(code: code, status: :active)
+
+    if product.nil?
+      return render json: { success: false, message: 'not_found' }, status: :not_found
+    end
+
+    price = Price.find_by(store_id: current_store.id, product_id: product.id)&.amount || product.price
+
+    render json: {
+      success: true,
+      product: {
+        id: product.id,
+        code: product.code,
+        name: product.name,
+        price: price,
+        tax_rate: product.tax_rate,
+      }
+    }, status: :ok
+  end
+
   def sync
     limit = 1000
     
@@ -47,7 +72,28 @@ class Api::V1::ProductsController < Api::V1::BaseController
         description: product.description,
         status: product.status,
         price: current_price,
+        tax_rate: product.tax_rate,
         updated_at: product.updated_at
+      }
+    end
+
+    # セット商品の同期（全件、カーソルなし）
+    bundles = current_store.user.product_bundles
+                           .includes(product_bundle_items: :product)
+                           .where(status: :active)
+    response_bundles = bundles.map do |bundle|
+      {
+        id: bundle.id,
+        code: bundle.code,
+        name: bundle.name,
+        price: bundle.price,
+        items: bundle.product_bundle_items.map do |item|
+          {
+            product_id: item.product_id,
+            product_code: item.product&.code,
+            quantity: item.quantity
+          }
+        end
       }
     end
 
@@ -57,7 +103,8 @@ class Api::V1::ProductsController < Api::V1::BaseController
       has_more: has_more,
       last_updated_at: next_updated_at,
       last_id: next_id,
-      products: response_products
+      products: response_products,
+      bundles: response_bundles
     }, status: :ok
   end
 

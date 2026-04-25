@@ -47,6 +47,9 @@ class Dashboard::EmployeesController < Dashboard::BaseController
 
   def employee_params
     p = params.require(:employee).permit(:code, :name, :pin, :pin_confirmation, :is_all_stores, store_ids: [])
+    # 空文字の場合は nil に変換（PINなし従業員として登録）
+    p[:pin] = nil if p[:pin].blank?
+    p[:pin_confirmation] = nil if p[:pin_confirmation].blank?
     # 全店舗フラグがONの場合、現在のユーザーの全店舗を紐付ける
     if p[:is_all_stores] == '1'
       p[:store_ids] = current_user.stores.ids

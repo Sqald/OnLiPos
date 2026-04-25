@@ -34,10 +34,13 @@ class ReceiptPrinter {
   Future<void> printReceipt({
     required String receiptNumber,
     required int totalAmount,
+    int subtotalExTax = 0,
+    int taxAmount = 0,
     required List<Map<String, dynamic>> details,
     required List<Map<String, dynamic>> paymentMethods,
     required int change,
     required int tenderedCash,
+    String? extraInfo,
   }) async {
     const storage = FlutterSecureStorage();
     
@@ -96,6 +99,9 @@ class ReceiptPrinter {
       
       await addLine("日時: ${DateTime.now().toString().substring(0, 19)}");
       await addLine("No: $receiptNumber");
+      if (extraInfo != null && extraInfo.isNotEmpty) {
+        await addLine(extraInfo, bold: true);
+      }
       await addLine("--------------------------------", align: 1);
       await addLine("");
 
@@ -113,6 +119,10 @@ class ReceiptPrinter {
       
       await addLine("");
       await addLine("--------------------------------", align: 1);
+      if (subtotalExTax > 0) {
+        await addLine("税抜小計  ¥$subtotalExTax", align: 2);
+        await addLine("消費税    ¥$taxAmount", align: 2);
+      }
       await addLine("合計  ¥$totalAmount", align: 2, size: 3, bold: true);
       await addLine("");
 
@@ -264,12 +274,114 @@ class ReceiptPrinter {
       }
       await addLine("--------------------------------", align: 1);
       await addLine("ご利用ありがとうございます", align: 1);
+
+      // QRコード（返品レシート番号）
+      buffer.addAll([0x0A, 0x0A]);
+      buffer.addAll([0x1B, 0x61, 0x01]); // 中央揃え
+
+      final List<int> qrData = refundReceiptNumber.codeUnits;
+      final int dataLen = qrData.length + 3;
+      final int pL = dataLen % 256;
+      final int pH = dataLen ~/ 256;
+
+      buffer.addAll([0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00]); // Model 2
+      buffer.addAll([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x04]);        // サイズ4
+      buffer.addAll([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x30]);        // 誤り訂正L
+      buffer.addAll([0x1D, 0x28, 0x6B, pL, pH, 0x31, 0x50, 0x30]);
+      buffer.addAll(qrData);
+      buffer.addAll([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30]);        // 印字
+      buffer.addAll([0x1B, 0x61, 0x00]);
+
+      await addLine(refundReceiptNumber, align: 1);
+
       buffer.addAll([0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A]);
       buffer.addAll([0x1D, 0x56, 0x00]);
       socket.add(buffer);
       await socket.flush();
     } catch (e) {
       print("Refund Printer Error: $e");
+    } finally {
+      socket?.destroy();
+    }
+  }
+
+  /// 保留票を印刷する（小売店モード用）。
+  /// 保留番号・担当者・商品明細・合計を印字する。
+  static Future<void> printHoldSlip({
+    required int holdNumber,
+    required String operatorName,
+    required int totalAmount,
+    required List<Map<String, dynamic>> details,
+  }) async {
+    const storage = FlutterSecureStorage();
+    String targetIp = '192.168.192.168';
+    String storeName = 'お会計';
+    final String? savedIp = await storage.read(key: 'PrinterIP');
+    final String? savedName = await storage.read(key: 'StoreName');
+    if (savedIp != null && savedIp.isNotEmpty) targetIp = savedIp;
+    if (savedName != null && savedName.isNotEmpty) storeName = savedName;
+
+    Socket? socket;
+    try {
+      socket = await Socket.connect(targetIp, 9100, timeout: const Duration(seconds: 3));
+      final List<int> buffer = [];
+
+      buffer.addAll([0x1B, 0x40]);
+      buffer.addAll([0x1B, 0x52, 0x08]);
+      buffer.addAll([0x1B, 0x74, 0x01]);
+      buffer.addAll([0x1C, 0x43, 0x01]);
+
+      Future<void> addLine(String text, {int align = 0, bool bold = false, int size = 0}) async {
+        buffer.addAll([0x1B, 0x61, align]);
+        int n = 0;
+        if (bold) n |= 0x08;
+        if (size == 1 || size == 3) n |= 0x10;
+        if (size == 2 || size == 3) n |= 0x20;
+        buffer.addAll([0x1B, 0x21, n]);
+        try {
+          if (text.isNotEmpty) {
+            final encoded = await CharsetConverter.encode("Shift_JIS", text);
+            buffer.addAll(encoded);
+          }
+        } catch (e) {
+          buffer.addAll(text.codeUnits.map((e) => e > 255 ? 63 : e).toList());
+        }
+        buffer.addAll([0x0A]);
+        buffer.addAll([0x1B, 0x21, 0x00]);
+      }
+
+      await addLine(storeName, align: 1, size: 2, bold: true);
+      await addLine('');
+      await addLine('** 保  留  票 **', align: 1, size: 1, bold: true);
+      await addLine('--------------------------------', align: 1);
+      await addLine('日時: ${DateTime.now().toString().substring(0, 19)}');
+      await addLine('担当: $operatorName');
+      await addLine('--------------------------------', align: 1);
+      await addLine('保 留 番 号', align: 1, bold: true);
+      await addLine('$holdNumber', align: 1, size: 3, bold: true);
+      await addLine('--------------------------------', align: 1);
+      await addLine('');
+
+      for (var item in details) {
+        final name = item['product_name']?.toString() ?? '';
+        final qty = item['quantity'] is int ? item['quantity'] as int : (item['quantity'] as num).toInt();
+        final price = item['unit_price'] is int ? item['unit_price'] as int : (item['unit_price'] as num).toInt();
+        await addLine(name, bold: true);
+        await addLine('  ${qty}個  x  ¥$price  =  ¥${price * qty}', align: 2);
+      }
+
+      await addLine('');
+      await addLine('--------------------------------', align: 1);
+      await addLine('合計  ¥$totalAmount', align: 2, size: 1, bold: true);
+      await addLine('');
+      await addLine('この票を係員にお渡しください', align: 1);
+
+      buffer.addAll([0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A]);
+      buffer.addAll([0x1D, 0x56, 0x00]);
+      socket.add(buffer);
+      await socket.flush();
+    } catch (e) {
+      print('Hold Slip Print Error: $e');
     } finally {
       socket?.destroy();
     }

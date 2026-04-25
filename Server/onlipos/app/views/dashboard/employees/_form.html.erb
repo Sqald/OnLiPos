@@ -23,7 +23,7 @@
   <div class="field">
     <%= f.label :pin, "PINコード (4-6桁の数字)" %>
     <%= f.password_field :pin, placeholder: "数字のみ" %>
-    <p class="field-hint">※ POS端末でのログインに使用します。変更しない場合は空欄にしてください。</p>
+    <p class="field-hint">※ 空欄のままにすると「PINなし従業員」として登録されます。PINなし従業員はPOS端末へのログインおよび返品認証には使用できません。</p>
   </div>
 
   <div class="field">

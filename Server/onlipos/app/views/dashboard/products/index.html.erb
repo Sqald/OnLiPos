@@ -9,13 +9,14 @@
       </div>
     </div>
 
-    <%# --- ここから追加 --- %>
     <div class="card my-4">
       <div class="card-body">
-        <h3 class="card-title">CSVで一括登録</h3>
+        <h3 class="card-title">CSVで一括登録・更新</h3>
         <p class="text-muted">
-          ヘッダー: <strong>code, name, price, description, status</strong> を含むCSVファイルを選択してください。<br>
-          statusは <strong>active</strong> または <strong>discontinued</strong> を指定します。
+          ヘッダー: <strong>code, name, price, description, status, tax_rate</strong> を含むCSVファイルを選択してください。<br>
+          statusは <strong>active</strong> または <strong>discontinued</strong>、
+          tax_rateは整数（例: 10）を指定します。省略時は10%が適用されます。<br>
+          既存コードの商品は上書き更新されます。
         </p>
         <%= form_with(url: import_dashboard_products_path, multipart: true, local: true, class: "d-flex align-items-end") do |form| %>
           <div class="field me-3">
@@ -28,7 +29,28 @@
         <% end %>
       </div>
     </div>
-    <%# --- ここまで追加 --- %>
+
+    <div class="filters mb-3">
+      <%= form_with url: dashboard_products_path, method: :get, local: true do |f| %>
+        <div class="filter-row">
+          <div class="filter-item">
+            <%= f.label :q, "商品名・コード検索" %><br>
+            <%= f.text_field :q, value: params[:q], class: "form-control", placeholder: "商品名またはコード" %>
+          </div>
+          <div class="filter-item">
+            <%= f.label :status, "ステータス" %><br>
+            <%= f.select :status,
+                  [["すべて", ""], ["有効", "active"], ["廃盤", "discontinued"]],
+                  { selected: params[:status] },
+                  class: "form-control" %>
+          </div>
+          <div class="filter-item">
+            <br>
+            <%= f.submit "検索", class: "btn-signup" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
 
     <table class="data-table">
       <thead>
@@ -36,6 +58,7 @@
           <th>商品コード</th>
           <th>商品名</th>
           <th>基本価格</th>
+          <th>税率</th>
           <th>ステータス</th>
           <th></th>
         </tr>
@@ -46,6 +69,7 @@
             <td><%= product.code %></td>
             <td><%= product.name %></td>
             <td><%= number_to_currency(product.price) %></td>
+            <td><%= product.tax_rate %>%</td>
             <td>
               <span class="status-badge <%= product.active? ? 'status-active' : 'status-inactive' %>">
                 <%= product.status_i18n %>

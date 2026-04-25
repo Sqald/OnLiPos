@@ -71,15 +71,7 @@ class _InventoryInOutViewState extends State<InventoryInOutView> {
     });
 
     try {
-      final today = DateTime.now();
-      final openDate =
-          '${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-
-      final result = await LoginApi.userLogin(
-        code: code,
-        pin: pin,
-        openDate: openDate,
-      );
+      final result = await LoginApi.verifyEmployee(code: code, pin: pin);
 
       if (result['success'] == true) {
         setState(() {

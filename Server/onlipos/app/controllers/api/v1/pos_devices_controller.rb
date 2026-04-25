@@ -1,20 +1,30 @@
-class Api::V1::PosDevicesController < Api::V1::BaseController 
+class Api::V1::PosDevicesController < Api::V1::BaseController
   before_action :authenticate_pos_token, except: [:login]
 
   def login
+    brute_key = "pos_login:#{login_params[:userName]}:#{login_params[:storeName]}:#{login_params[:posName]}"
+    if pos_login_locked?(brute_key)
+      return render json: {
+        success: false,
+        message: "ログイン試行回数が上限に達しました。しばらく時間をおいてから再試行してください。"
+      }, status: :too_many_requests
+    end
+
     user = User.find_by(login_name: login_params[:userName])
     store = user&.stores&.find_by(ascii_name: login_params[:storeName])
     @pos_token = store&.pos_tokens&.find_by(ascii_name: login_params[:posName])
 
     if @pos_token&.authenticate(login_params[:password])
+      reset_pos_login_failures(brute_key)
       @pos_token.regenerate_token
       @pos_token.update_columns(
-        last_used_at: Time.current, 
+        last_used_at: Time.current,
         password_digest: nil
       )
       render :login, status: :ok
     else
-      render json: { success: false, message: I18n.t('api.v1.pos_devices.login.failure') }, status: :ok
+      increment_pos_login_failures(brute_key)
+      render json: { success: false, message: I18n.t('api.v1.pos_devices.login.failure') }, status: :unauthorized
     end
   end
 
@@ -25,28 +35,55 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
 
     # 従業員が存在しない、またはPINが空の場合は即座に失敗させる
     if employee.nil? || user_login_params[:pin].blank?
-      return render json: { success: false, message: I18n.t('api.v1.pos_devices.top_user_login.failure') }, status: :ok
+      return render json: { success: false, message: I18n.t('api.v1.pos_devices.top_user_login.failure') }, status: :unauthorized
     end
 
     # アカウントがロックされているか確認
     if employee.access_locked?
-      return render json: { success: false, message: I18n.t('api.v1.pos_devices.top_user_login.locked') }, status: :ok
+      return render json: { success: false, message: I18n.t('api.v1.pos_devices.top_user_login.locked') }, status: :forbidden
     end
 
     if employee.authenticate_pin(user_login_params[:pin])
       # 認証成功
       employee.unlock_access! # ロック情報をリセット
-      
+
       # 全店舗権限があるか、または現在の店舗に所属しているか確認
       if employee.is_all_stores || employee.stores.exists?(@current_pos.store.id)
         render json: { success: true, employee_id: employee.id, employee_name: employee.name }
       else
-        render json: { success: false, message: I18n.t('api.v1.pos_devices.top_user_login.not_authorized_for_store') }, status: :ok
+        render json: { success: false, message: I18n.t('api.v1.pos_devices.top_user_login.not_authorized_for_store') }, status: :forbidden
       end
     else
       # 認証失敗
       employee.increment_failed_attempts # 失敗回数を記録
-      render json: { success: false, message: I18n.t('api.v1.pos_devices.top_user_login.failure') }, status: :ok
+      render json: { success: false, message: I18n.t('api.v1.pos_devices.top_user_login.failure') }, status: :unauthorized
+    end
+  end
+
+  # 業務中（返品・在庫入出庫等）の担当者PIN認証。
+  # top_user_login と同様にPINを検証するが、「ログイン」ではなく「中間承認」用途。
+  def verify_employee
+    owner = @current_pos.store.user
+    employee = owner.employees.find_by(code: user_login_params[:code])
+
+    if employee.nil? || user_login_params[:pin].blank?
+      return render json: { success: false, message: I18n.t('api.v1.pos_devices.check_operator.failure', default: '担当者が見つかりません') }, status: :unauthorized
+    end
+
+    if employee.access_locked?
+      return render json: { success: false, message: I18n.t('api.v1.pos_devices.top_user_login.locked', default: 'アカウントがロックされています') }, status: :forbidden
+    end
+
+    if employee.authenticate_pin(user_login_params[:pin])
+      employee.unlock_access!
+      if employee.is_all_stores || employee.stores.exists?(@current_pos.store.id)
+        render json: { success: true, employee_id: employee.id, employee_name: employee.name }
+      else
+        render json: { success: false, message: I18n.t('api.v1.pos_devices.top_user_login.not_authorized_for_store', default: '店舗権限がありません') }, status: :forbidden
+      end
+    else
+      employee.increment_failed_attempts
+      render json: { success: false, message: I18n.t('api.v1.pos_devices.top_user_login.failure', default: 'PINが正しくありません') }, status: :unauthorized
     end
   end
 
@@ -56,9 +93,9 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     employee = owner.employees.find_by(code: user_login_params[:code])
 
     if employee
-      render json: { success: true, name: employee.name }
+      render json: { success: true, name: employee.name, employee_id: employee.id }
     else
-      render json: { success: false, message: I18n.t('api.v1.pos_devices.check_operator.failure', default: '担当者が見つかりません') }, status: :ok
+      render json: { success: false, message: I18n.t('api.v1.pos_devices.check_operator.failure', default: '担当者が見つかりません') }, status: :not_found
     end
   end
 
@@ -88,7 +125,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
 
     # 全店舗権限があるか、または現在の店舗に所属しているか確認
     unless employee && (employee.is_all_stores || employee.stores.exists?(@current_pos.store.id))
-      return render json: { success: false, message: I18n.t('api.v1.pos_devices.open.employee_not_found') }, status: :ok
+      return render json: { success: false, message: I18n.t('api.v1.pos_devices.open.employee_not_found') }, status: :forbidden
     end
 
     cash_data = open_params[:cash_drawer] || {}
@@ -112,7 +149,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     if cash_log.save
       render json: { success: true, message: I18n.t('api.v1.pos_devices.open.success') }, status: :ok
     else
-      render json: { success: false, message: cash_log.errors.full_messages.join(", ") }, status: :ok
+      render json: { success: false, message: cash_log.errors.full_messages.join(", ") }, status: :unprocessable_entity
     end
   end
 
@@ -138,7 +175,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
         last_logged_at: previous_log&.created_at
       }, status: :ok
     else
-      render json: { success: false, message: cash_log.errors.full_messages.join(", ") }, status: :ok
+      render json: { success: false, message: cash_log.errors.full_messages.join(", ") }, status: :unprocessable_entity
     end
   end
 
@@ -163,7 +200,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
         last_logged_at: previous_log&.created_at
       }, status: :ok
     else
-      render json: { success: false, message: cash_log.errors.full_messages.join(", ") }, status: :ok
+      render json: { success: false, message: cash_log.errors.full_messages.join(", ") }, status: :unprocessable_entity
     end
   end
 
@@ -184,6 +221,19 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
 
   private
 
+  def pos_login_locked?(key)
+    (Rails.cache.read("#{key}:count") || 0) >= 10
+  end
+
+  def increment_pos_login_failures(key)
+    count = (Rails.cache.read("#{key}:count") || 0) + 1
+    Rails.cache.write("#{key}:count", count, expires_in: 1.hour)
+  end
+
+  def reset_pos_login_failures(key)
+    Rails.cache.delete("#{key}:count")
+  end
+
   def login_params
     params.require(:pos).permit(:userName, :storeName, :posName, :password)
   end
@@ -193,7 +243,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
   end
 
   def open_params
-    params.permit(:employee_id, :open_date, :total_amount, 
+    params.permit(:employee_id, :open_date, :total_amount,
       cash_drawer: [:"10000", :"5000", :"1000", :"500", :"100", :"50", :"10", :"5", :"1"]
     )
   end
@@ -216,7 +266,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     employee = owner.employees.find_by(id: cash_log_params[:employee_id])
 
     unless employee && (employee.is_all_stores || employee.stores.exists?(@current_pos.store.id))
-      render json: { success: false, message: I18n.t('api.v1.pos_devices.open.employee_not_found') }, status: :ok
+      render json: { success: false, message: I18n.t('api.v1.pos_devices.open.employee_not_found') }, status: :forbidden
       return
     end
 
@@ -272,26 +322,8 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
       previous_log = @current_pos.cash_logs.order(created_at: :desc).first
       return [previous_log, nil, nil, nil] unless previous_log
 
-      cash_sales_sum = SalePayment.joins(:sale)
-                                  .where(method: :cash)
-                                  .where(sales: {
-                                           user_id: @current_pos.store.user_id,
-                                           store_id: @current_pos.store_id,
-                                           pos_token_id: @current_pos.id
-                                         })
-                                  .where('sales.created_at > ?', previous_log.created_at)
-                                  .sum(:amount)
-
-      refund_cash_sum = Refund.joins(:sale)
-                              .where(sales: {
-                                       user_id: @current_pos.store.user_id,
-                                       store_id: @current_pos.store_id,
-                                       pos_token_id: @current_pos.id,
-                                       payment_method: Sale.payment_methods[:cash]
-                                     })
-                              .where('refunds.created_at > ?', previous_log.created_at)
-                              .sum(:total_amount)
-
+      cash_sales_sum = cash_sales_since(previous_log.created_at)
+      refund_cash_sum = refund_cash_since(previous_log.created_at)
       net_cash_sales = cash_sales_sum - refund_cash_sum
 
       last_amount = previous_log.total_amount
@@ -302,31 +334,51 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
       baseline_log = opening_log || previous_log
       baseline_amount = baseline_log.total_amount
 
-      cash_sales_sum = SalePayment.joins(:sale)
-                                  .where(method: :cash)
-                                  .where(sales: {
-                                           user_id: @current_pos.store.user_id,
-                                           store_id: @current_pos.store_id,
-                                           pos_token_id: @current_pos.id
-                                         })
-                                  .where('sales.created_at > ?', baseline_log.created_at)
-                                  .sum(:amount)
-
-      refund_cash_sum = Refund.joins(:sale)
-                              .where(sales: {
-                                       user_id: @current_pos.store.user_id,
-                                       store_id: @current_pos.store_id,
-                                       pos_token_id: @current_pos.id,
-                                       payment_method: Sale.payment_methods[:cash]
-                                     })
-                              .where('refunds.created_at > ?', baseline_log.created_at)
-                              .sum(:total_amount)
-
+      cash_sales_sum = cash_sales_since(baseline_log.created_at)
+      refund_cash_sum = refund_cash_since(baseline_log.created_at)
       net_cash_sales = cash_sales_sum - refund_cash_sum
 
       expected_amount = baseline_amount + net_cash_sales
       last_amount = previous_log.total_amount
       [previous_log, opening_log, last_amount, expected_amount]
     end
+  end
+
+  # 指定日時以降のこのPOSの現金売上合計（sale_payments.method=cash ベースで正確に集計）
+  def cash_sales_since(since)
+    SalePayment.joins(:sale)
+               .where(method: :cash)
+               .where(sales: {
+                        user_id: @current_pos.store.user_id,
+                        store_id: @current_pos.store_id,
+                        pos_token_id: @current_pos.id
+                      })
+               .where('sales.created_at > ?', since)
+               .sum(:amount)
+  end
+
+  # 指定日時以降のこのPOSの現金返金合計。
+  # sale.payment_method（主たる支払い方法）ではなく、元売上の実際の現金支払い比率で按分する。
+  # 按分式: refund.total_amount × (元売上の現金支払い額 / 元売上合計)
+  def refund_cash_since(since)
+    Refund
+      .joins(:sale)
+      .joins(
+        "LEFT JOIN (
+          SELECT sale_id, SUM(amount) AS cash_amount
+          FROM sale_payments
+          WHERE method = 0
+          GROUP BY sale_id
+        ) AS cash_sums ON cash_sums.sale_id = sales.id"
+      )
+      .where(sales: {
+               user_id: @current_pos.store.user_id,
+               store_id: @current_pos.store_id,
+               pos_token_id: @current_pos.id
+             })
+      .where('refunds.created_at > ?', since)
+      .where('sales.total_amount > 0')
+      .sum('ROUND(refunds.total_amount::numeric * COALESCE(cash_sums.cash_amount, 0) / sales.total_amount)')
+      .to_i
   end
 end

@@ -3,7 +3,7 @@ class Employee < ApplicationRecord
   UNLOCK_IN = 1.hour
 
   belongs_to :user
-  has_secure_password :pin
+  has_secure_password :pin, validations: false
   has_and_belongs_to_many :stores
 
   validates :code, presence: true, uniqueness: { scope: :user_id }, length: { in: 1..12 }
@@ -16,7 +16,7 @@ class Employee < ApplicationRecord
 
   # ログイン成功時に呼び出し、ロック状態をリセット
   def unlock_access!
-    self.update_columns(failed_attempts: 0, locked_at: nil)
+    self.update_columns(failed_attempts: 0, locked_at: nil, updated_at: Time.current)
   end
 
   # ログイン失敗時に呼び出し、失敗回数をインクリメント

@@ -1,0 +1,47 @@
+<div class="dashboard-container">
+  <%= render 'dashboard/shared/menu' %>
+
+  <div class="dashboard-content card">
+    <div class="subtitle d-flex justify-content-between align-items-center">
+      <h2>セット商品管理</h2>
+      <%= link_to "新規登録", new_dashboard_product_bundle_path, class: "btn-signup" %>
+    </div>
+
+    <% if @bundles.empty? %>
+      <div class="empty-message">
+        <p>セット商品が登録されていません。</p>
+      </div>
+    <% else %>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>コード</th>
+            <th>セット名</th>
+            <th class="text-right">価格</th>
+            <th>ステータス</th>
+            <th>構成商品数</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @bundles.each do |bundle| %>
+            <tr>
+              <td><%= bundle.code %></td>
+              <td><%= bundle.name %></td>
+              <td class="text-right"><%= number_to_currency(bundle.price, unit: "¥") %></td>
+              <td><%= bundle.status_i18n %></td>
+              <td class="text-right"><%= bundle.product_bundle_items.size %> 商品</td>
+              <td>
+                <%= link_to "編集", edit_dashboard_product_bundle_path(bundle), class: "link" %>
+                &nbsp;
+                <%= button_to "削除", dashboard_product_bundle_path(bundle), method: :delete,
+                      data: { confirm: "#{bundle.name} を削除しますか？" },
+                      class: "btn-sm btn-danger" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% end %>
+  </div>
+</div>

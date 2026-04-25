@@ -1,0 +1,59 @@
+<div class="dashboard-container">
+  <%= render 'dashboard/shared/menu' %>
+
+  <div class="dashboard-content card">
+    <div class="subtitle d-flex justify-content-between align-items-center">
+      <h2>返品詳細</h2>
+      <%= link_to "← 返品一覧に戻る", dashboard_refunds_path, class: "btn-sm btn-outline" %>
+    </div>
+
+    <div class="mb-3">
+      <table class="data-table">
+        <tbody>
+          <tr>
+            <th>返品日時</th>
+            <td><%= l @refund.created_at, format: :long %></td>
+          </tr>
+          <tr>
+            <th>店舗</th>
+            <td><%= @refund.store.name %></td>
+          </tr>
+          <tr>
+            <th>返品レシート番号</th>
+            <td><%= @refund.refund_receipt_number %></td>
+          </tr>
+          <tr>
+            <th>元レシート番号</th>
+            <td><%= link_to @refund.sale.receipt_number, dashboard_sale_detail_path(@refund.sale), class: "link" %></td>
+          </tr>
+          <tr>
+            <th>返金合計</th>
+            <td><%= number_to_currency(@refund.total_amount, unit: "¥") %></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>返品明細</h3>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>商品名</th>
+          <th class="text-right">数量</th>
+          <th class="text-right">単価</th>
+          <th class="text-right">小計</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @refund.refund_details.each do |d| %>
+          <tr>
+            <td><%= d.product_name %></td>
+            <td class="text-right"><%= d.quantity %></td>
+            <td class="text-right"><%= number_to_currency(d.unit_price, unit: "¥") %></td>
+            <td class="text-right"><%= number_to_currency(d.subtotal, unit: "¥") %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>

@@ -16,9 +16,11 @@ class Dashboard::ProvisioningsController < Dashboard::BaseController
     # 店舗情報の取得とstore_contextの構築
     store = current_user.stores.find_by(id: provisioning_params[:store_id])
     if store
+      store_mode = params.dig(:provisioning, :store_mode).presence || 'standard'
       @provisioning.store_context = {
         store_id: store.id,
         store_name: store.name,
+        store_mode: store_mode,
         tax_rate_standard: 0.10, # 将来的にはStoreモデル等から取得
         tax_rate_reduced: 0.08
       }
@@ -27,10 +29,11 @@ class Dashboard::ProvisioningsController < Dashboard::BaseController
     end
 
     # hardware_settingsの構築 (フォームからの入力をJSONに格納)
-    hardware_params = params.require(:provisioning).permit(:receipt_printer_ip, :drawer_kick_command)
+    hardware_params = params.require(:provisioning).permit(:receipt_printer_ip, :drawer_kick_command, :pos_role)
     @provisioning.hardware_settings = {
       receipt_printer_ip: hardware_params[:receipt_printer_ip],
-      drawer_kick_command: hardware_params[:drawer_kick_command].presence || "27,112,0,50,250"
+      drawer_kick_command: hardware_params[:drawer_kick_command].presence || "27,112,0,50,250",
+      pos_role: hardware_params[:pos_role].presence || "standard"
     }
 
     if @provisioning.save

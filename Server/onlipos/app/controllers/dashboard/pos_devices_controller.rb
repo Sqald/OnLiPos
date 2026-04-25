@@ -35,6 +35,20 @@ class Dashboard::PosDevicesController < Dashboard::BaseController
     end
   end
 
+  def destroy
+    @pos_token = PosToken.joins(:store)
+                         .where(stores: { user_id: current_user.id })
+                         .find(params[:id])
+    name = @pos_token.name
+    @pos_token.destroy!
+    redirect_to dashboard_root_path, notice: "POS端末「#{name}」を削除しました。", status: :see_other
+  rescue ActiveRecord::RecordNotFound
+    redirect_to dashboard_root_path, alert: "端末が見つかりません。", status: :see_other
+  rescue => e
+    Rails.logger.error "POS token destroy failed: #{e.message}"
+    redirect_to dashboard_root_path, alert: "削除に失敗しました。時間をおいて再試行してください。", status: :see_other
+  end
+
   def update_password
     @pos_token = PosToken.joins(:store)
                          .where(stores: { user_id: current_user.id })

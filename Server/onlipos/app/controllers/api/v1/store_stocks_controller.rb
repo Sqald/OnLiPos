@@ -16,7 +16,7 @@ class Api::V1::StoreStocksController < Api::V1::BaseController
     employee_id = params[:employee_id]
 
     if movements.blank? || !movements.is_a?(Array)
-      render json: { success: false, message: "movements が不正です" }, status: :ok
+      render json: { success: false, message: "movements が不正です" }, status: :bad_request
       return
     end
 
@@ -24,7 +24,7 @@ class Api::V1::StoreStocksController < Api::V1::BaseController
     employee = owner.employees.find_by(id: employee_id)
 
     unless employee && (employee.is_all_stores || employee.stores.exists?(@current_pos.store.id))
-      render json: { success: false, message: "担当者が見つからないか、店舗の権限がありません" }, status: :ok
+      render json: { success: false, message: "担当者が見つからないか、店舗の権限がありません" }, status: :forbidden
       return
     end
 
@@ -90,7 +90,6 @@ class Api::V1::StoreStocksController < Api::V1::BaseController
       movements: results
     }, status: :ok
   rescue => e
-    render json: { success: false, message: e.message }, status: :ok
+    render json: { success: false, message: e.message }, status: :unprocessable_entity
   end
 end
-
