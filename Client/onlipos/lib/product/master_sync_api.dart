@@ -80,6 +80,8 @@ class ProductSyncService {
                 'tax_rate': product['tax_rate'] ?? 10,
                 'status': product['status'],
                 'updated_at': product['updated_at'],
+                'category_id': product['category_id'],
+                'category_name': product['category_name'],
               },
               conflictAlgorithm: ConflictAlgorithm.replace,
             );

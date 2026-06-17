@@ -4,8 +4,10 @@ import 'package:onlipos/cash/cash_check_view.dart';
 import 'package:onlipos/cash/cash_close_view.dart';
 import 'package:onlipos/login/operator_input_view.dart';
 import 'package:onlipos/inventory/inventory_inout_view.dart';
+import 'package:onlipos/inventory/stock_check_view.dart';
 import 'package:onlipos/refund/return_refund_view.dart';
 import 'package:onlipos/sale/host_waiting_view.dart';
+import 'package:onlipos/sale/store_sales_view.dart';
 import 'package:onlipos/settings/settings_view.dart';
 
 class MenuTopView extends StatefulWidget {
@@ -230,6 +232,30 @@ class _MenuTopViewState extends State<MenuTopView> {
                             operatorName: widget.employeeName,
                             operatorId: widget.employeeId,
                           ),
+                        ),
+                      );
+                    },
+                  ),
+                  _MenuTile(
+                    title: '売上確認',
+                    icon: Icons.bar_chart,
+                    color: const Color(0xFF7A3B69), // Metro Magenta
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const StoreSalesView(),
+                        ),
+                      );
+                    },
+                  ),
+                  _MenuTile(
+                    title: '在庫確認',
+                    icon: Icons.warehouse,
+                    color: const Color(0xFF006EAF), // Metro Teal
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const StockCheckView(),
                         ),
                       );
                     },

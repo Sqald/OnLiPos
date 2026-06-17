@@ -3,87 +3,104 @@ import 'package:onlipos/login/login_top_view.dart';
 import 'package:onlipos/setup/setup_view.dart';
 import 'dart:io';
 
-// sqflite_common_ffiをインポート
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-// flutter_secure_storageをインポート
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart'; // 追加: kIsWebの判定用
+import 'package:flutter/foundation.dart';
 
-void main() async {
-  // Flutterのバインディングを初期化（非同期処理の前に必須）
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Flutter Linux GTK バックエンドの既知バグ:
-  // physical/logical=0 のキーイベントで assertion が飛ぶ (debug build のみ)。
-  // release build では assertion が無効なので問題ないが、開発中にアプリが落ちないよう
-  // ここでキャッチして無視する。
   PlatformDispatcher.instance.onError = (error, stack) {
     if (error is AssertionError &&
         error.message.toString().contains('data.physical != 0')) {
-      return true; // 握りつぶす
+      return true; 
     }
-    return false; // その他のエラーはFlutterに委ねる
+    return false; 
   };
 
-  // デスクトップ環境向けにsqflite_common_ffiを初期化
   if (!kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS)) {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   }
 
-  const storage = FlutterSecureStorage();
-  final loginToken = await storage.read(key: 'LoginToken');
-
-  Widget initialView;
-  if (loginToken == null) {
-    initialView = const SetupPage(title: '初期設定');
-  } else {
-    initialView = const LoginTopView();
-  }
-
-  // ----------------------------------------------------
-  // デスクトップ(Windows/macOS/Linux)向けのキオスクモード(完全全画面)設定
-  // ----------------------------------------------------
-  if (!kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
-    await windowManager.ensureInitialized();
-
-    WindowOptions windowOptions = const WindowOptions(
-      title: 'OnliPos Client',
-      center: true,
-    );
-
-    windowManager.waitUntilReadyToShow(windowOptions, () async {
-      await windowManager.show();
-      await windowManager.focus();
-      await windowManager.setFullScreen(true); 
-    });
-  }
-
-  // Androidなどのモバイル向けの全画面＆横画面固定設定（これは全プラットフォームで実行してOK）
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
-
-  runApp(MyApp(initialView: initialView));
+  // 修正ポイント1: main()で待機せず、速攻でrunAppを呼んでWindowsに正常なアプリだと認識させる
+  runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
-  final Widget initialView;
-  const MyApp({super.key, required this.initialView});
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  Widget? initialView;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeApp();
+  }
+
+  // 修正ポイント2: アプリのUIが起動した"後"に裏で設定を読み込む
+  Future<void> _initializeApp() async {
+    // 1. ストレージの読み込み
+    const storage = FlutterSecureStorage();
+    final loginToken = await storage.read(key: 'LoginToken');
+
+    if (mounted) {
+      setState(() {
+        if (loginToken == null) {
+          initialView = const SetupPage(title: '初期設定');
+        } else {
+          initialView = const LoginTopView();
+        }
+      });
+    }
+
+    // 2. デスクトップ向けのウィンドウ設定
+    if (!kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
+      await windowManager.ensureInitialized();
+
+      WindowOptions windowOptions = const WindowOptions(
+        size: Size(1280, 720),
+        title: 'OnliPos Client',
+        center: true,
+        skipTaskbar: false,
+      );
+
+      windowManager.waitUntilReadyToShow(windowOptions, () async {
+        await windowManager.show();
+        await windowManager.focus();
+        
+        // 修正ポイント3: ゴースト化を防ぐため、一呼吸（300ミリ秒）置いてから全画面化する
+        await Future.delayed(const Duration(milliseconds: 300));
+        await windowManager.setFullScreen(true); 
+      });
+    }
+
+    // 3. モバイル向けの全画面＆横画面固定設定
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'OnliPos Client',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple), // 修正: ColorSchemeを明記
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple), 
       ),
-      home: initialView,
+      // initialViewが決まるまではローディングインジケーターを出しておく
+      home: initialView ?? const Scaffold(body: Center(child: CircularProgressIndicator())),
     );
   }
 }

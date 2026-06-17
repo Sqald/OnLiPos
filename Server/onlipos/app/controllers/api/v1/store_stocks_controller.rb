@@ -77,10 +77,6 @@ class Api::V1::StoreStocksController < Api::V1::BaseController
               store_stock.quantity - quantity
             end
 
-          if new_quantity < 0
-            raise ActiveRecord::Rollback, "在庫がマイナスになるため出荷できません: #{jan_code}"
-          end
-
           change_value = direction == "in" ? quantity : -quantity
 
           store_stock.update!(quantity: new_quantity)

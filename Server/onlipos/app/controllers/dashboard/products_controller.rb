@@ -9,8 +9,8 @@ class Dashboard::ProductsController < Dashboard::BaseController
     end
     scope = scope.where(status: params[:status]) if params[:status].present?
     scope = scope.where(product_category_id: params[:category_id]) if params[:category_id].present?
-    @categories = current_user.product_categories.order(:display_order, :name)
     @products = scope.order(:code).page(params[:page]).per(50)
+    @categories = current_user.product_categories.order(:display_order, :name)
   end
 
   def new

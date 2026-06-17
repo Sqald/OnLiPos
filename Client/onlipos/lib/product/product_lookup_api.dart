@@ -38,6 +38,8 @@ class ProductLookupApi {
       name: p['name'] as String,
       price: p['price'] as int,
       taxRate: (p['tax_rate'] as int?) ?? 10,
+      categoryId: p['category_id'] as int?,
+      categoryName: p['category_name'] as String?,
     );
   }
 }

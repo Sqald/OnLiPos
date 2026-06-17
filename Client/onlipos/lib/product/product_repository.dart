@@ -25,6 +25,28 @@ class ProductRepository {
     return null;
   }
 
+  /// カテゴリIDごとの商品一覧（null = カテゴリなし）
+  Future<List<Product>> getProductsByCategory(int? categoryId) async {
+    final db = await _db;
+    final List<Map<String, dynamic>> maps = categoryId == null
+        ? await db.query('products', where: 'category_id IS NULL')
+        : await db.query('products', where: 'category_id = ?', whereArgs: [categoryId]);
+    return maps.map((map) => Product.fromMap(map)).toList();
+  }
+
+  /// 登録されているカテゴリの一覧（重複なし）
+  Future<List<({int id, String name})>> getCategories() async {
+    final db = await _db;
+    final rows = await db.rawQuery(
+      'SELECT DISTINCT category_id, category_name FROM products '
+      'WHERE category_id IS NOT NULL ORDER BY category_name',
+    );
+    return rows
+        .where((r) => r['category_id'] != null && r['category_name'] != null)
+        .map((r) => (id: r['category_id'] as int, name: r['category_name'] as String))
+        .toList();
+  }
+
   Future<ProductBundle?> findBundleByCode(String code) async {
     final db = await _db;
     final List<Map<String, dynamic>> rows = await db.query(

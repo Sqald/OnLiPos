@@ -28,7 +28,6 @@ class Dashboard::StoreStocksController < Dashboard::BaseController
     ActiveRecord::Base.transaction do
       from_stock = StoreStock.find_or_create_by!(store: from_store, product: product)
       from_stock.with_lock do
-        raise ActiveRecord::Rollback, "在庫不足です。" if from_stock.quantity < quantity
         from_stock.decrement!(:quantity, quantity)
         StockMovement.create!(
           store: from_store, product: product, store_stock: from_stock,

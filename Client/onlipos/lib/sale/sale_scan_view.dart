@@ -49,6 +49,8 @@ class _SaleScanViewState extends State<SaleScanView> {
   String _barcodeBuffer = '';
   bool _isLoadingTable = false;
   String _posRole = 'standard'; // 'standard' | 'host' | 'client'
+  List<({int id, String name})> _categories = [];
+  int? _selectedCategoryId; // null = すべて
 
   bool get _isRestaurant => widget.storeMode == 'restaurant';
   bool get _isRetail => widget.storeMode == 'retail';
@@ -58,6 +60,7 @@ class _SaleScanViewState extends State<SaleScanView> {
   void initState() {
     super.initState();
     _loadPosRole();
+    _loadCategories();
     // プリロードアイテムがあれば展開（ホスト受け取り時）
     if (widget.initialItems != null && widget.initialItems!.isNotEmpty) {
       _scannedItems.addAll(widget.initialItems!);
@@ -76,6 +79,11 @@ class _SaleScanViewState extends State<SaleScanView> {
     const storage = FlutterSecureStorage();
     final role = await storage.read(key: 'PosRole') ?? 'standard';
     if (mounted) setState(() => _posRole = role);
+  }
+
+  Future<void> _loadCategories() async {
+    final cats = await _productRepository.getCategories();
+    if (mounted) setState(() => _categories = cats);
   }
 
   @override
@@ -374,6 +382,9 @@ class _SaleScanViewState extends State<SaleScanView> {
         'tax_rate': taxRate,
         'tax_amount': taxAmt,
         if (item.bundleCode != null) 'bundle_code': item.bundleCode,
+        // 価格変更がある場合は元の定価を送信（割引額の記録に使用）
+        if (item.overridePrice != null && item.overridePrice! < item.product.price)
+          'original_unit_price': item.product.price,
       };
     }).toList();
 
@@ -615,6 +626,25 @@ class _SaleScanViewState extends State<SaleScanView> {
     return KeyEventResult.ignored;
   }
 
+  // ---- カテゴリチップ ----------------------------------------------
+
+  Widget _buildCategoryChip(int? categoryId, String label) {
+    final isSelected = _selectedCategoryId == categoryId;
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: FilterChip(
+        label: Text(label, style: const TextStyle(fontSize: 13)),
+        selected: isSelected,
+        onSelected: (_) {
+          setState(() => _selectedCategoryId = categoryId);
+          _focusNode.requestFocus();
+        },
+        selectedColor: Colors.blue[200],
+        checkmarkColor: Colors.blue[900],
+      ),
+    );
+  }
+
   // ---- UI ----------------------------------------------------------
 
   String get _appBarTitle {
@@ -647,111 +677,122 @@ class _SaleScanViewState extends State<SaleScanView> {
               flex: 2,
               child: GestureDetector(
                 onTap: () => _focusNode.requestFocus(),
-                child: Container(
-                  color: Colors.grey[200],
-                  child: ListView.builder(
-                    itemCount: _scannedItems.length,
-                    itemBuilder: (context, index) {
-                      final item = _scannedItems[index];
-                      final hasOverride = item.overridePrice != null;
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        child: InkWell(
-                          onLongPress: () => _editItemPrice(index),
-                          borderRadius: BorderRadius.circular(12),
-                          child: ListTile(
-                            title: Row(
-                              children: [
-                                if (item.bundleCode != null)
-                                  Container(
-                                    margin: const EdgeInsets.only(right: 6),
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: Colors.orange[100],
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text('セット',
-                                        style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.orange[900])),
-                                  ),
-                                Expanded(
-                                  child: Text(item.product.name,
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.bold)),
-                                ),
-                              ],
-                            ),
-                            subtitle: hasOverride
-                                ? Row(
+                child: Column(
+                  children: [
+                    // カテゴリフィルタータブ（カテゴリが登録されている場合のみ表示）
+                    if (_categories.isNotEmpty)
+                      SizedBox(
+                        height: 40,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          children: [
+                            _buildCategoryChip(null, 'すべて'),
+                            ..._categories.map((c) => _buildCategoryChip(c.id, c.name)),
+                          ],
+                        ),
+                      ),
+                    Expanded(
+                      child: Container(
+                        color: Colors.grey[200],
+                        child: ListView.builder(
+                          itemCount: _scannedItems.length,
+                          itemBuilder: (context, index) {
+                            final item = _scannedItems[index];
+                            final hasOverride = item.overridePrice != null;
+                            return Card(
+                              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              child: InkWell(
+                                onLongPress: () => _editItemPrice(index),
+                                borderRadius: BorderRadius.circular(12),
+                                child: ListTile(
+                                  title: Row(
                                     children: [
-                                      Text(
-                                        '¥${item.product.price}',
-                                        style: TextStyle(
-                                          decoration: TextDecoration.lineThrough,
-                                          color: Colors.grey[500],
-                                          fontSize: 13,
+                                      if (item.bundleCode != null)
+                                        Container(
+                                          margin: const EdgeInsets.only(right: 6),
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.orange[100],
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text('セット', style: TextStyle(fontSize: 12, color: Colors.orange[900])),
                                         ),
+                                      Expanded(
+                                        child: Text(item.product.name,
+                                            style: const TextStyle(fontWeight: FontWeight.bold)),
                                       ),
-                                      const SizedBox(width: 6),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: Colors.red[50],
-                                          borderRadius: BorderRadius.circular(4),
-                                          border: Border.all(color: Colors.red.shade200),
-                                        ),
-                                        child: Text(
-                                          '¥${item.overridePrice}',
-                                          style: TextStyle(
-                                            color: Colors.red[700],
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13,
+                                    ],
+                                  ),
+                                  subtitle: hasOverride
+                                      ? Row(
+                                          children: [
+                                            Text(
+                                              '¥${item.product.price}',
+                                              style: TextStyle(
+                                                decoration: TextDecoration.lineThrough,
+                                                color: Colors.grey[500],
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: Colors.red[50],
+                                                borderRadius: BorderRadius.circular(4),
+                                                border: Border.all(color: Colors.red.shade200),
+                                              ),
+                                              child: Text(
+                                                '¥${item.overridePrice}',
+                                                style: TextStyle(
+                                                  color: Colors.red[700],
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Text('(税${item.product.taxRate}%)',
+                                                style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                                          ],
+                                        )
+                                      : Text('¥${item.product.price}  (税${item.product.taxRate}%)'),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                          icon: const Icon(Icons.remove_circle_outline),
+                                          onPressed: () => _decrementItem(index)),
+                                      Text('${item.quantity}', style: const TextStyle(fontSize: 18)),
+                                      IconButton(
+                                          icon: const Icon(Icons.add_circle_outline),
+                                          onPressed: () => _incrementItem(index)),
+                                      GestureDetector(
+                                        onTap: () => _editItemPrice(index),
+                                        child: SizedBox(
+                                          width: 100,
+                                          child: Text(
+                                            '¥${item.subtotal}',
+                                            textAlign: TextAlign.right,
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              color: hasOverride ? Colors.red[700] : null,
+                                              fontWeight: hasOverride ? FontWeight.bold : null,
+                                            ),
                                           ),
                                         ),
                                       ),
-                                      const SizedBox(width: 6),
-                                      Text('(税${item.product.taxRate}%)',
-                                          style: TextStyle(fontSize: 13, color: Colors.grey[600])),
                                     ],
-                                  )
-                                : Text('¥${item.product.price}  (税${item.product.taxRate}%)'),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                    icon: const Icon(
-                                        Icons.remove_circle_outline),
-                                    onPressed: () => _decrementItem(index)),
-                                Text('${item.quantity}',
-                                    style: const TextStyle(fontSize: 18)),
-                                IconButton(
-                                    icon: const Icon(Icons.add_circle_outline),
-                                    onPressed: () => _incrementItem(index)),
-                                GestureDetector(
-                                  onTap: () => _editItemPrice(index),
-                                  child: SizedBox(
-                                    width: 100,
-                                    child: Text(
-                                      '¥${item.subtotal}',
-                                      textAlign: TextAlign.right,
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: hasOverride ? Colors.red[700] : null,
-                                        fontWeight: hasOverride ? FontWeight.bold : null,
-                                      ),
-                                    ),
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

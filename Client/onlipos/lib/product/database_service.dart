@@ -8,7 +8,7 @@ import 'package:sqflite/sqflite.dart';
 /// 同一DBファイルを別々にオープンすることによる "database is locked" を防ぐ。
 class DatabaseService {
   static const _dbName = 'pos_app.db';
-  static const _dbVersion = 4;
+  static const _dbVersion = 5;
 
   DatabaseService._();
   static final DatabaseService instance = DatabaseService._();
@@ -50,7 +50,9 @@ class DatabaseService {
         price INTEGER,
         tax_rate INTEGER DEFAULT 10,
         status TEXT,
-        updated_at TEXT
+        updated_at TEXT,
+        category_id INTEGER,
+        category_name TEXT
       )
     ''');
     await db.execute('''
@@ -123,6 +125,10 @@ class DatabaseService {
       } catch (_) {
         // 古いSQLiteバージョン（3.35未満）では DROP COLUMN 非対応のため無視
       }
+    }
+    if (oldVersion < 5) {
+      await db.execute('ALTER TABLE products ADD COLUMN category_id INTEGER');
+      await db.execute('ALTER TABLE products ADD COLUMN category_name TEXT');
     }
   }
 }

@@ -1,4 +1,8 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../login/login_top_view.dart';
 import '../sale/escpos/lan_recipt_api.dart';
@@ -130,20 +134,52 @@ class _CashCloseViewState extends State<CashCloseView> {
     });
 
     if (result['success'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('レジ精算を登録しました')),
-      );
-      // 精算完了後はセッションを終了し、ログイン画面へ戻す
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginTopView()),
-        (route) => false,
-      );
+      if (!mounted) return;
+      _showClosingDialog();
     } else {
       final message = result['message']?.toString() ?? 'エラーが発生しました';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
       );
     }
+  }
+
+  void _showClosingDialog() {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('精算完了'),
+        content: const Text('レジ精算が完了しました。\nこのあとどうしますか？'),
+        actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.logout),
+            label: const Text('ログアウト'),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginTopView()),
+                (route) => false,
+              );
+            },
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.power_settings_new),
+            label: const Text('アプリを終了'),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              if (kIsWeb) {
+                SystemNavigator.pop();
+              } else if (Platform.isAndroid || Platform.isIOS) {
+                SystemNavigator.pop();
+              } else {
+                exit(0);
+              }
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   String _formatCurrency(int number) {

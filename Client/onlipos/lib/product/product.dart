@@ -4,6 +4,8 @@ class Product {
   final String name;
   final int price;
   final int taxRate; // 消費税率(%) デフォルト10
+  final int? categoryId;
+  final String? categoryName;
 
   Product({
     required this.id,
@@ -11,6 +13,8 @@ class Product {
     required this.name,
     required this.price,
     this.taxRate = 10,
+    this.categoryId,
+    this.categoryName,
   });
 
   factory Product.fromMap(Map<String, dynamic> map) {
@@ -20,6 +24,8 @@ class Product {
       name: map['name'] as String,
       price: map['price'] as int,
       taxRate: (map['tax_rate'] as int?) ?? 10,
+      categoryId: map['category_id'] as int?,
+      categoryName: map['category_name'] as String?,
     );
   }
 
@@ -30,6 +36,8 @@ class Product {
       'name': name,
       'price': price,
       'tax_rate': taxRate,
+      'category_id': categoryId,
+      'category_name': categoryName,
     };
   }
 }
