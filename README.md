@@ -55,6 +55,14 @@ SSL 証明書を用意して `Server/nginx/ssl/server.crt` と `Server/nginx/ssl
 
 ## クライアントアプリ（Flutter）
 
+Windows 版は Microsoft Store からインストールできます。
+
+<a href="https://get.microsoft.com/installer/download/9NB0GPXHFW0M?referrer=appbadge" target="_self">
+  <img src="https://get.microsoft.com/images/ja%20dark.svg" width="200"/>
+</a>
+
+その他のプラットフォームはソースからビルドしてください。
+
 ```bash
 cd Client/onlipos
 flutter pub get
