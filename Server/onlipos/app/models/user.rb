@@ -5,6 +5,7 @@ class User < ApplicationRecord
   has_many :employees, dependent: :destroy
   has_many :devices, through: :shops
   has_many :products, dependent: :destroy
+  has_many :product_categories, dependent: :destroy
   has_many :product_bundles, dependent: :destroy
   has_many :provisionings, dependent: :destroy
   has_many :sales, dependent: :destroy

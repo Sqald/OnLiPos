@@ -2,12 +2,14 @@ class Dashboard::ProductsController < Dashboard::BaseController
   before_action :set_product, only: [:edit, :update, :destroy]
 
   def index
-    scope = current_user.products
+    scope = current_user.products.includes(:product_category)
     if params[:q].present?
       q = "%#{params[:q]}%"
       scope = scope.where("name ILIKE ? OR code ILIKE ?", q, q)
     end
     scope = scope.where(status: params[:status]) if params[:status].present?
+    scope = scope.where(product_category_id: params[:category_id]) if params[:category_id].present?
+    @categories = current_user.product_categories.order(:display_order, :name)
     @products = scope.order(:code).page(params[:page]).per(50)
   end
 
@@ -72,6 +74,6 @@ class Dashboard::ProductsController < Dashboard::BaseController
   end
 
   def product_params
-    params.require(:product).permit(:code, :name, :price, :description, :status, :tax_rate)
+    params.require(:product).permit(:code, :name, :price, :description, :status, :tax_rate, :product_category_id)
   end
 end

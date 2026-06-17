@@ -36,6 +36,13 @@
   </div>
 
   <div class="field">
+    <%= f.label :product_category_id, "カテゴリ" %>
+    <%= f.collection_select :product_category_id,
+          current_user.product_categories.order(:display_order, :name), :id, :name,
+          { include_blank: "カテゴリなし" }, class: "form-control" %>
+  </div>
+
+  <div class="field">
     <%= f.label :status, "ステータス" %>
     <div class="radio-group">
       <%= f.radio_button :status, :active, checked: product.active? || product.new_record? %>

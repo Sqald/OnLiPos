@@ -10,9 +10,34 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_15_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_01_000003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "admin_audit_logs", force: :cascade do |t|
+    t.string "action", null: false
+    t.bigint "admin_id"
+    t.datetime "created_at", null: false
+    t.text "details"
+    t.string "ip_address"
+    t.bigint "target_id"
+    t.string "target_type"
+    t.index ["admin_id"], name: "index_admin_audit_logs_on_admin_id"
+    t.index ["created_at"], name: "index_admin_audit_logs_on_created_at"
+    t.index ["target_type", "target_id"], name: "index_admin_audit_logs_on_target_type_and_target_id"
+  end
+
+  create_table "admins", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "failed_attempts", default: 0, null: false
+    t.datetime "last_sign_in_at"
+    t.string "last_sign_in_ip"
+    t.datetime "locked_at"
+    t.string "password_digest", null: false
+    t.datetime "updated_at", null: false
+    t.string "username", null: false
+    t.index ["username"], name: "index_admins_on_username", unique: true
+  end
 
   create_table "cash_logs", force: :cascade do |t|
     t.datetime "created_at", null: false
@@ -118,16 +143,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_15_010000) do
     t.index ["user_id"], name: "index_product_bundles_on_user_id"
   end
 
+  create_table "product_categories", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "display_order", default: 0, null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["user_id", "name"], name: "index_product_categories_on_user_id_and_name", unique: true
+    t.index ["user_id"], name: "index_product_categories_on_user_id"
+  end
+
   create_table "products", force: :cascade do |t|
     t.string "code", null: false
     t.datetime "created_at", null: false
     t.text "description"
     t.string "name", null: false
     t.integer "price", default: 0, null: false
+    t.bigint "product_category_id"
     t.integer "status", default: 0, null: false
     t.integer "tax_rate", default: 10, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.index ["product_category_id"], name: "index_products_on_product_category_id"
     t.index ["user_id", "code"], name: "index_products_on_user_id_and_code", unique: true
     t.index ["user_id"], name: "index_products_on_user_id"
   end
@@ -162,6 +199,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_15_010000) do
 
   create_table "refunds", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.bigint "employee_id"
     t.bigint "pos_token_id"
     t.string "refund_receipt_number"
     t.bigint "sale_id", null: false
@@ -169,6 +207,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_15_010000) do
     t.integer "total_amount", default: 0, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.index ["employee_id"], name: "index_refunds_on_employee_id"
     t.index ["pos_token_id"], name: "index_refunds_on_pos_token_id"
     t.index ["refund_receipt_number"], name: "index_refunds_on_refund_receipt_number"
     t.index ["sale_id"], name: "index_refunds_on_sale_id"
@@ -188,6 +227,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_15_010000) do
 
   create_table "saledetails", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.integer "discount_amount", default: 0, null: false
+    t.integer "original_unit_price"
     t.bigint "product_id", null: false
     t.string "product_name", null: false
     t.integer "quantity", default: 1, null: false
@@ -203,6 +244,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_15_010000) do
 
   create_table "sales", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.bigint "employee_id"
     t.integer "payment_method", default: 0, null: false
     t.bigint "pos_token_id"
     t.string "receipt_number", null: false
@@ -210,8 +252,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_15_010000) do
     t.integer "subtotal_ex_tax", default: 0, null: false
     t.integer "tax_amount", default: 0, null: false
     t.integer "total_amount", null: false
+    t.integer "total_discount", default: 0, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.index ["employee_id"], name: "index_sales_on_employee_id"
     t.index ["pos_token_id"], name: "index_sales_on_pos_token_id"
     t.index ["receipt_number"], name: "index_sales_on_receipt_number", unique: true
     t.index ["store_id"], name: "index_sales_on_store_id"
@@ -315,12 +359,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_15_010000) do
     t.index ["unlock_token"], name: "index_users_on_unlock_token", unique: true
   end
 
-  add_foreign_key "hold_orders", "stores"
-  add_foreign_key "table_orders", "stores"
-  add_foreign_key "transfer_orders", "stores"
   add_foreign_key "cash_logs", "employees"
   add_foreign_key "cash_logs", "pos_tokens"
   add_foreign_key "employees", "users"
+  add_foreign_key "hold_orders", "stores"
   add_foreign_key "pos_tokens", "provisionings"
   add_foreign_key "pos_tokens", "stores"
   add_foreign_key "prices", "products"
@@ -328,12 +370,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_15_010000) do
   add_foreign_key "product_bundle_items", "product_bundles"
   add_foreign_key "product_bundle_items", "products"
   add_foreign_key "product_bundles", "users"
+  add_foreign_key "product_categories", "users"
+  add_foreign_key "products", "product_categories"
   add_foreign_key "products", "users"
   add_foreign_key "provisionings", "stores"
   add_foreign_key "provisionings", "users"
   add_foreign_key "refund_details", "products"
   add_foreign_key "refund_details", "refunds"
   add_foreign_key "refund_details", "saledetails"
+  add_foreign_key "refunds", "employees"
   add_foreign_key "refunds", "pos_tokens"
   add_foreign_key "refunds", "sales"
   add_foreign_key "refunds", "stores"
@@ -341,6 +386,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_15_010000) do
   add_foreign_key "sale_payments", "sales"
   add_foreign_key "saledetails", "products"
   add_foreign_key "saledetails", "sales"
+  add_foreign_key "sales", "employees"
   add_foreign_key "sales", "pos_tokens"
   add_foreign_key "sales", "stores"
   add_foreign_key "sales", "users"
@@ -353,4 +399,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_15_010000) do
   add_foreign_key "store_stocks", "products"
   add_foreign_key "store_stocks", "stores"
   add_foreign_key "stores", "users"
+  add_foreign_key "table_orders", "stores"
+  add_foreign_key "transfer_orders", "stores"
 end

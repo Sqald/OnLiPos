@@ -3,6 +3,7 @@ class Refund < ApplicationRecord
   belongs_to :store
   belongs_to :user
   belongs_to :pos_token, optional: true
+  belongs_to :employee, optional: true
   has_many :refund_details, dependent: :destroy
 
   validates :total_amount, presence: true, numericality: { greater_than_or_equal_to: 0 }

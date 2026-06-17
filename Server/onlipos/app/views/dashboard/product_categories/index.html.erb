@@ -1,0 +1,42 @@
+<div class="dashboard-container">
+  <%= render 'dashboard/shared/menu' %>
+
+  <div class="dashboard-content card">
+    <div class="subtitle d-flex justify-content-between align-items-center">
+      <h2>商品カテゴリ</h2>
+      <%= link_to "新規カテゴリ", new_dashboard_product_category_path, class: "btn-signup" %>
+    </div>
+
+    <% if @categories.empty? %>
+      <div class="empty-message">
+        <p>カテゴリが登録されていません。</p>
+      </div>
+    <% else %>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>表示順</th>
+            <th>カテゴリ名</th>
+            <th class="text-right">商品数</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @categories.each do |category| %>
+            <tr>
+              <td><%= category.display_order %></td>
+              <td><%= category.name %></td>
+              <td class="text-right"><%= category.products.count %></td>
+              <td class="text-right">
+                <%= link_to "編集", edit_dashboard_product_category_path(category), class: "link" %>
+                <%= button_to "削除", dashboard_product_category_path(category), method: :delete,
+                    class: "btn-danger btn-sm",
+                    data: { confirm: "「#{category.name}」を削除しますか？\n紐付いている商品はカテゴリなしになります。" } %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% end %>
+  </div>
+</div>

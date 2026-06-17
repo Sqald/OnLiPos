@@ -26,6 +26,16 @@
             <td><%= @sale.pos_token&.ascii_name || "-" %></td>
           </tr>
           <tr>
+            <th>担当者</th>
+            <td>
+              <% if @sale.employee %>
+                <%= @sale.employee.name %>（コード: <%= @sale.employee.code %>）
+              <% else %>
+                -
+              <% end %>
+            </td>
+          </tr>
+          <tr>
             <th>合計金額（税込）</th>
             <td><%= number_to_currency(@sale.total_amount, unit: "¥") %></td>
           </tr>
@@ -37,6 +47,12 @@
           <tr>
             <th>消費税合計</th>
             <td><%= number_to_currency(@sale.tax_amount, unit: "¥") %></td>
+          </tr>
+          <% end %>
+          <% if @sale.total_discount > 0 %>
+          <tr>
+            <th>割引合計</th>
+            <td style="color: #e53935;">-<%= number_to_currency(@sale.total_discount, unit: "¥") %></td>
           </tr>
           <% end %>
 
@@ -89,6 +105,7 @@
           <th>商品名</th>
           <th class="text-right">数量</th>
           <th class="text-right">単価</th>
+          <th class="text-right">割引</th>
           <th class="text-right">小計</th>
           <th class="text-right">税率</th>
         </tr>
@@ -99,7 +116,21 @@
             <td><%= d.product&.code || "-" %></td>
             <td><%= d.product_name %></td>
             <td class="text-right"><%= d.quantity %></td>
-            <td class="text-right"><%= number_to_currency(d.unit_price, unit: "¥") %></td>
+            <td class="text-right">
+              <% if d.original_unit_price.present? && d.original_unit_price > d.unit_price %>
+                <span style="text-decoration: line-through; color: #aaa; font-size: 12px;"><%= number_to_currency(d.original_unit_price, unit: "¥") %></span>
+                <br><span style="color: #e53935;"><%= number_to_currency(d.unit_price, unit: "¥") %></span>
+              <% else %>
+                <%= number_to_currency(d.unit_price, unit: "¥") %>
+              <% end %>
+            </td>
+            <td class="text-right">
+              <% if d.discount_amount > 0 %>
+                <span style="color: #e53935;">-<%= number_to_currency(d.discount_amount, unit: "¥") %></span>
+              <% else %>
+                -
+              <% end %>
+            </td>
             <td class="text-right"><%= number_to_currency(d.subtotal, unit: "¥") %></td>
             <td class="text-right"><%= d.tax_rate > 0 ? "#{d.tax_rate}%" : "-" %></td>
           </tr>

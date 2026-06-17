@@ -4,7 +4,7 @@ class Api::V1::ProductsController < Api::V1::BaseController
     return render json: { success: false, message: 'code is required' }, status: :bad_request if code.blank?
 
     current_store = @current_pos.store
-    product = current_store.products.find_by(code: code, status: :active)
+    product = current_store.products.includes(:product_category).find_by(code: code, status: :active)
 
     if product.nil?
       return render json: { success: false, message: 'not_found' }, status: :not_found
@@ -20,6 +20,8 @@ class Api::V1::ProductsController < Api::V1::BaseController
         name: product.name,
         price: price,
         tax_rate: product.tax_rate,
+        category_id: product.product_category_id,
+        category_name: product.product_category&.name
       }
     }, status: :ok
   end
@@ -44,6 +46,7 @@ class Api::V1::ProductsController < Api::V1::BaseController
 
     # 「しおり」以降のデータを1000件取得する（updated_at順、同じ時刻ならid順）
     products = current_store.products
+                            .includes(:product_category)
                             .where("(products.updated_at > ?) OR (products.updated_at = ? AND products.id > ?)", last_updated_at, last_updated_at, last_id)
                             .order(updated_at: :asc, id: :asc)
                             .limit(limit)
@@ -73,7 +76,9 @@ class Api::V1::ProductsController < Api::V1::BaseController
         status: product.status,
         price: current_price,
         tax_rate: product.tax_rate,
-        updated_at: product.updated_at
+        updated_at: product.updated_at,
+        category_id: product.product_category_id,
+        category_name: product.product_category&.name
       }
     end
 

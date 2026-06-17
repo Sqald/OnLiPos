@@ -17,7 +17,7 @@ class Dashboard::SalesController < Dashboard::BaseController
     respond_to do |format|
       format.html do
         @sales = scope
-          .includes(:store, :pos_token, :sale_payments)
+          .includes(:store, :pos_token, :sale_payments, :employee)
           .order(created_at: :desc)
           .page(params[:page])
           .per(50)
@@ -66,8 +66,8 @@ class Dashboard::SalesController < Dashboard::BaseController
     output = StringIO.new
     output << "\xEF\xBB\xBF"
     csv = CSV.new(output)
-    csv << ['日時', '店舗', 'POS端末', 'レシート番号', '支払方法', '金額（税込）', '税抜小計', '消費税']
-    scope.includes(:store, :pos_token, :sale_payments).find_each(batch_size: 500) do |sale|
+    csv << ['日時', '店舗', 'POS端末', '担当者', 'レシート番号', '支払方法', '金額（税込）', '税抜小計', '消費税', '割引合計']
+    scope.includes(:store, :pos_token, :sale_payments, :employee).find_each(batch_size: 500) do |sale|
       payment_str = if sale.sale_payments.any?
         sale.sale_payments.map { |p| "#{payment_labels[p.method] || p.method}(#{p.amount}円)" }.join(' / ')
       else
@@ -77,11 +77,13 @@ class Dashboard::SalesController < Dashboard::BaseController
         sale.created_at.in_time_zone('Asia/Tokyo').strftime('%Y-%m-%d %H:%M:%S'),
         sale.store.name,
         sale.pos_token&.ascii_name || '-',
+        sale.employee ? "#{sale.employee.name}(#{sale.employee.code})" : '-',
         sale.receipt_number,
         payment_str,
         sale.total_amount,
         sale.subtotal_ex_tax,
-        sale.tax_amount
+        sale.tax_amount,
+        sale.total_discount
       ]
     end
     output.string

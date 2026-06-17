@@ -139,6 +139,7 @@ class Api::V1::RefundsController < Api::V1::BaseController
         store: sale.store,
         user: sale.user,
         pos_token: @current_pos,
+        employee: employees.first,
         total_amount: total_refund
       )
 

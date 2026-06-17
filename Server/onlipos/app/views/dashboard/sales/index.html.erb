@@ -52,8 +52,10 @@
             <th>日時</th>
             <th>店舗</th>
             <th>POS端末</th>
+            <th>担当者</th>
             <th>レシート番号</th>
             <th>支払方法</th>
+            <th class="text-right">割引</th>
             <th class="text-right">金額</th>
           </tr>
         </thead>
@@ -63,6 +65,7 @@
               <td><%= l sale.created_at, format: :short %></td>
               <td><%= sale.store.name %></td>
               <td><%= sale.pos_token&.ascii_name || "-" %></td>
+              <td><%= sale.employee ? "#{sale.employee.name}(#{sale.employee.code})" : "-" %></td>
               <td><%= link_to sale.receipt_number, dashboard_sale_detail_path(sale), class: "link" %></td>
               <td>
                 <% if sale.sale_payments.any? %>
@@ -76,6 +79,13 @@
                   </ul>
                 <% else %>
                   <%= I18n.t("enum.sale.payment_method.#{sale.payment_method}", default: sale.payment_method) %>
+                <% end %>
+              </td>
+              <td class="text-right">
+                <% if sale.total_discount > 0 %>
+                  <span style="color: #e53935;">-<%= number_to_currency(sale.total_discount, unit: "¥") %></span>
+                <% else %>
+                  -
                 <% end %>
               </td>
               <td class="text-right"><%= number_to_currency(sale.total_amount, unit: "¥") %></td>

@@ -1,5 +1,26 @@
 class Api::V1::StoreStocksController < Api::V1::BaseController
 
+  def index
+    store = @current_pos.store
+
+    stocks = store.store_stocks
+      .includes(:product)
+      .joins(:product)
+      .order('products.name')
+
+    render json: {
+      success: true,
+      stocks: stocks.map { |s|
+        {
+          product_id: s.product.id,
+          product_name: s.product.name,
+          product_code: s.product.code,
+          quantity: s.quantity
+        }
+      }
+    }
+  end
+
   # 在庫の入出荷をまとめて登録するエンドポイント。
   # POST /api/v1/store_stocks/move
   #

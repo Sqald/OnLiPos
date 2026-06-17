@@ -1,4 +1,33 @@
-class Api::V1::SalesController < Api::V1::BaseController 
+class Api::V1::SalesController < Api::V1::BaseController
+  def index
+    date = params[:date].present? ? Date.parse(params[:date]) : Date.current
+    store = @current_pos.store
+
+    sales = store.sales
+      .includes(:employee, :sale_payments)
+      .where(created_at: date.all_day)
+      .order(created_at: :desc)
+
+    render json: {
+      success: true,
+      date: date.to_s,
+      total_amount: sales.sum(:total_amount),
+      count: sales.count,
+      sales: sales.map { |s|
+        {
+          id: s.id,
+          receipt_number: s.receipt_number,
+          total_amount: s.total_amount,
+          payment_method: s.payment_method,
+          employee_name: s.employee&.name.presence || s.employee&.code,
+          created_at: s.created_at.strftime('%H:%M')
+        }
+      }
+    }
+  rescue ArgumentError
+    render json: { success: false, message: '日付の形式が不正です' }, status: :bad_request
+  end
+
   def create
     # BaseControllerのauthenticate_pos_tokenでセットされた @current_pos を使用
     payments = payment_params_array
@@ -7,6 +36,7 @@ class Api::V1::SalesController < Api::V1::BaseController
     @sale.pos_token = @current_pos
     @sale.store = @current_pos.store
     @sale.user = @current_pos.store.user
+    @sale.employee = operator_employee
 
     ActiveRecord::Base.transaction do
       if @sale.save
@@ -16,12 +46,14 @@ class Api::V1::SalesController < Api::V1::BaseController
         # Saleモデルのコールバックで pos_token.next_receipt_sequence がインクリメントされているため、
         # 最新の状態をリロードして取得し、クライアントへ返す（オフライン会計用）
         next_sequence = @current_pos.reload.next_receipt_sequence
+        # 割引合計を明細から集計してヘッダーに反映
+        @sale.update_columns(total_discount: @sale.saledetails.sum(:discount_amount))
 
-        render json: { 
-          success: true, 
+        render json: {
+          success: true,
           sale_id: @sale.id,
           receipt_number: @sale.receipt_number,
-          next_receipt_sequence: next_sequence 
+          next_receipt_sequence: next_sequence
         }, status: :created
       else
         render json: { success: false, errors: @sale.errors.full_messages }, status: :unprocessable_entity
@@ -106,7 +138,8 @@ class Api::V1::SalesController < Api::V1::BaseController
 
     details.each do |detail|
       attrs = detail.respond_to?(:permit) ?
-        detail.permit(:product_id, :product_name, :product_code, :quantity, :unit_price, :subtotal, :tax_rate, :tax_amount, :bundle_code) :
+        detail.permit(:product_id, :product_name, :product_code, :quantity, :unit_price, :subtotal,
+                      :tax_rate, :tax_amount, :bundle_code, :original_unit_price) :
         detail
 
       # セット商品コードが指定されている場合はセット展開
@@ -130,6 +163,14 @@ class Api::V1::SalesController < Api::V1::BaseController
       subtotal_ex_tax = (subtotal * 100 / (100 + tax_rate)).floor
       tax_amount = subtotal - subtotal_ex_tax
 
+      # 割引追跡: クライアントから original_unit_price が送られた場合に割引額を計算
+      original_unit_price = attrs[:original_unit_price].present? ? attrs[:original_unit_price].to_i : nil
+      discount_amount = if original_unit_price.present? && original_unit_price > unit_price
+        (original_unit_price - unit_price) * quantity
+      else
+        0
+      end
+
       sale_detail = @sale.saledetails.create!(
         product_id: product.id,
         product_name: attrs[:product_name].presence || product.name,
@@ -137,7 +178,9 @@ class Api::V1::SalesController < Api::V1::BaseController
         unit_price: unit_price,
         subtotal: subtotal,
         tax_rate: tax_rate,
-        tax_amount: tax_amount
+        tax_amount: tax_amount,
+        original_unit_price: original_unit_price,
+        discount_amount: discount_amount
       )
 
       deduct_stock(@sale.store, product, sale_detail.quantity, operator_employee)

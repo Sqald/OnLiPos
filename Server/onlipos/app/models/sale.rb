@@ -4,6 +4,7 @@ class Sale < ApplicationRecord
   belongs_to :user
   belongs_to :store
   belongs_to :pos_token, optional: true
+  belongs_to :employee, optional: true
   has_many :saledetails, dependent: :destroy
   has_many :sale_payments, dependent: :destroy
   has_many :refunds, dependent: :restrict_with_exception
@@ -13,6 +14,7 @@ class Sale < ApplicationRecord
   enum :payment_method, { cash: 0, card: 1, barcode: 2 }
 
   validates :total_amount, presence: true, numericality: { greater_than_or_equal_to: 0 }
+  validates :total_discount, numericality: { greater_than_or_equal_to: 0 }
   validates :receipt_number, presence: true, uniqueness: true
 
   before_validation :set_receipt_number, on: :create

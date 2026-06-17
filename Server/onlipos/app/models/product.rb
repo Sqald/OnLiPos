@@ -2,6 +2,7 @@ require 'csv'
 
 class Product < ApplicationRecord
   belongs_to :user
+  belongs_to :product_category, optional: true
   has_many :store_stocks, dependent: :destroy
   has_many :prices, dependent: :destroy
   has_many :saledetails

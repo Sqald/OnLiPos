@@ -11,8 +11,11 @@ class Dashboard::ReportsController < Dashboard::BaseController
       @daily_summary = []
       @monthly_summary = []
       @product_ranking = []
+      @payment_summary = []
+      @employee_summary = []
       @total_sales_amount = 0
       @total_sales_count = 0
+      @total_discount = 0
       return
     end
 
@@ -23,7 +26,7 @@ class Dashboard::ReportsController < Dashboard::BaseController
 
     @daily_summary = scope
       .group("DATE(sales.created_at AT TIME ZONE 'Asia/Tokyo')")
-      .order("DATE(sales.created_at AT TIME ZONE 'Asia/Tokyo') ASC")
+      .order(Arel.sql("DATE(sales.created_at AT TIME ZONE 'Asia/Tokyo') ASC"))
       .pluck(
         Arel.sql("DATE(sales.created_at AT TIME ZONE 'Asia/Tokyo') AS day"),
         Arel.sql("COUNT(*) AS cnt"),
@@ -33,7 +36,7 @@ class Dashboard::ReportsController < Dashboard::BaseController
 
     @monthly_summary = scope
       .group("TO_CHAR(sales.created_at AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM')")
-      .order("TO_CHAR(sales.created_at AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM') ASC")
+      .order(Arel.sql("TO_CHAR(sales.created_at AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM') ASC"))
       .pluck(
         Arel.sql("TO_CHAR(sales.created_at AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM') AS month"),
         Arel.sql("COUNT(*) AS cnt"),
@@ -42,6 +45,39 @@ class Dashboard::ReportsController < Dashboard::BaseController
       .map { |month, cnt, amount| { month: month, count: cnt, amount: amount } }
 
     sale_ids = scope.pluck(:id)
+
+    # 支払い方法別集計（現金/カード/バーコード）
+    payment_method_labels = {
+      0 => '現金', 1 => 'カード', 2 => 'バーコード決済',
+      'cash' => '現金', 'card' => 'カード', 'barcode' => 'バーコード決済'
+    }
+    @payment_summary = SalePayment
+      .where(sale_id: sale_ids)
+      .group(:method)
+      .order(:method)
+      .pluck(
+        Arel.sql("method"),
+        Arel.sql("COUNT(DISTINCT sale_id) AS cnt"),
+        Arel.sql("SUM(amount) AS total")
+      )
+      .map { |method_int, cnt, total| { label: payment_method_labels[method_int] || method_int.to_s, count: cnt, amount: total } }
+
+    # 割引合計
+    @total_discount = scope.sum(:total_discount)
+
+    # 担当者別売上（sales に employee_id がある場合）
+    @employee_summary = scope
+      .joins("LEFT JOIN employees ON employees.id = sales.employee_id")
+      .group("employees.id", "employees.name", "employees.code")
+      .order(Arel.sql("SUM(sales.total_amount) DESC"))
+      .pluck(
+        Arel.sql("COALESCE(employees.name, '不明') AS emp_name"),
+        Arel.sql("COALESCE(employees.code, '-') AS emp_code"),
+        Arel.sql("COUNT(sales.id) AS cnt"),
+        Arel.sql("SUM(sales.total_amount) AS amount")
+      )
+      .map { |name, code, cnt, amount| { name: name, code: code, count: cnt, amount: amount } }
+
     @product_ranking = Saledetail
       .where(sale_id: sale_ids)
       .group(:product_name)
@@ -96,6 +132,16 @@ class Dashboard::ReportsController < Dashboard::BaseController
       csv << ['--- 商品別売上ランキング ---']
       csv << ['順位', '商品名', '販売数', '売上金額']
       @product_ranking.each_with_index { |r, i| csv << [i + 1, r[:name], r[:quantity], r[:amount]] }
+
+      csv << []
+      csv << ['--- 支払い方法別集計 ---']
+      csv << ['支払い方法', '件数', '金額']
+      @payment_summary.each { |r| csv << [r[:label], r[:count], r[:amount]] }
+
+      csv << []
+      csv << ['--- 担当者別売上 ---']
+      csv << ['コード', '担当者名', '件数', '売上金額']
+      @employee_summary.each { |r| csv << [r[:code], r[:name], r[:count], r[:amount]] }
     end
     "\xEF\xBB\xBF#{csv}"
   end

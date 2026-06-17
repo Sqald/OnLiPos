@@ -45,6 +45,12 @@
                   class: "form-control" %>
           </div>
           <div class="filter-item">
+            <%= f.label :category_id, "カテゴリ" %><br>
+            <%= f.select :category_id,
+                  options_from_collection_for_select(@categories, :id, :name, params[:category_id]),
+                  { include_blank: "すべて" }, class: "form-control" %>
+          </div>
+          <div class="filter-item">
             <br>
             <%= f.submit "検索", class: "btn-signup" %>
           </div>
@@ -57,6 +63,7 @@
         <tr>
           <th>商品コード</th>
           <th>商品名</th>
+          <th>カテゴリ</th>
           <th>基本価格</th>
           <th>税率</th>
           <th>ステータス</th>
@@ -68,6 +75,7 @@
           <tr>
             <td><%= product.code %></td>
             <td><%= product.name %></td>
+            <td><%= product.product_category&.name || "-" %></td>
             <td><%= number_to_currency(product.price) %></td>
             <td><%= product.tax_rate %>%</td>
             <td>

@@ -24,6 +24,7 @@ Rails.application.routes.draw do
       end
     end
     resources :employees, except: [:show]
+    resources :product_categories, except: [:show]
     resources :products do
       post :import, on: :collection
     end
@@ -56,8 +57,8 @@ Rails.application.routes.draw do
         post :sync,   on: :collection
         get  :lookup, on: :collection
       end
-      resources :sales, only: [:create]
-      resources :store_stocks, only: [] do
+      resources :sales, only: [:create, :index]
+      resources :store_stocks, only: [:index] do
         post :move, on: :collection
       end
       resources :refunds, only: [:create] do
