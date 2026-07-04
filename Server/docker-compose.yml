@@ -68,6 +68,23 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  worker:
+    build:
+      context: ./onlipos/
+    environment:
+      DB_USER: ${DB_USER}
+      DB_NAME: ${DB_NAME}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      HOST_NAME: ${HOST_NAME:-}
+      FORCE_SSL: ${FORCE_SSL:-false}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    secrets:
+      - db_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: bin/jobs
+
 volumes:
   postgres:
 
