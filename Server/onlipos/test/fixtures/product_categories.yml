@@ -1,0 +1,9 @@
+food:
+  user: one
+  name: "食品"
+  display_order: 1
+
+drinks:
+  user: one
+  name: "飲料"
+  display_order: 2
