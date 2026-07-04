@@ -9,6 +9,7 @@ on:
     paths:
       - "Client/**"
       - ".github/workflows/flutter.yml"
+  workflow_dispatch:
 
 jobs:
   test:
@@ -43,7 +44,7 @@ jobs:
     name: Build APK (debug)
     runs-on: ubuntu-latest
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     defaults:
       run:
         working-directory: Client/onlipos
@@ -74,7 +75,7 @@ jobs:
     name: Build Windows (zip)
     runs-on: windows-latest
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     defaults:
       run:
         working-directory: Client/onlipos
@@ -108,7 +109,7 @@ jobs:
     name: Build macOS (.app)
     runs-on: macos-latest
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     defaults:
       run:
         working-directory: Client/onlipos
@@ -144,7 +145,7 @@ jobs:
     name: Build Linux (tar.gz)
     runs-on: ubuntu-latest
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     defaults:
       run:
         working-directory: Client/onlipos

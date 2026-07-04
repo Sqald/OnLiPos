@@ -9,6 +9,7 @@ on:
     paths:
       - "Server/**"
       - ".github/workflows/ci.yml"
+  workflow_dispatch:
 
 jobs:
   scan:
