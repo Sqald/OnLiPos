@@ -95,6 +95,7 @@
 | バーコードスキャン | mobile_scanner |
 | 文字コード変換 | charset_converter（ESC/POS Shift_JIS 対応） |
 | ウィンドウ管理 | window_manager（デスクトップ キオスクモード） |
+| POP 印刷・PDF 生成 | printing, pdf, barcode |
 
 ---
 
@@ -190,12 +191,12 @@ PosToken ──< CashLog
 | `provisioning` | `user_id`, `store_id`, `name`, `store_context`(jsonb), `hardware_settings`(jsonb) | 端末設定 |
 | `employees` | `user_id`, `code`(user スコープでユニーク), `name`, `pin_digest`, `is_all_stores`, `failed_attempts`, `locked_at` | 従業員 |
 | `employees_stores` | `employee_id`, `store_id` | 従業員-店舗 中間テーブル |
-| `sales` | `user_id`, `store_id`, `pos_token_id`, `receipt_number`(unique), `total_amount`, `payment_method` | 売上トランザクション |
-| `saledetails` | `sale_id`, `product_id`, `product_name`, `quantity`, `unit_price`, `subtotal`, `tax_rate`, `tax_amount` | 売上明細 |
+| `sales` | `user_id`, `store_id`, `pos_token_id`, `receipt_number`(unique), `total_amount`, `payment_method`, `total_discount`(default 0) | 売上トランザクション |
+| `saledetails` | `sale_id`, `product_id`, `product_name`, `quantity`, `unit_price`, `subtotal`, `tax_rate`, `tax_amount`, `original_unit_price`(nullable), `discount_amount`(default 0), `discount_reason`(nullable) | 売上明細 |
 | `sale_payments` | `sale_id`, `method`, `amount` | 支払い方法（分割払い対応） |
 | `refunds` | `user_id`, `store_id`, `sale_id`, `pos_token_id`, `refund_receipt_number`, `total_amount` | 返品トランザクション |
 | `refund_details` | `refund_id`, `saledetail_id`, `product_id`, `quantity`, `unit_price`, `subtotal` | 返品明細 |
-| `cash_logs` | `pos_token_id`, `employee_id`, `open_date`, `is_start`, `is_end`, `yen_1`〜`yen_10000` | レジ金管理 |
+| `cash_logs` | `pos_token_id`, `employee_id`, `open_date`, `is_start`, `is_end`, `yen_1`〜`yen_10000`, `is_pickup`(default false), `pickup_amount`(nullable), `pickup_reason`(nullable) | レジ金管理 |
 | `store_stocks` | `store_id`, `product_id`, `quantity` (store+product でユニーク) | 店舗別在庫数 |
 | `stock_movements` | `store_id`, `product_id`, `store_stock_id`, `quantity_change`, `reason`, `sale_id`, `employee_id` | 在庫変動履歴 |
 | `table_orders` | `store_id`, `table_number`(store スコープでユニーク), `items`(jsonb) | 飲食店卓注文 |
@@ -349,9 +350,11 @@ Sale（売上ヘッダ）
 
 - **種別の判定:**
   - `is_start=true` → レジ開設
-  - `is_start=false, is_end=false` → 中間確認
+  - `is_start=false, is_end=false, is_pickup=false` → 中間確認
   - `is_end=true` → 精算（クローズ）
+  - `is_pickup=true` → 途中回収（`pickup_amount` に回収額、`pickup_reason` に理由）
 - `total_amount` メソッド: `(yen_10000 * 10000) + (yen_5000 * 5000) + ... + yen_1` で合計算出
+- `is_pickup=true` のとき `is_start`, `is_end` は false 固定（モデルバリデーションで強制）
 
 ---
 
@@ -478,6 +481,7 @@ Response: { success, last_amount, expected_amount, last_logged_at }
 レジ開設時の金額
   + 開設後の現金売上合計 (sale_payments.method = cash)
   - 開設後の現金返金合計 (pro-rata 按分)
+  - 開設後の途中回収合計 (cash_logs.is_pickup=true の pickup_amount 合計)
 ```
 
 ---
@@ -500,6 +504,33 @@ Response: { success, last_amount, expected_amount, actual_amount, diff_amount, l
 ---
 
 ### `Api::V1::SalesController`
+
+**`GET /api/v1/sales/summary?from=YYYY-MM-DD&to=YYYY-MM-DD&employee_id=...`** — 店舗売上集計
+
+```
+Query:
+  from        # 集計開始日（省略時=当日）
+  to          # 集計終了日（省略時=当日）
+  employee_id # view_sales 権限を持つ従業員 ID（必須）
+
+Response:
+{
+  success: true,
+  period: { from, to },
+  sales_count, total_amount,
+  payment_breakdown: { cash, card, barcode },  # sale_payments 基準
+  refund_count, refund_total,
+  daily: [{ date, count, amount }],
+  top_products: [{ product_name, quantity, amount }]  # 売上金額降順上位20件
+}
+```
+
+**バリデーション:**
+- `employee_id` が `view_sales` 権限を持ち、当該店舗にアクセス可能であること（なければ 403）
+- `pos_token.store` にスコープ（他店舗のデータは絶対に返さない）
+- 不正な日付フォーマットは 400
+
+---
 
 **`POST /api/v1/sales`** — 売上登録
 
@@ -558,8 +589,10 @@ Response:
   last_updated_at,
   last_id,
   products: [
-    { id, code, name, description, status, price, tax_category, updated_at }
-    # price は店舗別価格設定があればそれを返す
+    { id, code, name, description, status,
+      price,           # 適用価格（店舗売価があればそれ、なければ定価）
+      list_price,      # 定価（product.price）※後方互換で追加
+      tax_rate, updated_at, category_id, category_name }
   ],
   bundles: [
     { id, code, name, price, items: [{ product_id, product_code, quantity }] }
@@ -568,6 +601,55 @@ Response:
 ```
 
 1 バッチ 1000 件。`has_more=true` の間、クライアントは `last_updated_at` / `last_id` を送り続けて全件取得。
+
+---
+
+### `Api::V1::StorePricesController`
+
+**`GET /api/v1/store_prices`** — 商品一覧（定価・店舗売価付き）
+
+```
+Query: ?employee_id=&q=&last_id=
+  # q: code/name でのキーワード検索（省略可）
+  # last_id: カーソルページネーション用（省略時=0）
+
+Response:
+{
+  success: true,
+  has_more: bool,
+  last_id: int,
+  products: [
+    { product_id, code, name, list_price, store_price }
+    # store_price は Price レコードがあればその amount、なければ null
+  ]
+}
+```
+
+**バリデーション:**
+- `employee_id` が `edit_prices` 権限を持ち、当該店舗にアクセス可能であること
+- POSトークンの店舗スコープに限定
+
+---
+
+**`PATCH /api/v1/store_prices`** — 店舗売価の設定・削除
+
+```
+Request:
+{
+  employee_id,
+  product_id,
+  mode: "list"|"store",  # list=定価に戻す（Price削除）、store=店舗売価を設定
+  amount?                # mode=store のときのみ必須（0以上の整数）
+}
+
+Response (mode=store): { success, mode: "store", amount }
+Response (mode=list):  { success, mode: "list" }
+```
+
+**バリデーション:**
+- `edit_prices` 権限チェック、店舗スコープ厳守
+- 他テナントの商品への操作は 404 で拒否
+- amount は 0 以上
 
 ---
 
@@ -824,12 +906,15 @@ namespace :api do
     post   'pos_devices/cash_check'
     post   'pos_devices/close_register'
     get    'pos_devices/cash_check_context'
+    post   'pos_devices/cash_pickup'
 
     # 商品同期
     post 'products/sync'
 
     # 売上
-    resources :sales,  only: [:create]
+    resources :sales, only: [:create, :index] do
+      get :summary, on: :collection   # 店舗売上集計（view_sales 権限必須）
+    end
 
     # 返品
     resources :refunds, only: [:create] do
@@ -1017,8 +1102,11 @@ class ScannedItem {
   final String? bundleCode;  // セット商品から展開された場合のセットコード
   final String? bundleName;
   int quantity;
+  int? overridePrice;       // 値引き後の単価（null なら product.price を使用）
+  String? discountReason;   // 値引き理由（手動値引き時のみ）
 
-  int get subtotal => product.price * quantity;
+  int get price => overridePrice ?? product.price;
+  int get subtotal => price * quantity;
 
   int get taxAmount {
     // 税込価格から消費税額を逆算
@@ -1027,6 +1115,28 @@ class ScannedItem {
   }
 }
 ```
+
+**値引き価格選択フロー（`PriceEditDialog`）:**
+
+```
+価格変更ダイアログを開く
+  │
+  ├─ [定価 ¥xxx] ボタン（店舗売価がある場合のみ）
+  │    → unit_price = product.listPrice, original_unit_price = product.price
+  │
+  ├─ [店舗売価 ¥xxx] or [元の価格 ¥xxx] ボタン
+  │    → unit_price = product.price (値引きなし)
+  │
+  └─ [手動値引き] チェックボックス
+       → 価格入力 + 理由入力
+       → unit_price = 入力値, original_unit_price = product.price,
+          discount_reason = 入力理由
+```
+
+**価格優先順位:**
+1. 初期表示価格 = `product.price`（店舗売価があればそれ、なければ定価）
+2. 値引き後最終価格 = `ScannedItem.price`（= `overridePrice ?? product.price`）
+3. `original_unit_price` = 値引き直前の適用価格（= `product.price`）
 
 **`SaleScanView` のパラメータ:**
 
@@ -1083,6 +1193,7 @@ posRole: host（ホスト機）—storeMode と独立して動作—
 |---------|-------|------|
 | `cash_check_view.dart` | `CashCheckView` | 中間レジ金確認画面 |
 | `cash_close_view.dart` | `CashCloseView` | レジ精算（EOD）画面 |
+| `cash_pickup_view.dart` | `CashPickupView` | 途中回収画面（`cash_pickup` 権限保持者のみ表示） |
 | `cash_log_api.dart` | `CashLogApi` | レジ金 API クライアント |
 
 ---
@@ -1107,6 +1218,105 @@ posRole: host（ホスト機）—storeMode と独立して動作—
 
 ---
 
+### `lib/pop/`
+
+POP（Point of Purchase）印刷モジュール。商品名・価格・JANバーコード・説明を載せた A4 POP を OS 登録プリンタへ印刷する。
+
+| ファイル | クラス | 役割 |
+|---------|-------|------|
+| `pop_view.dart` | `PopView` | JAN/名前検索で商品を検索→印刷リストに追加・削除・枚数変更。面付けサイズ選択（1/2/4/8/16面）。プレビュー・印刷ボタン。 |
+| `pop_pdf_builder.dart` | `PopItem`, `PopPdfBuilder` | A4 を等分割するグリッド面付け PDF を生成。EAN-13/Code128 バーコード描画。セルサイズに応じたフォント自動スケール。 |
+
+**依存パッケージ:** `printing`, `pdf`, `barcode`
+
+**面付けグリッド:**
+
+| 面数 | 行 | 列 | セルサイズ（概算） |
+|------|----|----|-----------------|
+| 1    | 1  | 1  | A4 全面          |
+| 2    | 2  | 1  | A5 縦            |
+| 4    | 2  | 2  | A6 相当          |
+| 8    | 4  | 2  | 1/8 A4          |
+| 16   | 4  | 4  | 1/16 A4         |
+
+**印刷フロー:**
+```
+PopView（商品リスト + 面付け選択）
+  │
+  ├─ プレビュー → PdfPreview ウィジェット（printing パッケージ）
+  │                OS 印刷ダイアログ / 共有ダイアログ
+  │
+  └─ 印刷 → Printing.layoutPdf() → OS 印刷ダイアログ → LAN プリンタ
+```
+
+**`PopItem` データクラス:**
+```dart
+class PopItem {
+  final Product product;
+  int count; // 印刷枚数（1〜99）
+}
+```
+
+**`PopPdfBuilder` 静的メソッド:**
+- `pageCount(items, perPage)` — 必要ページ数を計算（テスト可能・ネットワーク不要）
+- `build(items, perPage)` — PDF バイト列を生成（`PdfGoogleFonts.notoSansJPRegular` で日本語フォントを使用）
+
+---
+
+### `lib/price/`
+
+店舗売価（店舗別カスタム価格）の設定モジュール。`edit_prices` 権限を持つ従業員のみ利用可能。
+
+| ファイル | クラス | 役割 |
+|---------|-------|------|
+| `price_api.dart` | `PriceApi` | `GET /api/v1/store_prices`（商品一覧+価格情報取得）と `PATCH /api/v1/store_prices`（価格 upsert/delete）の API クライアント |
+| `price_edit_view.dart` | `PriceEditView`, `_PriceEditDialog` | 担当者PIN認証 → 商品検索 → 定価/店舗売価一覧 → 価格編集ダイアログ → 保存後 `ProductSyncService` で再同期 |
+
+**画面フロー:**
+```
+メニュー「店舗価格設定」（edit_prices 権限保持者のみ表示）
+  │
+  ├─ 担当者PIN認証（verify_employee で edit_prices 権限を確認）
+  │
+  ├─ 商品検索（code / name キーワード、カーソルページネーション）
+  │     各商品に list_price（定価）と store_price（店舗売価 or null）を表示
+  │
+  ├─ 編集ダイアログ
+  │     ○ 定価を使う → PATCH mode=list → Price レコード削除
+  │     ○ 店舗売価を設定 → PATCH mode=store → Price upsert
+  │
+  └─ 保存後 ProductSyncService.syncProducts() で全商品再同期
+```
+
+---
+
+### `lib/sale/store_sales_view.dart` / `lib/sale/store_sales_api.dart`
+
+店舗売上サマリー閲覧モジュール。`view_sales` 権限を持つ従業員のみ利用可能。
+
+| ファイル | クラス | 役割 |
+|---------|-------|------|
+| `store_sales_view.dart` | `StoreSalesView` | 担当者PIN認証 → 期間選択 → 合計・支払内訳・日別・上位商品を表示 |
+| `store_sales_api.dart` | `StoreSalesApi` | `GET /api/v1/sales/summary` の API クライアント |
+
+**画面フロー:**
+```
+メニュー「店舗売上」（view_sales 権限保持者のみ表示）
+  │
+  ├─ 担当者コード + PIN 入力（verify_employee で認証）
+  │
+  ├─ 期間選択: 今日 / 今月 / カスタム（日付範囲ピッカー）
+  │
+  └─ 集計表示
+       合計金額・件数（青カード）
+       支払方法内訳（現金/カード/バーコード決済）
+       返品件数・金額（返品がある場合のみ）
+       日別売上（2日以上の期間の場合）
+       売上上位商品（上位20件）
+```
+
+---
+
 ### `lib/settings/`
 
 | ファイル | 役割 |
@@ -1121,7 +1331,7 @@ posRole: host（ホスト機）—storeMode と独立して動作—
 
 **シングルトンパターン:** `DatabaseService.instance.database` で全クラスが同一接続を共有（"database is locked" 防止）。
 
-**スキーマバージョン: 3**
+**スキーマバージョン: 6**
 
 ```sql
 -- 商品マスタ（サーバーから同期）
@@ -1130,10 +1340,13 @@ CREATE TABLE products (
   code TEXT,
   name TEXT,
   description TEXT,
-  price INTEGER,
-  tax_category INTEGER DEFAULT 0,
+  price INTEGER,          -- 適用価格（店舗売価があればそれ、なければ定価）
+  list_price INTEGER,     -- 定価（product.price カラムの値）
+  tax_rate INTEGER DEFAULT 10,
   status TEXT,
-  updated_at TEXT
+  updated_at TEXT,
+  category_id INTEGER,
+  category_name TEXT
 );
 
 -- セット商品
@@ -1735,9 +1948,95 @@ tax_amount = subtotal - ex_tax
 全売上     → Sale + Saledetail + SalePayment
 全返品     → Refund + RefundDetail（元 Saledetail 参照付き）
 全レジ操作 → CashLog（金種レベルの詳細）
+電子ジャーナル → JournalEntry（全操作を payload JSONB で保存）
 ```
 
 ---
 
+## 22. 電子ジャーナル（JournalEntry）
+
+### テーブル
+
+| カラム | 型 | 説明 |
+|-------|---|------|
+| `user_id` | bigint | テナントスコープ |
+| `store_id` | bigint | 店舗スコープ |
+| `pos_token_id` | bigint | 発生端末 |
+| `employee_id` | bigint(null可) | 担当者 |
+| `entry_type` | integer(enum) | 種別（下表） |
+| `receipt_number` | string(null可) | レシート番号 |
+| `printed_at` | datetime | 操作日時 |
+| `payload` | jsonb | 再印字に必要な全情報 |
+
+**entry_type enum:**
+
+| 値 | 意味 |
+|---|------|
+| `sale: 0` | 売上 |
+| `refund: 1` | 返品 |
+| `register_open: 2` | レジ開設 |
+| `cash_check: 3` | レジ金確認 |
+| `cash_pickup: 4` | 途中回収 |
+| `register_close: 5` | レジ精算 |
+
+**インデックス:** `[pos_token_id, printed_at]`, `[store_id, printed_at]`
+
+### JournalEntry の作成タイミング
+
+各操作と同一トランザクション内で `JournalEntry.create_from_*!` を呼ぶ:
+
+| 操作 | コントローラー | メソッド |
+|------|-------------|---------|
+| 売上登録 | `SalesController#create` | `create_from_sale!` |
+| 返品処理 | `RefundsController#create` | `create_from_refund!` |
+| レジ開設 | `PosDevicesController#open` | `create_from_cash_log!(:register_open)` |
+| レジ金確認 | `PosDevicesController#cash_check` | `create_from_cash_log!(:cash_check)` |
+| 途中回収 | `PosDevicesController#cash_pickup` | `create_from_cash_log!(:cash_pickup)` |
+| レジ精算 | `PosDevicesController#close_register` | `create_from_cash_log!(:register_close)` |
+
+### API
+
+**`GET /api/v1/journals`** — ジャーナル一覧（`view_journal` 権限必須）
+
+```
+Query:
+  employee_id   必須
+  pos_id        省略可: POS端末でフィルタ
+  date          省略可: YYYY-MM-DD
+  type          省略可: sale/refund/register_open/cash_check/cash_pickup/register_close
+
+Response:
+{
+  success: true,
+  entries: [
+    { id, entry_type, receipt_number, printed_at, pos_name, employee_name, amount }
+  ]
+}
+```
+
+**`GET /api/v1/journals/:id`** — ジャーナル詳細（payload 含む）
+
+```
+Query: employee_id（必須）
+
+Response:
+{
+  success: true,
+  entry: { ...一覧フィールド..., payload: { ... } }
+}
+```
+
+### クライアント（`lib/journal/`）
+
+| ファイル | クラス | 役割 |
+|---------|-------|------|
+| `journal_api.dart` | `JournalApi` | `GET /api/v1/journals` / `/journals/:id` の API クライアント |
+| `journal_list_view.dart` | `JournalListView` | 担当者PIN認証 → 日付/端末/種別フィルタ → 一覧 |
+| `journal_detail_view.dart` | `JournalDetailView` | payload 詳細表示 + 売上・返品の再印字 |
+
+メニューに「ジャーナル」タイル追加（`view_journal` 権限保持者のみ表示）。
+
+---
+
 *このドキュメントは OnLiPos リポジトリの全コードを分析して作成されました。*
-*最終更新: 2026-04-12（ホスト・クライアント型 POS モード追加）*
+*最終更新: 2026-06-30（電子ジャーナル機能追加）*
