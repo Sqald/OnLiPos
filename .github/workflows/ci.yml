@@ -1,0 +1,81 @@
+name: Rails CI
+
+on:
+  push:
+    paths:
+      - "Server/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    paths:
+      - "Server/**"
+      - ".github/workflows/ci.yml"
+
+jobs:
+  scan:
+    name: Security & Style
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Server/onlipos
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+          working-directory: Server/onlipos
+
+      - name: Brakeman
+        run: bin/brakeman --no-pager
+
+      - name: bundler-audit
+        run: bin/bundler-audit --update
+
+      - name: RuboCop
+        run: bin/rubocop -f github
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Server/onlipos
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      RAILS_ENV: test
+      DB_HOST: localhost
+      DB_USER: postgres
+      DB_PASS: postgres
+      DB_NAME: onlipos
+      SECRET_KEY_BASE: dummy_secret_key_base_for_ci_only
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+          working-directory: Server/onlipos
+
+      - name: Prepare database
+        run: bin/rails db:prepare
+
+      - name: Run tests
+        run: bin/rails test
