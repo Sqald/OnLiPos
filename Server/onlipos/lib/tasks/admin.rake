@@ -1,4 +1,4 @@
-require 'io/console'
+require "io/console"
 
 namespace :admin do
   desc "管理者アカウントを作成します (例: rails admin:create)"
@@ -76,7 +76,7 @@ namespace :admin do
       printf "%-5s %-20s %-22s %-8s\n", "ID", "ユーザー名", "最終ログイン", "状態"
       puts "-" * 60
       admins.each do |a|
-        last = a.last_sign_in_at&.strftime('%Y-%m-%d %H:%M') || "未ログイン"
+        last = a.last_sign_in_at&.strftime("%Y-%m-%d %H:%M") || "未ログイン"
         status = a.access_locked? ? "ロック中" : "正常"
         printf "%-5d %-20s %-22s %s\n", a.id, a.username, last, status
       end
@@ -84,7 +84,7 @@ namespace :admin do
   end
 
   desc "管理者アカウントのロックを解除します (例: rails 'admin:unlock[username]')"
-  task :unlock, [:username] => :environment do |_, args|
+  task :unlock, [ :username ] => :environment do |_, args|
     username = args[:username] || begin
       print "管理者ユーザー名: "
       $stdin.gets.chomp
@@ -98,7 +98,7 @@ namespace :admin do
   end
 
   desc "管理者アカウントを削除します (例: rails 'admin:delete[username]')"
-  task :delete, [:username] => :environment do |_, args|
+  task :delete, [ :username ] => :environment do |_, args|
     username = args[:username] || begin
       print "管理者ユーザー名: "
       $stdin.gets.chomp
@@ -109,7 +109,7 @@ namespace :admin do
 
     print "本当に '#{admin.username}' を削除しますか？ [y/N]: "
     confirm = $stdin.gets.chomp
-    if confirm.downcase == 'y'
+    if confirm.downcase == "y"
       admin.destroy!
       puts "✓ '#{username}' を削除しました。"
     else

@@ -9,4 +9,3 @@ class StockMovement < ApplicationRecord
   validates :quantity_change, presence: true
   validates :reason, presence: true
 end
-

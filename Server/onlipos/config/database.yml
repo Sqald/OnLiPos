@@ -8,7 +8,7 @@ default: &default
   adapter: postgresql
   encoding: unicode
   pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
-  host: postgres
+  host: <%= ENV.fetch('DB_HOST', 'postgres') %>
   port: 5432
   username: <%= ENV['DB_USER'] %>
   password: <%= File.exist?('/run/secrets/db_password') ? File.read('/run/secrets/db_password').strip : ENV.fetch('DB_PASS', '') %>
@@ -24,9 +24,6 @@ test:
   <<: *default
   database: <%= ENV['DB_NAME'] %>_test
 
-# Store production database in the storage/ directory, which by default
-# is mounted as a persistent Docker volume in config/deploy.yml.
-production:
 production:
   primary:
     <<: *default

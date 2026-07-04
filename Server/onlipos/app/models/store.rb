@@ -8,6 +8,10 @@ class Store < ApplicationRecord
   has_many :table_orders, dependent: :destroy
   has_many :hold_orders, dependent: :destroy
   has_many :transfer_orders, dependent: :destroy
+  # ジャーナルは readonly（追記型）のため destroy ではなく delete_all で削除する
+  has_many :journal_entries, dependent: :delete_all
+  has_many :register_sessions, dependent: :destroy
+  has_many :cash_movements, dependent: :destroy
   has_and_belongs_to_many :employees
 
   delegate :products, to: :user

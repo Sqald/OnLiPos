@@ -1,4 +1,4 @@
-require 'csv'
+require "csv"
 
 class Dashboard::SalesController < Dashboard::BaseController
   # 売上一覧は検索条件（店舗・期間）を指定して検索したときのみデータを取得する。
@@ -26,7 +26,7 @@ class Dashboard::SalesController < Dashboard::BaseController
         sales_scope = scope.order(created_at: :desc)
         send_data generate_sales_csv(sales_scope),
                   filename: "sales_#{Date.current}.csv",
-                  type: 'text/csv; charset=UTF-8'
+                  type: "text/csv; charset=UTF-8"
       end
     end
   end
@@ -42,7 +42,7 @@ class Dashboard::SalesController < Dashboard::BaseController
 
     if params[:from].present?
       from_time = begin
-        Date.strptime(params[:from], '%Y-%m-%d').beginning_of_day
+        Date.strptime(params[:from], "%Y-%m-%d").beginning_of_day
       rescue ArgumentError
         nil
       end
@@ -51,7 +51,7 @@ class Dashboard::SalesController < Dashboard::BaseController
 
     if params[:to].present?
       to_time = begin
-        Date.strptime(params[:to], '%Y-%m-%d').end_of_day
+        Date.strptime(params[:to], "%Y-%m-%d").end_of_day
       rescue ArgumentError
         nil
       end
@@ -62,22 +62,22 @@ class Dashboard::SalesController < Dashboard::BaseController
   end
 
   def generate_sales_csv(scope)
-    payment_labels = { 'cash' => '現金', 'card' => 'カード', 'barcode' => 'バーコード決済' }
+    payment_labels = { "cash" => "現金", "card" => "カード", "barcode" => "バーコード決済" }
     output = StringIO.new
     output << "\xEF\xBB\xBF"
     csv = CSV.new(output)
-    csv << ['日時', '店舗', 'POS端末', '担当者', 'レシート番号', '支払方法', '金額（税込）', '税抜小計', '消費税', '割引合計']
+    csv << [ "日時", "店舗", "POS端末", "担当者", "レシート番号", "支払方法", "金額（税込）", "税抜小計", "消費税", "割引合計" ]
     scope.includes(:store, :pos_token, :sale_payments, :employee).find_each(batch_size: 500) do |sale|
       payment_str = if sale.sale_payments.any?
-        sale.sale_payments.map { |p| "#{payment_labels[p.method] || p.method}(#{p.amount}円)" }.join(' / ')
+        sale.sale_payments.map { |p| "#{payment_labels[p.method] || p.method}(#{p.amount}円)" }.join(" / ")
       else
         payment_labels[sale.payment_method] || sale.payment_method.to_s
       end
       csv << [
-        sale.created_at.in_time_zone('Asia/Tokyo').strftime('%Y-%m-%d %H:%M:%S'),
+        sale.created_at.in_time_zone("Asia/Tokyo").strftime("%Y-%m-%d %H:%M:%S"),
         sale.store.name,
-        sale.pos_token&.ascii_name || '-',
-        sale.employee ? "#{sale.employee.name}(#{sale.employee.code})" : '-',
+        sale.pos_token&.ascii_name || "-",
+        sale.employee ? "#{sale.employee.name}(#{sale.employee.code})" : "-",
         sale.receipt_number,
         payment_str,
         sale.total_amount,

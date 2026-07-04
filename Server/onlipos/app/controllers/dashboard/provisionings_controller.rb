@@ -16,7 +16,7 @@ class Dashboard::ProvisioningsController < Dashboard::BaseController
     # 店舗情報の取得とstore_contextの構築
     store = current_user.stores.find_by(id: provisioning_params[:store_id])
     if store
-      store_mode = params.dig(:provisioning, :store_mode).presence || 'standard'
+      store_mode = params.dig(:provisioning, :store_mode).presence || "standard"
       @provisioning.store_context = {
         store_id: store.id,
         store_name: store.name,
@@ -37,7 +37,7 @@ class Dashboard::ProvisioningsController < Dashboard::BaseController
     }
 
     if @provisioning.save
-      redirect_to dashboard_provisionings_path, notice: 'プロビジョニングデータを作成しました。'
+      redirect_to dashboard_provisionings_path, notice: "プロビジョニングデータを作成しました。"
     else
       @stores = current_user.stores
       @pos_tokens = PosToken.where(store: @stores)
@@ -49,9 +49,9 @@ class Dashboard::ProvisioningsController < Dashboard::BaseController
     @provisioning = Provisioning.where(user: current_user).find_by(id: params[:id])
     if @provisioning
       @provisioning.destroy
-      redirect_to dashboard_provisionings_path, notice: '削除しました。', status: :see_other
+      redirect_to dashboard_provisionings_path, notice: "削除しました。", status: :see_other
     else
-      redirect_to dashboard_provisionings_path, alert: '権限がありません。'
+      redirect_to dashboard_provisionings_path, alert: "権限がありません。"
     end
   end
 

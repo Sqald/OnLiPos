@@ -75,6 +75,6 @@ class Dashboard::PosDevicesController < Dashboard::BaseController
   private
 
   def pos_token_params
-    params.require(:pos_token).permit(:ascii_name,:name, :store_id, :provisioning_id)
+    params.require(:pos_token).permit(:ascii_name, :name, :store_id, :provisioning_id)
   end
 end

@@ -1,5 +1,5 @@
 class Dashboard::StoreStocksController < Dashboard::BaseController
-  before_action :set_store_stock, only: [:update]
+  before_action :set_store_stock, only: [ :update ]
 
   # 店舗間在庫移動
   def transfer
@@ -110,4 +110,3 @@ class Dashboard::StoreStocksController < Dashboard::BaseController
       .find(params[:id])
   end
 end
-

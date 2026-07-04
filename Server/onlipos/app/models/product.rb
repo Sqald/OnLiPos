@@ -1,4 +1,4 @@
-require 'csv'
+require "csv"
 
 class Product < ApplicationRecord
   belongs_to :user
@@ -15,6 +15,9 @@ class Product < ApplicationRecord
 
   enum :status, { active: 0, discontinued: 1 }
 
+  # 税区分（0: 内税 = 現行既定, 1: 外税, 2: 非課税）
+  enum :tax_type, { inclusive: 0, exclusive: 1, tax_free: 2 }, prefix: :tax
+
   def status_i18n
     status == "active" ? "有効" : "廃盤"
   end
@@ -29,7 +32,7 @@ class Product < ApplicationRecord
     # with_index(2) で行番号を2から開始します（エラー表示用）
     # BOM|UTF-8 でBOM付きファイルも許容する
     path = file.respond_to?(:path) ? file.path : file
-    CSV.foreach(path, headers: true, encoding: 'BOM|UTF-8').with_index(2) do |row, row_num|
+    CSV.foreach(path, headers: true, encoding: "BOM|UTF-8").with_index(2) do |row, row_num|
       attrs = row.to_hash.slice(*updatable_attributes)
       code = attrs["code"].to_s.strip
       next if code.blank?
@@ -49,6 +52,6 @@ class Product < ApplicationRecord
 
   # CSVで許可する属性のリスト
   def self.updatable_attributes
-    ["code", "name", "price", "description", "status", "tax_rate"]
+    [ "code", "name", "price", "description", "status", "tax_rate" ]
   end
 end

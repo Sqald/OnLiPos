@@ -28,6 +28,9 @@
       <%= link_to "売上レポート", dashboard_reports_path, class: "menu-item #{controller_name == 'reports' ? 'active' : ''}" %>
     </li>
     <li>
+      <%= link_to "返品一覧", dashboard_refunds_path, class: "menu-item #{controller_name == 'refunds' ? 'active' : ''}" %>
+    </li>
+    <li>
       <%= link_to "レジ金履歴", dashboard_cash_logs_path, class: "menu-item #{controller_name == 'cash_logs' ? 'active' : ''}" %>
     </li>
     <li>

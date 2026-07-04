@@ -9,16 +9,16 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
   allow do
     if Rails.env.production?
       # 本番環境では環境変数で指定されたオリジンのみを許可
-      origins ENV.fetch('CORS_ORIGINS', '').split(',')
+      origins ENV.fetch("CORS_ORIGINS", "").split(",")
     else
       # 開発環境ではすべてのオリジンを許可
-      origins '*'
+      origins "*"
     end
 
-    resource '/api/*',
+    resource "/api/*",
       headers: :any,
-      methods: [:get, :post, :put, :patch, :delete, :options, :head],
+      methods: [ :get, :post, :put, :patch, :delete, :options, :head ],
       # トークンやクッキーなどの資格情報をリクエストに含めることを許可
-      credentials: false 
+      credentials: false
   end
 end

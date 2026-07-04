@@ -10,7 +10,7 @@ class CreateCashLogs < ActiveRecord::Migration[8.1]
       t.integer :yen_5000, default: 0, null: false
       t.integer :yen_1000, default: 0, null: false
       t.integer :yen_500, default: 0, null: false
-      t.integer :yen_100, default: 0, null: false 
+      t.integer :yen_100, default: 0, null: false
       t.integer :yen_50, default: 0, null: false
       t.integer :yen_10, default: 0, null: false
       t.integer :yen_5, default: 0, null: false

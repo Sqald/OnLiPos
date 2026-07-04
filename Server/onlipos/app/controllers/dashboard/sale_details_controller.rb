@@ -5,4 +5,3 @@ class Dashboard::SaleDetailsController < Dashboard::BaseController
                 .find(params[:id])
   end
 end
-

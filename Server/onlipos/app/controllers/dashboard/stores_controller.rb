@@ -1,5 +1,5 @@
 class Dashboard::StoresController < Dashboard::BaseController
-  before_action :set_store, only: [:edit, :update, :destroy, :prices, :update_prices]
+  before_action :set_store, only: [ :edit, :update, :destroy, :prices, :update_prices ]
 
   def index
     @stores = current_user.stores.order(created_at: :desc)

@@ -1,5 +1,5 @@
 class Api::V1::PosDevicesController < Api::V1::BaseController
-  before_action :authenticate_pos_token, except: [:login]
+  before_action :authenticate_pos_token, except: [ :login ]
 
   def login
     brute_key = "pos_login:#{login_params[:userName]}:#{login_params[:storeName]}:#{login_params[:posName]}"
@@ -24,7 +24,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
       render :login, status: :ok
     else
       increment_pos_login_failures(brute_key)
-      render json: { success: false, message: I18n.t('api.v1.pos_devices.login.failure') }, status: :unauthorized
+      render json: { success: false, message: I18n.t("api.v1.pos_devices.login.failure") }, status: :unauthorized
     end
   end
 
@@ -35,12 +35,12 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
 
     # 従業員が存在しない、またはPINが空の場合は即座に失敗させる
     if employee.nil? || user_login_params[:pin].blank?
-      return render json: { success: false, message: I18n.t('api.v1.pos_devices.top_user_login.failure') }, status: :unauthorized
+      return render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.failure") }, status: :unauthorized
     end
 
     # アカウントがロックされているか確認
     if employee.access_locked?
-      return render json: { success: false, message: I18n.t('api.v1.pos_devices.top_user_login.locked') }, status: :forbidden
+      return render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.locked") }, status: :forbidden
     end
 
     if employee.authenticate_pin(user_login_params[:pin])
@@ -49,14 +49,14 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
 
       # 全店舗権限があるか、または現在の店舗に所属しているか確認
       if employee.is_all_stores || employee.stores.exists?(@current_pos.store.id)
-        render json: { success: true, employee_id: employee.id, employee_name: employee.name }
+        render json: { success: true, employee_id: employee.id, employee_name: employee.name, permissions: employee.permission_keys }
       else
-        render json: { success: false, message: I18n.t('api.v1.pos_devices.top_user_login.not_authorized_for_store') }, status: :forbidden
+        render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.not_authorized_for_store") }, status: :forbidden
       end
     else
       # 認証失敗
       employee.increment_failed_attempts # 失敗回数を記録
-      render json: { success: false, message: I18n.t('api.v1.pos_devices.top_user_login.failure') }, status: :unauthorized
+      render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.failure") }, status: :unauthorized
     end
   end
 
@@ -67,23 +67,23 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     employee = owner.employees.find_by(code: user_login_params[:code])
 
     if employee.nil? || user_login_params[:pin].blank?
-      return render json: { success: false, message: I18n.t('api.v1.pos_devices.check_operator.failure', default: '担当者が見つかりません') }, status: :unauthorized
+      return render json: { success: false, message: I18n.t("api.v1.pos_devices.check_operator.failure", default: "担当者が見つかりません") }, status: :unauthorized
     end
 
     if employee.access_locked?
-      return render json: { success: false, message: I18n.t('api.v1.pos_devices.top_user_login.locked', default: 'アカウントがロックされています') }, status: :forbidden
+      return render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.locked", default: "アカウントがロックされています") }, status: :forbidden
     end
 
     if employee.authenticate_pin(user_login_params[:pin])
       employee.unlock_access!
       if employee.is_all_stores || employee.stores.exists?(@current_pos.store.id)
-        render json: { success: true, employee_id: employee.id, employee_name: employee.name }
+        render json: { success: true, employee_id: employee.id, employee_name: employee.name, permissions: employee.permission_keys }
       else
-        render json: { success: false, message: I18n.t('api.v1.pos_devices.top_user_login.not_authorized_for_store', default: '店舗権限がありません') }, status: :forbidden
+        render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.not_authorized_for_store", default: "店舗権限がありません") }, status: :forbidden
       end
     else
       employee.increment_failed_attempts
-      render json: { success: false, message: I18n.t('api.v1.pos_devices.top_user_login.failure', default: 'PINが正しくありません') }, status: :unauthorized
+      render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.failure", default: "PINが正しくありません") }, status: :unauthorized
     end
   end
 
@@ -93,9 +93,9 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     employee = owner.employees.find_by(code: user_login_params[:code])
 
     if employee
-      render json: { success: true, name: employee.name, employee_id: employee.id }
+      render json: { success: true, name: employee.name, employee_id: employee.id, permissions: employee.permission_keys }
     else
-      render json: { success: false, message: I18n.t('api.v1.pos_devices.check_operator.failure', default: '担当者が見つかりません') }, status: :not_found
+      render json: { success: false, message: I18n.t("api.v1.pos_devices.check_operator.failure", default: "担当者が見つかりません") }, status: :not_found
     end
   end
 
@@ -114,7 +114,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
         }
       }, status: :ok
     else
-      render json: { success: false, message: I18n.t('api.v1.pos_devices.provisioning.not_found', default: 'Provisioning data not found') }, status: :not_found
+      render json: { success: false, message: I18n.t("api.v1.pos_devices.provisioning.not_found", default: "Provisioning data not found") }, status: :not_found
     end
   end
 
@@ -125,7 +125,14 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
 
     # 全店舗権限があるか、または現在の店舗に所属しているか確認
     unless employee && (employee.is_all_stores || employee.stores.exists?(@current_pos.store.id))
-      return render json: { success: false, message: I18n.t('api.v1.pos_devices.open.employee_not_found') }, status: :forbidden
+      return render json: { success: false, message: I18n.t("api.v1.pos_devices.open.employee_not_found") }, status: :forbidden
+    end
+
+    if current_open_session
+      return render json: {
+        success: false,
+        message: "前回のレジ精算が完了していません。先に精算（レジ締め）を実行してください"
+      }, status: :unprocessable_entity
     end
 
     cash_data = open_params[:cash_drawer] || {}
@@ -135,6 +142,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
       employee: employee,
       open_date: open_params[:open_date],
       is_start: true,
+      log_type: :open,
       yen_10000: cash_data[:"10000"],
       yen_5000: cash_data[:"5000"],
       yen_1000: cash_data[:"1000"],
@@ -146,11 +154,54 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
       yen_1: cash_data[:"1"]
     )
 
-    if cash_log.save
-      render json: { success: true, message: I18n.t('api.v1.pos_devices.open.success') }, status: :ok
-    else
-      render json: { success: false, message: cash_log.errors.full_messages.join(", ") }, status: :unprocessable_entity
+    unless cash_log.valid?
+      return render json: { success: false, message: cash_log.errors.full_messages.join(", ") }, status: :unprocessable_entity
     end
+
+    business_date =
+      begin
+        open_params[:open_date].present? ? Date.parse(open_params[:open_date].to_s) : Date.current
+      rescue ArgumentError
+        Date.current
+      end
+
+    session = nil
+    ActiveRecord::Base.transaction do
+      # Zカウンタの採番は pos_token 行ロックで直列化する（レシート連番と同方式）
+      @current_pos.with_lock do
+        z_number = (@current_pos.register_sessions.maximum(:z_number) || 0) + 1
+        session = @current_pos.register_sessions.create!(
+          user: owner,
+          store: @current_pos.store,
+          business_date: business_date,
+          z_number: z_number,
+          status: :open,
+          opened_at: Time.current,
+          opening_employee: employee,
+          opening_float: cash_log.total_amount
+        )
+      end
+
+      cash_log.register_session = session
+      cash_log.save!
+      JournalEntry.create_from_cash_log!(cash_log, :register_open)
+    end
+
+    render json: {
+      success: true,
+      message: I18n.t("api.v1.pos_devices.open.success"),
+      register_session: {
+        id: session.id,
+        z_number: session.z_number,
+        business_date: session.business_date.to_s,
+        opening_float: session.opening_float
+      }
+    }, status: :ok
+  rescue ActiveRecord::RecordNotUnique
+    # 部分一意インデックス（1端末1openセッション）による同時開設の競合
+    render json: { success: false, message: "レジ開設が重複しました。既に開設済みです" }, status: :unprocessable_entity
+  rescue ActiveRecord::RecordInvalid => e
+    render json: { success: false, message: e.record.errors.full_messages.join(", ") }, status: :unprocessable_entity
   end
 
   # レジ金チェック（営業中のレジ残高確認）
@@ -162,12 +213,28 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
 
     diff_amount = if expected_amount
                     cash_log.total_amount - expected_amount
-                  end
+    end
 
-    if cash_log.save
+    # 実査時点の理論在高と過不足を確定保存する（後から検証できるようにする）
+    cash_log.log_type = :check
+    cash_log.register_session = current_open_session
+    cash_log.expected_amount = expected_amount
+    cash_log.diff_amount = diff_amount
+
+    saved = false
+    ActiveRecord::Base.transaction do
+      if cash_log.save
+        JournalEntry.create_from_cash_log!(cash_log, :cash_check)
+        saved = true
+      else
+        raise ActiveRecord::Rollback
+      end
+    end
+
+    if saved
       render json: {
         success: true,
-        message: I18n.t('api.v1.pos_devices.cash_check.success', default: 'レジ金チェックを登録しました'),
+        message: I18n.t("api.v1.pos_devices.cash_check.success", default: "レジ金チェックを登録しました"),
         last_amount: last_amount,
         expected_amount: expected_amount,
         actual_amount: cash_log.total_amount,
@@ -179,29 +246,117 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     end
   end
 
-  # レジ精算（営業終了時のレジ残高確定）
-  def close_register
-    previous_log, _opening_log, last_amount, expected_amount = cash_check_baseline
-    cash_log = build_cash_log(is_start: false, is_end: true)
-    return if performed?
+  # レジ金途中回収。cash_pickup 権限を持つ従業員のみ実行可。
+  def cash_pickup
+    owner = @current_pos.store.user
+    employee = owner.employees.find_by(id: pickup_params[:employee_id])
 
-    if cash_log.save
-      diff_amount = if expected_amount
-                      cash_log.total_amount - expected_amount
-                    end
+    unless employee && (employee.is_all_stores || employee.stores.exists?(@current_pos.store.id))
+      return render json: { success: false, message: "担当者が見つかりません" }, status: :forbidden
+    end
 
+    unless employee.permitted?("cash_pickup")
+      return render json: { success: false, message: "途中回収の権限がありません" }, status: :forbidden
+    end
+
+    amount = pickup_params[:amount].to_i
+    if amount <= 0
+      return render json: { success: false, message: "回収金額は1円以上を指定してください" }, status: :unprocessable_entity
+    end
+
+    cash_log = CashLog.new(
+      pos_token: @current_pos,
+      employee: employee,
+      open_date: Date.current,
+      is_start: false,
+      is_end: false,
+      is_pickup: true,
+      log_type: :pickup,
+      register_session: current_open_session,
+      pickup_amount: amount,
+      pickup_reason: pickup_params[:reason],
+      yen_10000: 0, yen_5000: 0, yen_1000: 0, yen_500: 0, yen_100: 0,
+      yen_50: 0, yen_10: 0, yen_5: 0, yen_1: 0
+    )
+
+    saved = false
+    ActiveRecord::Base.transaction do
+      if cash_log.save
+        JournalEntry.create_from_cash_log!(cash_log, :cash_pickup)
+        saved = true
+      else
+        raise ActiveRecord::Rollback
+      end
+    end
+
+    if saved
       render json: {
         success: true,
-        message: I18n.t('api.v1.pos_devices.close_register.success', default: 'レジ精算を登録しました'),
-        last_amount: last_amount,
-        expected_amount: expected_amount,
-        actual_amount: cash_log.total_amount,
-        diff_amount: diff_amount,
-        last_logged_at: previous_log&.created_at
+        pickup_id: cash_log.id,
+        pickup_amount: amount,
+        pickup_reason: cash_log.pickup_reason,
+        created_at: cash_log.created_at
       }, status: :ok
     else
       render json: { success: false, message: cash_log.errors.full_messages.join(", ") }, status: :unprocessable_entity
     end
+  end
+
+  # レジ精算（営業終了時のレジ残高確定）
+  # セッションが開いている場合はスナップショットを確定保存して close する（Z締め）。
+  def close_register
+    session = current_open_session
+    previous_log, _opening_log, last_amount, expected_amount = cash_check_baseline
+    cash_log = build_cash_log(is_start: false, is_end: true)
+    return if performed?
+
+    diff_amount = expected_amount ? cash_log.total_amount - expected_amount : nil
+    cash_log.log_type = :close
+    cash_log.register_session = session
+    cash_log.expected_amount = expected_amount
+    cash_log.diff_amount = diff_amount
+
+    session_summary = nil
+    ActiveRecord::Base.transaction do
+      cash_log.save!
+
+      if session
+        totals = session.current_totals
+        session.update!(
+          status: :closed,
+          closed_at: Time.current,
+          closing_employee_id: cash_log.employee_id,
+          closing_counted_amount: cash_log.total_amount,
+          expected_cash_amount: expected_amount,
+          cash_diff_amount: diff_amount,
+          next_opening_float: next_opening_float_param,
+          closing_summary: session.report_breakdown,
+          **totals
+        )
+        session_summary = {
+          id: session.id,
+          z_number: session.z_number,
+          business_date: session.business_date.to_s,
+          opening_float: session.opening_float,
+          next_opening_float: session.next_opening_float
+        }.merge(totals)
+      end
+
+      JournalEntry.create_from_cash_log!(cash_log, :register_close)
+    end
+
+    render json: {
+      success: true,
+      message: I18n.t("api.v1.pos_devices.close_register.success", default: "レジ精算を登録しました"),
+      last_amount: last_amount,
+      expected_amount: expected_amount,
+      actual_amount: cash_log.total_amount,
+      diff_amount: diff_amount,
+      last_logged_at: previous_log&.created_at,
+      register_session: session_summary
+    }, status: :ok
+  rescue ActiveRecord::RecordInvalid => e
+    render json: { success: false, message: e.record.errors.full_messages.join(", ") }, status: :unprocessable_entity
   end
 
   # レジ金チェック画面用のコンテキスト（営業日トータル差異の基準）を返す。
@@ -217,6 +372,36 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
       expected_amount: expected_amount,
       last_logged_at: previous_log&.created_at
     }, status: :ok
+  end
+
+  # 点検（X）/ 精算（Z）レポートの集計データを返す。
+  # - z_number 指定なし: 現在の open セッションの点検レポート（営業中何度でも）
+  # - z_number 指定あり: 精算済みセッションのスナップショット（Zレポート再印字）
+  def register_report
+    owner = @current_pos.store.user
+    employee = owner.employees.find_by(id: params[:employee_id])
+
+    unless employee && (employee.is_all_stores || employee.stores.exists?(@current_pos.store.id))
+      return render json: { success: false, message: I18n.t("api.v1.pos_devices.open.employee_not_found") }, status: :forbidden
+    end
+
+    unless employee.permitted?("cash_check")
+      return render json: { success: false, message: "点検・精算レポートの権限がありません" }, status: :forbidden
+    end
+
+    if params[:z_number].present?
+      session = @current_pos.register_sessions.closed.find_by(z_number: params[:z_number])
+      unless session
+        return render json: { success: false, message: "指定された精算が見つかりません" }, status: :not_found
+      end
+      render json: z_report_json(session), status: :ok
+    else
+      session = current_open_session
+      unless session
+        return render json: { success: false, message: "レジが開設されていません" }, status: :unprocessable_entity
+      end
+      render json: x_report_json(session), status: :ok
+    end
   end
 
   private
@@ -244,7 +429,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
 
   def open_params
     params.permit(:employee_id, :open_date, :total_amount,
-      cash_drawer: [:"10000", :"5000", :"1000", :"500", :"100", :"50", :"10", :"5", :"1"]
+      cash_drawer: [ :"10000", :"5000", :"1000", :"500", :"100", :"50", :"10", :"5", :"1" ]
     )
   end
 
@@ -252,8 +437,83 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     params.permit(
       :employee_id,
       :total_amount,
-      cash_drawer: [:"10000", :"5000", :"1000", :"500", :"100", :"50", :"10", :"5", :"1"]
+      :next_opening_float,
+      cash_drawer: [ :"10000", :"5000", :"1000", :"500", :"100", :"50", :"10", :"5", :"1" ]
     )
+  end
+
+  # 現在開いているレジセッション（なければ nil = レガシー動作）
+  def current_open_session
+    return @current_open_session if defined?(@current_open_session)
+    @current_open_session = @current_pos.register_sessions.open.first
+  end
+
+  def session_header(session)
+    {
+      id: session.id,
+      z_number: session.z_number,
+      business_date: session.business_date.to_s,
+      status: session.status,
+      opened_at: session.opened_at,
+      closed_at: session.closed_at,
+      opening_float: session.opening_float,
+      opening_employee_name: session.opening_employee&.name,
+      closing_employee_name: session.closing_employee&.name,
+      store_name: session.store.name,
+      pos_name: session.pos_token.name
+    }
+  end
+
+  # 点検レポート（X）: 現時点の集計をその場で計算する
+  def x_report_json(session)
+    totals = session.current_totals
+    {
+      success: true,
+      report_type: "x",
+      register_session: session_header(session),
+      totals: totals,
+      expected_cash_amount: session.expected_cash_now(totals),
+      breakdown: session.report_breakdown,
+      generated_at: Time.current
+    }
+  end
+
+  # 精算レポート（Z）: 精算時に確定保存したスナップショットをそのまま返す
+  def z_report_json(session)
+    {
+      success: true,
+      report_type: "z",
+      register_session: session_header(session),
+      totals: {
+        sales_count: session.sales_count,
+        sales_total: session.sales_total,
+        refund_count: session.refund_count,
+        refund_total: session.refund_total,
+        void_count: session.void_count,
+        void_total: session.void_total,
+        discount_total: session.discount_total,
+        cash_sales_total: session.cash_sales_total,
+        cash_refund_total: session.cash_refund_total,
+        cash_in_total: session.cash_in_total,
+        cash_out_total: session.cash_out_total
+      },
+      expected_cash_amount: session.expected_cash_amount,
+      closing_counted_amount: session.closing_counted_amount,
+      cash_diff_amount: session.cash_diff_amount,
+      next_opening_float: session.next_opening_float,
+      breakdown: session.closing_summary,
+      generated_at: Time.current
+    }
+  end
+
+  # 精算時に指定される翌営業日の釣銭準備金（任意）
+  def next_opening_float_param
+    value = cash_log_params[:next_opening_float]
+    value.present? ? value.to_i : nil
+  end
+
+  def pickup_params
+    params.permit(:employee_id, :amount, :reason)
   end
 
   # 共通のレジ金ログ生成ロジック。
@@ -266,7 +526,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     employee = owner.employees.find_by(id: cash_log_params[:employee_id])
 
     unless employee && (employee.is_all_stores || employee.stores.exists?(@current_pos.store.id))
-      render json: { success: false, message: I18n.t('api.v1.pos_devices.open.employee_not_found') }, status: :forbidden
+      render json: { success: false, message: I18n.t("api.v1.pos_devices.open.employee_not_found") }, status: :forbidden
       return
     end
 
@@ -307,10 +567,11 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
   end
 
   # 営業日トータル差異を計算するための基準情報を返す。
-  # - 原則として当日の最初のレジ金ログ（開始レジ金）を基準とし、
-  #   そこから現在までの現金売上合計を加算し、返品による返金額を減算した額を expected_amount とする。
-  # - 当日分が存在しない場合は、従来通り直近のログを基準として扱う。
+  # - レジセッションが開いている場合はセッション基準（釣銭準備金 + セッション中の現金増減）。
+  # - セッションがない場合（レガシー期間・旧クライアント）は従来の created_at 期間推測で計算する。
   def cash_check_baseline
+    return session_baseline(current_open_session) if current_open_session
+
     today_logs = @current_pos.cash_logs.where(open_date: Date.current).order(:created_at)
     # 「開始レジ金」は明示的に is_start を使う（チェック/精算が先に保存されても壊れないようにする）
     opening_log = today_logs.where(is_start: true).first
@@ -320,15 +581,16 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     # 当日ログが無い場合は従来通り「直近のログ」を使う（過去営業日のデータでも動くようにする）。
     if previous_log.nil?
       previous_log = @current_pos.cash_logs.order(created_at: :desc).first
-      return [previous_log, nil, nil, nil] unless previous_log
+      return [ previous_log, nil, nil, nil ] unless previous_log
 
       cash_sales_sum = cash_sales_since(previous_log.created_at)
       refund_cash_sum = refund_cash_since(previous_log.created_at)
+      pickup_sum = pickup_sum_since(previous_log.created_at)
       net_cash_sales = cash_sales_sum - refund_cash_sum
 
       last_amount = previous_log.total_amount
-      expected_amount = last_amount + net_cash_sales
-      [previous_log, nil, last_amount, expected_amount]
+      expected_amount = last_amount + net_cash_sales - pickup_sum
+      [ previous_log, nil, last_amount, expected_amount ]
     else
       # 当日の開始ログがあれば、それを基準に expected_amount（あるべきレジ金）を算出する。
       baseline_log = opening_log || previous_log
@@ -336,12 +598,26 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
 
       cash_sales_sum = cash_sales_since(baseline_log.created_at)
       refund_cash_sum = refund_cash_since(baseline_log.created_at)
+      pickup_sum = pickup_sum_since(baseline_log.created_at)
       net_cash_sales = cash_sales_sum - refund_cash_sum
 
-      expected_amount = baseline_amount + net_cash_sales
+      expected_amount = baseline_amount + net_cash_sales - pickup_sum
       last_amount = previous_log.total_amount
-      [previous_log, opening_log, last_amount, expected_amount]
+      [ previous_log, opening_log, last_amount, expected_amount ]
     end
+  end
+
+  # セッション基準の理論在高。セッションに紐付く売上・返品・入出金だけで閉じるため、
+  # 深夜営業・締め忘れ・同日複数回精算でも壊れない。
+  def session_baseline(session)
+    logs = session.cash_logs.where.not(log_type: :pickup).order(:created_at)
+    previous_log = logs.last
+    opening_log  = logs.detect(&:log_open?)
+
+    expected_amount = session.expected_cash_now
+    last_amount = previous_log&.total_amount
+
+    [ previous_log, opening_log, last_amount, expected_amount ]
   end
 
   # 指定日時以降のこのPOSの現金売上合計（sale_payments.method=cash ベースで正確に集計）
@@ -351,10 +627,20 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
                .where(sales: {
                         user_id: @current_pos.store.user_id,
                         store_id: @current_pos.store_id,
-                        pos_token_id: @current_pos.id
+                        pos_token_id: @current_pos.id,
+                        status: Sale.statuses[:completed]
                       })
-               .where('sales.created_at > ?', since)
+               .where("sales.created_at > ?", since)
                .sum(:amount)
+  end
+
+  # 指定日時以降のこのPOSの途中回収合計
+  def pickup_sum_since(since)
+    @current_pos.cash_logs
+                .where(is_pickup: true)
+                .where("created_at > ?", since)
+                .sum(:pickup_amount)
+                .to_i
   end
 
   # 指定日時以降のこのPOSの現金返金合計。
@@ -376,9 +662,9 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
                store_id: @current_pos.store_id,
                pos_token_id: @current_pos.id
              })
-      .where('refunds.created_at > ?', since)
-      .where('sales.total_amount > 0')
-      .sum('ROUND(refunds.total_amount::numeric * COALESCE(cash_sums.cash_amount, 0) / sales.total_amount)')
+      .where("refunds.created_at > ?", since)
+      .where("sales.total_amount > 0")
+      .sum("ROUND(refunds.total_amount::numeric * COALESCE(cash_sums.cash_amount, 0) / sales.total_amount)")
       .to_i
   end
 end

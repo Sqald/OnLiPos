@@ -41,19 +41,19 @@ class ErrorsController < ActionController::Base
     507 => { title: "Insufficient Storage",              ja: "サーバーのストレージが不足しています。",                                 category: :server },
     508 => { title: "Loop Detected",                     ja: "サーバーがリクエストの処理中に無限ループを検出しました。",               category: :server },
     510 => { title: "Not Extended",                      ja: "リクエストの拡張情報が不足しています。",                                 category: :server },
-    511 => { title: "Network Authentication Required",   ja: "ネットワークへのアクセスに認証が必要です。",                             category: :server },
+    511 => { title: "Network Authentication Required",   ja: "ネットワークへのアクセスに認証が必要です。",                             category: :server }
   }.freeze
 
   def show
     status_param = params[:status].to_i
     @status_code = ERROR_DETAILS.key?(status_param) ? status_param : 500
     @error_info  = ERROR_DETAILS[@status_code]
-    render "errors/show", formats: [:html], layout: "error", status: @status_code
+    render "errors/show", formats: [ :html ], layout: "error", status: @status_code
   end
 
   def index
     @client_errors = ERROR_DETAILS.select { |_, v| v[:category] == :client }
     @server_errors = ERROR_DETAILS.select { |_, v| v[:category] == :server }
-    render "errors/index", formats: [:html], layout: "error", status: :ok
+    render "errors/index", formats: [ :html ], layout: "error", status: :ok
   end
 end

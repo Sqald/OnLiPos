@@ -1,4 +1,6 @@
 class Api::V1::BaseController < Api::BaseController
+  include EmployeePermissionAuthorizable
+
   before_action :authenticate_pos_token
   rescue_from ActiveRecord::RecordNotFound,
               with: -> { render json: { success: false, message: "リソースが見つかりません" }, status: :not_found }
@@ -14,7 +16,7 @@ class Api::V1::BaseController < Api::BaseController
         @current_pos.update_column(:last_used_at, Time.current)
       end
     else
-      render json: { success: false, message: 'Unauthorized' }, status: :unauthorized
+      render json: { success: false, message: "Unauthorized" }, status: :unauthorized
     end
   end
 
@@ -24,11 +26,11 @@ class Api::V1::BaseController < Api::BaseController
 
   def pos_token_from_request
     auth_header = request.authorization.to_s
-    if auth_header.start_with?('Bearer ')
-      return auth_header.delete_prefix('Bearer ').strip
+    if auth_header.start_with?("Bearer ")
+      return auth_header.delete_prefix("Bearer ").strip
     end
 
-    header_token = request.headers['X-POS-Token'].to_s.strip
+    header_token = request.headers["X-POS-Token"].to_s.strip
     return header_token if header_token.present?
 
     auth_params[:Token]

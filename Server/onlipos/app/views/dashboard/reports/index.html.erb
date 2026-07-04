@@ -89,6 +89,61 @@
         </table>
       <% end %>
 
+      <%# 税率別売上（インボイス確定値ベース） %>
+      <% if @tax_summary.any? %>
+        <h3>税率別売上</h3>
+        <table class="data-table mb-4">
+          <thead>
+            <tr>
+              <th>税率</th>
+              <th class="text-right">売上(税込)</th>
+              <th class="text-right">うち消費税</th>
+              <th class="text-right">返品(税込)</th>
+              <th class="text-right">純売上(税込)</th>
+              <th class="text-right">純消費税</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @tax_summary.each do |row| %>
+              <tr>
+                <td><%= row[:tax_rate] %>%</td>
+                <td class="text-right"><%= number_to_currency(row[:sales_amount], unit: "¥") %></td>
+                <td class="text-right"><%= number_to_currency(row[:sales_tax], unit: "¥") %></td>
+                <td class="text-right"><%= number_to_currency(row[:refund_amount], unit: "¥") %></td>
+                <td class="text-right"><%= number_to_currency(row[:net_amount], unit: "¥") %></td>
+                <td class="text-right"><%= number_to_currency(row[:net_tax], unit: "¥") %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% end %>
+
+      <%# 返品・取消 %>
+      <% if (@refund_count.to_i + @void_count.to_i) > 0 %>
+        <h3>返品・取消</h3>
+        <table class="data-table mb-4">
+          <thead>
+            <tr>
+              <th>区分</th>
+              <th class="text-right">件数</th>
+              <th class="text-right">金額</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>返品</td>
+              <td class="text-right"><%= @refund_count %> 件</td>
+              <td class="text-right"><%= number_to_currency(@refund_total, unit: "¥") %></td>
+            </tr>
+            <tr>
+              <td>取消(VOID)</td>
+              <td class="text-right"><%= @void_count %> 件</td>
+              <td class="text-right"><%= number_to_currency(@void_total, unit: "¥") %></td>
+            </tr>
+          </tbody>
+        </table>
+      <% end %>
+
       <%# 日次売上 %>
       <% if @daily_summary.any? %>
         <h3>日次売上</h3>

@@ -24,7 +24,7 @@ module Onlipos
     # config.time_zone = "Central Time (US & Canada)"
     # config.eager_load_paths << Rails.root.join("extras")
     config.hosts << "rails:3000"
-    config.hosts << ENV['HOST_NAME'] if ENV['HOST_NAME'].present?
+    config.hosts << ENV["HOST_NAME"] if ENV["HOST_NAME"].present?
     config.time_zone = "Tokyo"
     config.i18n.default_locale = :ja
     config.exceptions_app = self.routes

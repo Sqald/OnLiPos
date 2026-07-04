@@ -1,13 +1,13 @@
 class Api::V1::ProductsController < Api::V1::BaseController
   def lookup
     code = params[:code].to_s.strip
-    return render json: { success: false, message: 'code is required' }, status: :bad_request if code.blank?
+    return render json: { success: false, message: "code is required" }, status: :bad_request if code.blank?
 
     current_store = @current_pos.store
     product = current_store.products.includes(:product_category).find_by(code: code, status: :active)
 
     if product.nil?
-      return render json: { success: false, message: 'not_found' }, status: :not_found
+      return render json: { success: false, message: "not_found" }, status: :not_found
     end
 
     price = Price.find_by(store_id: current_store.id, product_id: product.id)&.amount || product.price
@@ -19,6 +19,7 @@ class Api::V1::ProductsController < Api::V1::BaseController
         code: product.code,
         name: product.name,
         price: price,
+        list_price: product.price,
         tax_rate: product.tax_rate,
         category_id: product.product_category_id,
         category_name: product.product_category&.name
@@ -28,14 +29,10 @@ class Api::V1::ProductsController < Api::V1::BaseController
 
   def sync
     limit = 1000
-    
+
     # ストロングパラメータを使用
     last_updated_at_param = sync_params[:last_updated_at]
-    last_updated_at = if last_updated_at_param.present?
-                        Time.zone.parse(last_updated_at_param) || Time.at(0)
-                      else
-                        Time.at(0)
-                      end
+    last_updated_at = last_updated_at_param.present? ? (Time.zone.parse(last_updated_at_param) || Time.at(0)) : Time.at(0)
     last_id = (sync_params[:last_id] || 0).to_i
 
     # サーバーの「現在時刻」を取得（同期開始時にFlutterに教えるため）
@@ -75,7 +72,9 @@ class Api::V1::ProductsController < Api::V1::BaseController
         description: product.description,
         status: product.status,
         price: current_price,
+        list_price: product.price,
         tax_rate: product.tax_rate,
+        tax_type: product.tax_type_before_type_cast,
         updated_at: product.updated_at,
         category_id: product.product_category_id,
         category_name: product.product_category&.name

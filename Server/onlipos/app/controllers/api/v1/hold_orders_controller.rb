@@ -27,7 +27,7 @@ class Api::V1::HoldOrdersController < Api::V1::BaseController
     if hold_order.save
       render json: { success: true, hold_number: hold_order.id }, status: :created
     else
-      render json: { success: false, message: hold_order.errors.full_messages.join(', ') },
+      render json: { success: false, message: hold_order.errors.full_messages.join(", ") },
              status: :unprocessable_entity
     end
   end
@@ -37,7 +37,7 @@ class Api::V1::HoldOrdersController < Api::V1::BaseController
   def destroy
     hold_order = @current_pos.store.hold_orders.find_by(id: params[:id])
     unless hold_order
-      return render json: { success: false, message: '保留が見つかりません' }, status: :not_found
+      return render json: { success: false, message: "保留が見つかりません" }, status: :not_found
     end
 
     data = {
@@ -55,6 +55,6 @@ class Api::V1::HoldOrdersController < Api::V1::BaseController
   private
 
   def hold_params
-    params.permit(:operator_name, :operator_id, :total_amount, items: [{}])
+    params.permit(:operator_name, :operator_id, :total_amount, items: [ {} ])
   end
 end

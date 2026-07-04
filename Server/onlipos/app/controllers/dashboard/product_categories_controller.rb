@@ -1,5 +1,5 @@
 class Dashboard::ProductCategoriesController < Dashboard::BaseController
-  before_action :set_category, only: [:edit, :update, :destroy]
+  before_action :set_category, only: [ :edit, :update, :destroy ]
 
   def index
     @categories = current_user.product_categories.order(:display_order, :name)
@@ -12,7 +12,7 @@ class Dashboard::ProductCategoriesController < Dashboard::BaseController
   def create
     @category = current_user.product_categories.build(category_params)
     if @category.save
-      redirect_to dashboard_product_categories_path, notice: 'カテゴリを作成しました'
+      redirect_to dashboard_product_categories_path, notice: "カテゴリを作成しました"
     else
       render :new, status: :unprocessable_entity
     end
@@ -22,7 +22,7 @@ class Dashboard::ProductCategoriesController < Dashboard::BaseController
 
   def update
     if @category.update(category_params)
-      redirect_to dashboard_product_categories_path, notice: 'カテゴリを更新しました'
+      redirect_to dashboard_product_categories_path, notice: "カテゴリを更新しました"
     else
       render :edit, status: :unprocessable_entity
     end
@@ -30,7 +30,7 @@ class Dashboard::ProductCategoriesController < Dashboard::BaseController
 
   def destroy
     @category.destroy
-    redirect_to dashboard_product_categories_path, notice: 'カテゴリを削除しました'
+    redirect_to dashboard_product_categories_path, notice: "カテゴリを削除しました"
   end
 
   private

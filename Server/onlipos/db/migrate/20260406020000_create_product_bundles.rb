@@ -8,7 +8,7 @@ class CreateProductBundles < ActiveRecord::Migration[8.1]
       t.integer :status,   null: false, default: 0
       t.timestamps
     end
-    add_index :product_bundles, [:user_id, :code], unique: true
+    add_index :product_bundles, [ :user_id, :code ], unique: true
     add_index :product_bundles, :user_id
     add_foreign_key :product_bundles, :users
 
@@ -18,7 +18,7 @@ class CreateProductBundles < ActiveRecord::Migration[8.1]
       t.integer :quantity,          null: false, default: 1
       t.timestamps
     end
-    add_index :product_bundle_items, [:product_bundle_id, :product_id], unique: true
+    add_index :product_bundle_items, [ :product_bundle_id, :product_id ], unique: true
     add_index :product_bundle_items, :product_bundle_id
     add_index :product_bundle_items, :product_id
     add_foreign_key :product_bundle_items, :product_bundles

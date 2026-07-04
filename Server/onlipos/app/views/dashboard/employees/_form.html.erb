@@ -53,6 +53,25 @@
     </div>
   </div>
 
+  <div class="field">
+    <label>操作権限</label>
+    <p class="field-hint">チェックした操作のみ許可されます。</p>
+    <% current_permissions = employee.new_record? ? Set.new : employee.permission_keys.to_set %>
+    <div class="store-grid">
+      <% Employee::PERMISSION_CATALOG.each do |key, label| %>
+        <div class="checkbox-item">
+          <input type="checkbox"
+                 name="employee[permission_keys][]"
+                 value="<%= key %>"
+                 id="permission_<%= key %>"
+                 class="store-checkbox"
+                 <%= current_permissions.include?(key) ? 'checked' : '' %>>
+          <label for="permission_<%= key %>" class="store-label"><%= label %></label>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
   <div class="actions">
     <%= f.submit "保存する", class: "btn-signup" %>
     <%= link_to "キャンセル", dashboard_employees_path, class: "link-cancel" %>

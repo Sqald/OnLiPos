@@ -42,7 +42,7 @@ class Api::V1::TransferOrdersController < Api::V1::BaseController
     transfer = @current_pos.store.transfer_orders.find_by(id: params[:id])
 
     if transfer.nil?
-      render json: { success: false, error: '転送注文が見つかりません' }, status: :not_found
+      render json: { success: false, error: "転送注文が見つかりません" }, status: :not_found
       return
     end
 
@@ -60,7 +60,7 @@ class Api::V1::TransferOrdersController < Api::V1::BaseController
         transfer.destroy!
       end
     rescue ActiveRecord::RecordNotFound
-      render json: { success: false, error: '転送注文が見つかりません' }, status: :not_found
+      render json: { success: false, error: "転送注文が見つかりません" }, status: :not_found
       return
     end
 

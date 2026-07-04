@@ -1,5 +1,5 @@
 Rails.application.routes.draw do
-  devise_for :users, skip: [:confirmations, :unlocks, :passwords, :omniauth_callbacks]
+  devise_for :users, skip: [ :confirmations, :unlocks, :passwords, :omniauth_callbacks ]
   root to: redirect("/dashboard")
 
   # エラーページ: /errors?status=404 で個別プレビュー、/errors でコード一覧
@@ -14,7 +14,7 @@ Rails.application.routes.draw do
 
   namespace :dashboard do
     root to: "dashboards#index"
-    resources :pos_devices, only: [:new, :create, :destroy], path: "pos_devices" do
+    resources :pos_devices, only: [ :new, :create, :destroy ], path: "pos_devices" do
       patch :update_password, path: "update_password"
     end
     resources :stores, path: "stores" do
@@ -23,21 +23,22 @@ Rails.application.routes.draw do
         patch :update_prices
       end
     end
-    resources :employees, except: [:show]
-    resources :product_categories, except: [:show]
+    resources :employees, except: [ :show ]
+    resources :product_categories, except: [ :show ]
     resources :products do
       post :import, on: :collection
     end
-    resources :provisionings, only: [:index, :new, :create, :destroy]
-    resources :sales, only: [:index]
-    resources :sale_details, only: [:show]
-    resources :cash_logs, only: [:index]
-    resources :store_stocks, only: [:index, :update] do
+    resources :provisionings, only: [ :index, :new, :create, :destroy ]
+    resources :sales, only: [ :index ]
+    resources :sale_details, only: [ :show ]
+    resources :refunds, only: [ :index, :show ]
+    resources :cash_logs, only: [ :index ]
+    resources :store_stocks, only: [ :index, :update ] do
       post :transfer, on: :collection
     end
-    resources :stock_movements, only: [:index]
-    resources :product_bundles, except: [:show]
-    resources :reports, only: [:index]
+    resources :stock_movements, only: [ :index ]
+    resources :product_bundles, except: [ :show ]
+    resources :reports, only: [ :index ]
   end
 
   namespace :api do
@@ -52,30 +53,42 @@ Rails.application.routes.draw do
         get  :cash_check_context, on: :collection
         post :cash_check, on: :collection
         post :close_register, on: :collection
+        post :cash_pickup, on: :collection
+        get  :register_report, on: :collection
       end
       resources :products do
         post :sync,   on: :collection
         get  :lookup, on: :collection
       end
-      resources :sales, only: [:create, :index]
-      resources :store_stocks, only: [:index] do
+      resources :sales, only: [ :create, :index ] do
+        get :summary, on: :collection
+        post :void, on: :member
+        post :issue_receipt, on: :member
+      end
+      resources :store_stocks, only: [ :index ] do
         post :move, on: :collection
       end
-      resources :refunds, only: [:create] do
+      resources :refunds, only: [ :create ] do
         get :sale_by_receipt, on: :collection
       end
+      get "store_prices", to: "store_prices#index"
+      patch "store_prices", to: "store_prices#update"
       # 飲食店モード用：テーブルごとの注文（店舗内POS共有）
-      resources :table_orders, only: [:index] do
+      resources :table_orders, only: [ :index ] do
         collection do
-          get  ':table_number', to: 'table_orders#show',   as: :show
-          put  ':table_number', to: 'table_orders#upsert', as: :upsert
-          delete ':table_number', to: 'table_orders#destroy', as: :destroy
+          get  ":table_number", to: "table_orders#show",   as: :show
+          put  ":table_number", to: "table_orders#upsert", as: :upsert
+          delete ":table_number", to: "table_orders#destroy", as: :destroy
         end
       end
       # 小売店モード用：保留注文（店舗内POS共有）
-      resources :hold_orders, only: [:index, :create, :destroy]
+      resources :hold_orders, only: [ :index, :create, :destroy ]
       # ホスト・クライアントモード用：転送注文（クライアントからホストへのカート転送）
-      resources :transfer_orders, only: [:index, :create, :destroy]
+      resources :transfer_orders, only: [ :index, :create, :destroy ]
+      # レジ現金の入出金（釣銭補充・雑入出金・途中回収）
+      resources :cash_movements, only: [ :index, :create ]
+      # 電子ジャーナル（view_journal 権限必須）
+      resources :journals, only: [ :index, :show ]
     end
   end
 end

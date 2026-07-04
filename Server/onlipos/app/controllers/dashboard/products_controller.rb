@@ -1,5 +1,5 @@
-class Dashboard::ProductsController < Dashboard::BaseController 
-  before_action :set_product, only: [:edit, :update, :destroy]
+class Dashboard::ProductsController < Dashboard::BaseController
+  before_action :set_product, only: [ :edit, :update, :destroy ]
 
   def index
     scope = current_user.products.includes(:product_category)
@@ -57,7 +57,7 @@ class Dashboard::ProductsController < Dashboard::BaseController
 
     # アップロードされたファイルを一時保存 (リクエスト終了後もJobから参照できるようにするため)
     uploaded_file = params[:file]
-    file_path = Rails.root.join('tmp', "import_products_#{Time.now.to_i}_#{SecureRandom.hex(16)}.csv")
+    file_path = Rails.root.join("tmp", "import_products_#{Time.now.to_i}_#{SecureRandom.hex(16)}.csv")
     Rails.cache.write(lock_key, true, expires_in: 30.minutes)
     IO.copy_stream(uploaded_file.tempfile, file_path)
 

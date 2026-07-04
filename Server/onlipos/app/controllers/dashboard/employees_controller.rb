@@ -1,6 +1,6 @@
 class Dashboard::EmployeesController < Dashboard::BaseController
-  before_action :set_employee, only: [:edit, :update, :destroy]
-  before_action :set_stores, only: [:new, :create, :edit, :update]
+  before_action :set_employee, only: [ :edit, :update, :destroy ]
+  before_action :set_stores, only: [ :new, :create, :edit, :update ]
 
   def index
     @employees = current_user.employees
@@ -13,7 +13,8 @@ class Dashboard::EmployeesController < Dashboard::BaseController
   def create
     @employee = current_user.employees.build(employee_params)
     if @employee.save
-      redirect_to dashboard_employees_path, notice: '従業員を登録しました。'
+      @employee.sync_permissions(permission_params)
+      redirect_to dashboard_employees_path, notice: "従業員を登録しました。"
     else
       render :new, status: :unprocessable_entity
     end
@@ -24,7 +25,8 @@ class Dashboard::EmployeesController < Dashboard::BaseController
 
   def update
     if @employee.update(employee_params)
-      redirect_to dashboard_employees_path, notice: '従業員情報を更新しました。'
+      @employee.sync_permissions(permission_params)
+      redirect_to dashboard_employees_path, notice: "従業員情報を更新しました。"
     else
       render :edit, status: :unprocessable_entity
     end
@@ -32,7 +34,7 @@ class Dashboard::EmployeesController < Dashboard::BaseController
 
   def destroy
     @employee.destroy
-    redirect_to dashboard_employees_path, notice: '従業員を削除しました。'
+    redirect_to dashboard_employees_path, notice: "従業員を削除しました。"
   end
 
   private
@@ -51,9 +53,14 @@ class Dashboard::EmployeesController < Dashboard::BaseController
     p[:pin] = nil if p[:pin].blank?
     p[:pin_confirmation] = nil if p[:pin_confirmation].blank?
     # 全店舗フラグがONの場合、現在のユーザーの全店舗を紐付ける
-    if p[:is_all_stores] == '1'
+    if p[:is_all_stores] == "1"
       p[:store_ids] = current_user.stores.ids
     end
     p
+  end
+
+  # PERMISSION_CATALOG のキーに限定したチェックボックス値を取得する
+  def permission_params
+    Array(params.dig(:employee, :permission_keys)).select { |k| Employee::PERMISSION_CATALOG.key?(k) }
   end
 end

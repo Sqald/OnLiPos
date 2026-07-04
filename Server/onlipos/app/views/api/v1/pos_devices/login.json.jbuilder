@@ -4,3 +4,6 @@ json.pos_id @pos_token.id
 json.user_login_name @pos_token.store.user.login_name
 json.store_ascii_name @pos_token.store.ascii_name
 json.next_receipt_sequence @pos_token.next_receipt_sequence
+# 税・インボイス設定（レシート印字用に端末へ配布）
+json.invoice_registration_number @pos_token.store.user.invoice_registration_number
+json.tax_rounding_method @pos_token.store.user.tax_rounding_method

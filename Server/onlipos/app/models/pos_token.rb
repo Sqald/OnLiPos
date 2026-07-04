@@ -3,6 +3,8 @@ class PosToken < ApplicationRecord
   belongs_to :provisioning, optional: true
   has_many :sales, dependent: :nullify
   has_many :cash_logs, dependent: :nullify
+  has_many :register_sessions, dependent: :destroy
+  has_many :cash_movements, dependent: :destroy
 
   has_secure_token :token
   has_secure_password

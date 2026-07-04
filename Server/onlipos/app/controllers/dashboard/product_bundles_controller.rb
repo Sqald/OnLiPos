@@ -1,5 +1,5 @@
 class Dashboard::ProductBundlesController < Dashboard::BaseController
-  before_action :set_bundle, only: [:edit, :update, :destroy]
+  before_action :set_bundle, only: [ :edit, :update, :destroy ]
 
   def index
     @bundles = current_user.product_bundles.includes(:product_bundle_items).order(:code)

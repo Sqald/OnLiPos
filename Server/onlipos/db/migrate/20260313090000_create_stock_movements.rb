@@ -14,7 +14,6 @@ class CreateStockMovements < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :stock_movements, [:store_id, :product_id, :created_at], name: "index_stock_movements_on_store_product_created_at"
+    add_index :stock_movements, [ :store_id, :product_id, :created_at ], name: "index_stock_movements_on_store_product_created_at"
   end
 end
-

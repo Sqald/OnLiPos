@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_01_000003) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_04_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -41,11 +41,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000003) do
 
   create_table "cash_logs", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.integer "diff_amount"
     t.bigint "employee_id", null: false
+    t.integer "expected_amount"
     t.boolean "is_end", default: false, null: false
+    t.boolean "is_pickup", default: false, null: false
     t.boolean "is_start", default: false, null: false
+    t.integer "log_type", default: 1, null: false
     t.date "open_date", null: false
+    t.integer "pickup_amount"
+    t.string "pickup_reason"
     t.bigint "pos_token_id", null: false
+    t.bigint "register_session_id"
     t.datetime "updated_at", null: false
     t.integer "yen_1", default: 0, null: false
     t.integer "yen_10", default: 0, null: false
@@ -57,7 +64,39 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000003) do
     t.integer "yen_500", default: 0, null: false
     t.integer "yen_5000", default: 0, null: false
     t.index ["employee_id"], name: "index_cash_logs_on_employee_id"
+    t.index ["pos_token_id", "open_date", "log_type"], name: "index_cash_logs_on_pos_token_id_and_open_date_and_log_type"
     t.index ["pos_token_id"], name: "index_cash_logs_on_pos_token_id"
+    t.index ["register_session_id"], name: "index_cash_logs_on_register_session_id"
+  end
+
+  create_table "cash_movements", force: :cascade do |t|
+    t.integer "amount", null: false
+    t.datetime "created_at", null: false
+    t.integer "direction", null: false
+    t.bigint "employee_id", null: false
+    t.integer "kind", null: false
+    t.datetime "occurred_at", null: false
+    t.bigint "pos_token_id", null: false
+    t.string "reason"
+    t.bigint "register_session_id"
+    t.bigint "store_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["employee_id"], name: "index_cash_movements_on_employee_id"
+    t.index ["pos_token_id", "occurred_at"], name: "index_cash_movements_on_pos_token_id_and_occurred_at"
+    t.index ["pos_token_id"], name: "index_cash_movements_on_pos_token_id"
+    t.index ["register_session_id"], name: "index_cash_movements_on_register_session_id"
+    t.index ["store_id", "occurred_at"], name: "index_cash_movements_on_store_id_and_occurred_at"
+    t.index ["store_id"], name: "index_cash_movements_on_store_id"
+    t.check_constraint "amount > 0", name: "cash_movements_amount_positive"
+  end
+
+  create_table "employee_permissions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "employee_id", null: false
+    t.string "permission", null: false
+    t.datetime "updated_at", null: false
+    t.index ["employee_id", "permission"], name: "index_employee_permissions_on_employee_id_and_permission", unique: true
+    t.index ["employee_id"], name: "index_employee_permissions_on_employee_id"
   end
 
   create_table "employees", force: :cascade do |t|
@@ -92,12 +131,36 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000003) do
     t.index ["store_id"], name: "index_hold_orders_on_store_id"
   end
 
+  create_table "journal_entries", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "employee_id"
+    t.string "entry_hash"
+    t.integer "entry_type", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.bigint "pos_token_id", null: false
+    t.string "previous_hash"
+    t.datetime "printed_at", null: false
+    t.string "receipt_number"
+    t.bigint "sequence_number"
+    t.bigint "store_id", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["employee_id"], name: "index_journal_entries_on_employee_id"
+    t.index ["pos_token_id", "printed_at"], name: "index_journal_entries_on_pos_token_id_and_printed_at"
+    t.index ["pos_token_id", "sequence_number"], name: "index_journal_entries_on_pos_sequence", unique: true, where: "(sequence_number IS NOT NULL)"
+    t.index ["pos_token_id"], name: "index_journal_entries_on_pos_token_id"
+    t.index ["store_id", "printed_at"], name: "index_journal_entries_on_store_id_and_printed_at"
+    t.index ["store_id"], name: "index_journal_entries_on_store_id"
+    t.index ["user_id"], name: "index_journal_entries_on_user_id"
+  end
+
   create_table "pos_tokens", force: :cascade do |t|
     t.string "ascii_name"
     t.datetime "created_at", null: false
     t.datetime "expires_at"
     t.datetime "last_used_at"
     t.string "name"
+    t.bigint "next_journal_sequence", default: 1, null: false
     t.bigint "next_receipt_sequence", default: 1, null: false
     t.string "password_digest"
     t.bigint "provisioning_id"
@@ -162,6 +225,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000003) do
     t.bigint "product_category_id"
     t.integer "status", default: 0, null: false
     t.integer "tax_rate", default: 10, null: false
+    t.integer "tax_type", default: 0, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.index ["product_category_id"], name: "index_products_on_product_category_id"
@@ -189,6 +253,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000003) do
     t.bigint "refund_id", null: false
     t.bigint "saledetail_id", null: false
     t.integer "subtotal", null: false
+    t.integer "tax_amount", default: 0, null: false
+    t.integer "tax_rate", default: 0, null: false
     t.integer "unit_price", null: false
     t.datetime "updated_at", null: false
     t.index ["product_id"], name: "index_refund_details_on_product_id"
@@ -197,37 +263,115 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000003) do
     t.index ["saledetail_id"], name: "index_refund_details_on_saledetail_id"
   end
 
+  create_table "refund_tax_breakdowns", force: :cascade do |t|
+    t.integer "amount_ex_tax", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.bigint "refund_id", null: false
+    t.integer "tax_amount", default: 0, null: false
+    t.integer "tax_rate", null: false
+    t.integer "tax_type", default: 0, null: false
+    t.integer "taxable_amount", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["refund_id", "tax_rate", "tax_type"], name: "index_refund_tax_breakdowns_uniqueness", unique: true
+    t.index ["refund_id"], name: "index_refund_tax_breakdowns_on_refund_id"
+    t.check_constraint "taxable_amount >= 0 AND amount_ex_tax >= 0 AND tax_amount >= 0", name: "refund_tax_breakdowns_amounts_non_negative"
+  end
+
   create_table "refunds", force: :cascade do |t|
+    t.date "business_date"
     t.datetime "created_at", null: false
     t.bigint "employee_id"
     t.bigint "pos_token_id"
     t.string "refund_receipt_number"
+    t.datetime "refunded_at"
+    t.bigint "register_session_id"
     t.bigint "sale_id", null: false
     t.bigint "store_id", null: false
+    t.integer "subtotal_ex_tax", default: 0, null: false
+    t.integer "tax_amount", default: 0, null: false
     t.integer "total_amount", default: 0, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.index ["employee_id"], name: "index_refunds_on_employee_id"
     t.index ["pos_token_id"], name: "index_refunds_on_pos_token_id"
     t.index ["refund_receipt_number"], name: "index_refunds_on_refund_receipt_number"
+    t.index ["register_session_id"], name: "index_refunds_on_register_session_id"
     t.index ["sale_id"], name: "index_refunds_on_sale_id"
+    t.index ["store_id", "business_date"], name: "index_refunds_on_store_id_and_business_date"
     t.index ["store_id", "created_at"], name: "index_refunds_on_store_id_and_created_at"
     t.index ["store_id"], name: "index_refunds_on_store_id"
     t.index ["user_id"], name: "index_refunds_on_user_id"
   end
 
+  create_table "register_sessions", force: :cascade do |t|
+    t.date "business_date", null: false
+    t.integer "cash_diff_amount"
+    t.integer "cash_in_total"
+    t.integer "cash_out_total"
+    t.integer "cash_refund_total"
+    t.integer "cash_sales_total"
+    t.datetime "closed_at"
+    t.integer "closing_counted_amount"
+    t.bigint "closing_employee_id"
+    t.jsonb "closing_summary", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.integer "discount_total"
+    t.integer "expected_cash_amount"
+    t.integer "next_opening_float"
+    t.datetime "opened_at", null: false
+    t.bigint "opening_employee_id"
+    t.integer "opening_float", default: 0, null: false
+    t.bigint "pos_token_id", null: false
+    t.integer "refund_count"
+    t.integer "refund_total"
+    t.integer "sales_count"
+    t.integer "sales_total"
+    t.integer "status", default: 0, null: false
+    t.bigint "store_id", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.integer "void_count"
+    t.integer "void_total"
+    t.bigint "z_number", null: false
+    t.index ["closing_employee_id"], name: "index_register_sessions_on_closing_employee_id"
+    t.index ["opening_employee_id"], name: "index_register_sessions_on_opening_employee_id"
+    t.index ["pos_token_id", "z_number"], name: "index_register_sessions_on_pos_token_id_and_z_number", unique: true
+    t.index ["pos_token_id"], name: "index_register_sessions_on_pos_token_id"
+    t.index ["pos_token_id"], name: "index_register_sessions_open_per_pos", unique: true, where: "(status = 0)"
+    t.index ["store_id", "business_date"], name: "index_register_sessions_on_store_id_and_business_date"
+    t.index ["store_id"], name: "index_register_sessions_on_store_id"
+    t.index ["user_id"], name: "index_register_sessions_on_user_id"
+    t.check_constraint "opening_float >= 0", name: "register_sessions_opening_float_non_negative"
+  end
+
   create_table "sale_payments", force: :cascade do |t|
     t.integer "amount", null: false
     t.datetime "created_at", null: false
+    t.string "label"
     t.integer "method", null: false
     t.bigint "sale_id", null: false
     t.datetime "updated_at", null: false
     t.index ["sale_id"], name: "index_sale_payments_on_sale_id"
   end
 
+  create_table "sale_tax_breakdowns", force: :cascade do |t|
+    t.integer "amount_ex_tax", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.bigint "sale_id", null: false
+    t.integer "tax_amount", default: 0, null: false
+    t.integer "tax_rate", null: false
+    t.integer "tax_type", default: 0, null: false
+    t.integer "taxable_amount", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["sale_id", "tax_rate", "tax_type"], name: "index_sale_tax_breakdowns_uniqueness", unique: true
+    t.index ["sale_id"], name: "index_sale_tax_breakdowns_on_sale_id"
+    t.check_constraint "taxable_amount >= 0 AND amount_ex_tax >= 0 AND tax_amount >= 0", name: "sale_tax_breakdowns_amounts_non_negative"
+  end
+
   create_table "saledetails", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "discount_amount", default: 0, null: false
+    t.string "discount_reason"
     t.integer "original_unit_price"
     t.bigint "product_id", null: false
     t.string "product_name", null: false
@@ -236,6 +380,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000003) do
     t.integer "subtotal", null: false
     t.integer "tax_amount", default: 0, null: false
     t.integer "tax_rate", default: 0, null: false
+    t.integer "tax_type", default: 0, null: false
     t.integer "unit_price", null: false
     t.datetime "updated_at", null: false
     t.index ["product_id"], name: "index_saledetails_on_product_id"
@@ -243,11 +388,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000003) do
   end
 
   create_table "sales", force: :cascade do |t|
+    t.date "business_date"
     t.datetime "created_at", null: false
     t.bigint "employee_id"
+    t.string "order_discount_reason"
+    t.integer "order_discount_total", default: 0, null: false
+    t.integer "order_discount_type"
+    t.integer "order_discount_value"
     t.integer "payment_method", default: 0, null: false
     t.bigint "pos_token_id"
     t.string "receipt_number", null: false
+    t.bigint "register_session_id"
+    t.datetime "sold_at"
+    t.integer "status", default: 0, null: false
     t.bigint "store_id", null: false
     t.integer "subtotal_ex_tax", default: 0, null: false
     t.integer "tax_amount", default: 0, null: false
@@ -255,11 +408,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000003) do
     t.integer "total_discount", default: 0, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.string "void_reason"
+    t.datetime "voided_at"
+    t.bigint "voided_by_employee_id"
     t.index ["employee_id"], name: "index_sales_on_employee_id"
     t.index ["pos_token_id"], name: "index_sales_on_pos_token_id"
     t.index ["receipt_number"], name: "index_sales_on_receipt_number", unique: true
+    t.index ["register_session_id"], name: "index_sales_on_register_session_id"
+    t.index ["store_id", "business_date"], name: "index_sales_on_store_id_and_business_date"
     t.index ["store_id"], name: "index_sales_on_store_id"
     t.index ["user_id"], name: "index_sales_on_user_id"
+    t.index ["voided_by_employee_id"], name: "index_sales_on_voided_by_employee_id"
   end
 
   create_table "stock_movements", force: :cascade do |t|
@@ -339,6 +498,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000003) do
     t.string "encrypted_password", default: "", null: false
     t.integer "failed_attempts", default: 0, null: false
     t.string "first_name"
+    t.string "invoice_registration_number"
     t.string "last_name"
     t.datetime "last_sign_in_at"
     t.string "last_sign_in_ip"
@@ -348,6 +508,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000003) do
     t.datetime "reset_password_sent_at"
     t.string "reset_password_token"
     t.integer "sign_in_count", default: 0, null: false
+    t.integer "tax_rounding_method", default: 0, null: false
     t.string "unconfirmed_email"
     t.string "unlock_token"
     t.datetime "updated_at", null: false
@@ -361,8 +522,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000003) do
 
   add_foreign_key "cash_logs", "employees"
   add_foreign_key "cash_logs", "pos_tokens"
+  add_foreign_key "cash_logs", "register_sessions"
+  add_foreign_key "cash_movements", "employees"
+  add_foreign_key "cash_movements", "pos_tokens"
+  add_foreign_key "cash_movements", "register_sessions"
+  add_foreign_key "cash_movements", "stores"
+  add_foreign_key "employee_permissions", "employees"
   add_foreign_key "employees", "users"
   add_foreign_key "hold_orders", "stores"
+  add_foreign_key "journal_entries", "employees"
+  add_foreign_key "journal_entries", "pos_tokens"
+  add_foreign_key "journal_entries", "stores"
+  add_foreign_key "journal_entries", "users"
   add_foreign_key "pos_tokens", "provisionings"
   add_foreign_key "pos_tokens", "stores"
   add_foreign_key "prices", "products"
@@ -378,16 +549,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000003) do
   add_foreign_key "refund_details", "products"
   add_foreign_key "refund_details", "refunds"
   add_foreign_key "refund_details", "saledetails"
+  add_foreign_key "refund_tax_breakdowns", "refunds"
   add_foreign_key "refunds", "employees"
   add_foreign_key "refunds", "pos_tokens"
+  add_foreign_key "refunds", "register_sessions"
   add_foreign_key "refunds", "sales"
   add_foreign_key "refunds", "stores"
   add_foreign_key "refunds", "users"
+  add_foreign_key "register_sessions", "employees", column: "closing_employee_id"
+  add_foreign_key "register_sessions", "employees", column: "opening_employee_id"
+  add_foreign_key "register_sessions", "pos_tokens"
+  add_foreign_key "register_sessions", "stores"
+  add_foreign_key "register_sessions", "users"
   add_foreign_key "sale_payments", "sales"
+  add_foreign_key "sale_tax_breakdowns", "sales"
   add_foreign_key "saledetails", "products"
   add_foreign_key "saledetails", "sales"
   add_foreign_key "sales", "employees"
+  add_foreign_key "sales", "employees", column: "voided_by_employee_id"
   add_foreign_key "sales", "pos_tokens"
+  add_foreign_key "sales", "register_sessions"
   add_foreign_key "sales", "stores"
   add_foreign_key "sales", "users"
   add_foreign_key "stock_movements", "employees"

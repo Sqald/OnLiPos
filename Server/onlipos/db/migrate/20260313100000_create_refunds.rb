@@ -12,7 +12,7 @@ class CreateRefunds < ActiveRecord::Migration[8.1]
     end
 
     add_index :refunds, :refund_receipt_number
-    add_index :refunds, [:store_id, :created_at]
+    add_index :refunds, [ :store_id, :created_at ]
 
     create_table :refund_details do |t|
       t.references :refund, null: false, foreign_key: true
@@ -26,6 +26,6 @@ class CreateRefunds < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :refund_details, [:refund_id, :saledetail_id]
+    add_index :refund_details, [ :refund_id, :saledetail_id ]
   end
 end

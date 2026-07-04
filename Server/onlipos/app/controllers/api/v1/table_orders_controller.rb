@@ -28,7 +28,7 @@ class Api::V1::TableOrdersController < Api::V1::BaseController
     if table_order.save
       render json: { success: true }
     else
-      render json: { success: false, message: table_order.errors.full_messages.join(', ') },
+      render json: { success: false, message: table_order.errors.full_messages.join(", ") },
              status: :unprocessable_entity
     end
   end
@@ -44,6 +44,6 @@ class Api::V1::TableOrdersController < Api::V1::BaseController
   private
 
   def upsert_params
-    params.permit(items: [{}])
+    params.permit(items: [ {} ])
   end
 end

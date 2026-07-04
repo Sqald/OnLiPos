@@ -106,6 +106,7 @@
           <th class="text-right">数量</th>
           <th class="text-right">単価</th>
           <th class="text-right">割引</th>
+          <th>値引き理由</th>
           <th class="text-right">小計</th>
           <th class="text-right">税率</th>
         </tr>
@@ -131,6 +132,7 @@
                 -
               <% end %>
             </td>
+            <td><%= d.discount_reason.presence || "-" %></td>
             <td class="text-right"><%= number_to_currency(d.subtotal, unit: "¥") %></td>
             <td class="text-right"><%= d.tax_rate > 0 ? "#{d.tax_rate}%" : "-" %></td>
           </tr>

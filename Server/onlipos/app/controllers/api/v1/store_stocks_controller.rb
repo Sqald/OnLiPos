@@ -1,12 +1,11 @@
 class Api::V1::StoreStocksController < Api::V1::BaseController
-
   def index
     store = @current_pos.store
 
     stocks = store.store_stocks
       .includes(:product)
       .joins(:product)
-      .order('products.name')
+      .order("products.name")
 
     render json: {
       success: true,
