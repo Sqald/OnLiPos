@@ -38,8 +38,9 @@ class CashLogApi {
 
     // URLはユーザー入力値をそのまま使わず、末尾のスラッシュを正規化するのみとし、
     // それ以外の文字列操作は行わないことで想定外のパスを生成しないようにします。
-    final normalizedUrl =
-        baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final normalizedUrl = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
     final url = Uri.parse('$normalizedUrl$path');
 
     // JSONのキーは文字列である必要があるため、金種キーのみ文字列化します。
@@ -65,10 +66,7 @@ class CashLogApi {
     } catch (e) {
       // 例外メッセージはユーザー向けに簡略化して返し、ネットワーク詳細やスタックトレースを
       // そのまま表示しないことで情報漏えいを防ぎます。
-      return {
-        'success': false,
-        'message': '通信エラーが発生しました: $e',
-      };
+      return {'success': false, 'message': '通信エラーが発生しました: $e'};
     }
   }
 
@@ -86,6 +84,49 @@ class CashLogApi {
     );
   }
 
+  /// レジ金途中回収を登録する。
+  Future<Map<String, dynamic>> cashPickup({
+    required int employeeId,
+    required int amount,
+    String? reason,
+  }) async {
+    final baseUrl = await _storage.read(key: 'AccessUrl');
+    final token = await _storage.read(key: 'LoginToken');
+
+    if (baseUrl == null || baseUrl.isEmpty) {
+      return {'success': false, 'message': '接続先URLが設定されていません'};
+    }
+    if (token == null || token.isEmpty) {
+      return {'success': false, 'message': '端末認証トークンが見つかりません'};
+    }
+
+    final normalizedUrl = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
+    final url = Uri.parse('$normalizedUrl/api/v1/pos_devices/cash_pickup');
+
+    try {
+      final body = <String, dynamic>{
+        'employee_id': employeeId,
+        'amount': amount,
+      };
+      if (reason != null && reason.isNotEmpty) body['reason'] = reason;
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+      return _parseResponse(response);
+    } catch (e) {
+      return {'success': false, 'message': '通信エラーが発生しました: $e'};
+    }
+  }
+
   /// レジ精算（営業終了時の残高確定）を登録する。
   Future<Map<String, dynamic>> closeRegister({
     required int employeeId,
@@ -98,6 +139,93 @@ class CashLogApi {
       cashDrawer: cashDrawer,
       totalAmount: totalAmount,
     );
+  }
+
+  /// レジ入出金（釣銭補充・雑入金・雑出金・途中回収）を登録する。
+  /// kind: 'replenishment'(釣銭補充) / 'misc_in'(雑入金) / 'misc_out'(雑出金) / 'pickup'(途中回収)
+  Future<Map<String, dynamic>> cashMovement({
+    required int employeeId,
+    required String kind,
+    required int amount,
+    String? reason,
+  }) async {
+    final baseUrl = await _storage.read(key: 'AccessUrl');
+    final token = await _storage.read(key: 'LoginToken');
+
+    if (baseUrl == null || baseUrl.isEmpty) {
+      return {'success': false, 'message': '接続先URLが設定されていません'};
+    }
+    if (token == null || token.isEmpty) {
+      return {'success': false, 'message': '端末認証トークンが見つかりません'};
+    }
+
+    final normalizedUrl = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
+    final url = Uri.parse('$normalizedUrl/api/v1/cash_movements');
+
+    try {
+      final body = <String, dynamic>{
+        'employee_id': employeeId,
+        'kind': kind,
+        'amount': amount,
+      };
+      if (reason != null && reason.isNotEmpty) body['reason'] = reason;
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+      return _parseResponse(response);
+    } catch (e) {
+      return {'success': false, 'message': '通信エラーが発生しました: $e'};
+    }
+  }
+
+  /// 点検（X）/ 精算（Z）レポートの集計データを取得する。
+  /// zNumber を省略すると現在の open セッションの点検レポート、
+  /// 指定すると精算済みセッションの Z レポート（再印字用）を返す。
+  Future<Map<String, dynamic>> fetchRegisterReport({
+    required int employeeId,
+    int? zNumber,
+  }) async {
+    final baseUrl = await _storage.read(key: 'AccessUrl');
+    final token = await _storage.read(key: 'LoginToken');
+
+    if (baseUrl == null || baseUrl.isEmpty) {
+      return {'success': false, 'message': '接続先URLが設定されていません'};
+    }
+    if (token == null || token.isEmpty) {
+      return {'success': false, 'message': '端末認証トークンが見つかりません'};
+    }
+
+    final normalizedUrl = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
+    final query = zNumber != null
+        ? '?employee_id=$employeeId&z_number=$zNumber'
+        : '?employee_id=$employeeId';
+    final url = Uri.parse(
+      '$normalizedUrl/api/v1/pos_devices/register_report$query',
+    );
+
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+      return _parseResponse(response);
+    } catch (e) {
+      return {'success': false, 'message': '通信エラーが発生しました: $e'};
+    }
   }
 
   /// レジ金チェック画面用のコンテキストを取得する。
@@ -114,9 +242,12 @@ class CashLogApi {
       return {'success': false, 'message': '端末認証トークンが見つかりません'};
     }
 
-    final normalizedUrl =
-        baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
-    final url = Uri.parse('$normalizedUrl/api/v1/pos_devices/cash_check_context');
+    final normalizedUrl = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
+    final url = Uri.parse(
+      '$normalizedUrl/api/v1/pos_devices/cash_check_context',
+    );
 
     try {
       final response = await http.get(
@@ -128,10 +259,7 @@ class CashLogApi {
       );
       return _parseResponse(response);
     } catch (e) {
-      return {
-        'success': false,
-        'message': '通信エラーが発生しました: $e',
-      };
+      return {'success': false, 'message': '通信エラーが発生しました: $e'};
     }
   }
 }

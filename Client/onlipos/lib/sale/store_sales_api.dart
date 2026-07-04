@@ -6,7 +6,11 @@ import 'package:http/http.dart' as http;
 class StoreSalesApi {
   static const _storage = FlutterSecureStorage();
 
-  static Future<Map<String, dynamic>> fetchSales({String? date}) async {
+  static Future<Map<String, dynamic>> fetchSummary({
+    required int employeeId,
+    required String from,
+    required String to,
+  }) async {
     final baseUrl = await _storage.read(key: 'AccessUrl');
     final token = await _storage.read(key: 'LoginToken');
 
@@ -17,10 +21,13 @@ class StoreSalesApi {
       return {'success': false, 'message': '端末認証トークンが見つかりません'};
     }
 
-    final normalizedUrl =
-        baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
-    final query = date != null ? '?date=$date' : '';
-    final url = Uri.parse('$normalizedUrl/api/v1/sales$query');
+    final normalizedUrl = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
+    final url = Uri.parse(
+      '$normalizedUrl/api/v1/sales/summary'
+      '?employee_id=$employeeId&from=$from&to=$to',
+    );
 
     try {
       final response = await http.get(

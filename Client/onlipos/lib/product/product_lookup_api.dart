@@ -12,15 +12,13 @@ class ProductLookupApi {
     final baseUrl = await _storage.read(key: 'AccessUrl') ?? '';
     final token = await _storage.read(key: 'LoginToken') ?? '';
 
-    final uri = Uri.parse('$baseUrl/api/v1/products/lookup')
-        .replace(queryParameters: {'code': code});
+    final uri = Uri.parse(
+      '$baseUrl/api/v1/products/lookup',
+    ).replace(queryParameters: {'code': code});
 
     final response = await http.get(
       uri,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Accept': 'application/json',
-      },
+      headers: {'Authorization': 'Bearer $token', 'Accept': 'application/json'},
     );
 
     if (response.statusCode == 404) return null;
@@ -32,11 +30,13 @@ class ProductLookupApi {
     if (data['success'] != true) return null;
 
     final p = data['product'] as Map<String, dynamic>;
+    final price = p['price'] as int;
     return Product(
       id: p['id'] as int,
       code: p['code'] as String,
       name: p['name'] as String,
-      price: p['price'] as int,
+      price: price,
+      listPrice: (p['list_price'] as int?) ?? price,
       taxRate: (p['tax_rate'] as int?) ?? 10,
       categoryId: p['category_id'] as int?,
       categoryName: p['category_name'] as String?,

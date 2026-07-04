@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:charset_converter/charset_converter.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -17,15 +18,22 @@ class ReceiptPrinter {
     if (savedIp == null || savedIp.isEmpty) return;
 
     final String cmd = kickCommand ?? '27,112,0,50,250';
-    final List<int> bytes = cmd.split(',').map((e) => int.tryParse(e.trim()) ?? 0).toList();
+    final List<int> bytes = cmd
+        .split(',')
+        .map((e) => int.tryParse(e.trim()) ?? 0)
+        .toList();
 
     Socket? socket;
     try {
-      socket = await Socket.connect(savedIp, 9100, timeout: const Duration(seconds: 3));
+      socket = await Socket.connect(
+        savedIp,
+        9100,
+        timeout: const Duration(seconds: 3),
+      );
       socket.add(bytes);
       await socket.flush();
     } catch (e) {
-      print('Drawer open error: $e');
+      developer.log('Drawer open error: $e');
     } finally {
       socket?.destroy();
     }
@@ -41,16 +49,23 @@ class ReceiptPrinter {
     required int change,
     required int tenderedCash,
     String? extraInfo,
+    // 適格簡易請求書の記載事項（税率別内訳）。
+    // [{tax_rate:, tax_type:, taxable_amount:, tax_amount:}, ...]
+    List<Map<String, int>>? taxBreakdown,
   }) async {
     const storage = FlutterSecureStorage();
-    
+
     String targetIp = ipAddress;
     String storeName = "お会計";
-    
+
     String? savedIp = await storage.read(key: 'PrinterIP');
     String? savedName = await storage.read(key: 'StoreName');
     if (savedIp != null && savedIp.isNotEmpty) targetIp = savedIp;
     if (savedName != null && savedName.isNotEmpty) storeName = savedName;
+
+    // 適格請求書発行事業者の登録番号（ログイン時にサーバーから配布）
+    final String invoiceNumber =
+        await storage.read(key: 'InvoiceRegistrationNumber') ?? '';
 
     if (tenderedCash > 0) {
       await ReceiptPrinter.openDrawer();
@@ -58,7 +73,11 @@ class ReceiptPrinter {
 
     Socket? socket;
     try {
-      socket = await Socket.connect(targetIp, port, timeout: const Duration(seconds: 3));
+      socket = await Socket.connect(
+        targetIp,
+        port,
+        timeout: const Duration(seconds: 3),
+      );
       final List<int> buffer = [];
 
       // Initialize (ESC @)
@@ -69,7 +88,12 @@ class ReceiptPrinter {
       buffer.addAll([0x1B, 0x74, 0x01]);
       buffer.addAll([0x1C, 0x43, 0x01]);
 
-      Future<void> addLine(String text, {int align = 0, bool bold = false, int size = 0}) async {
+      Future<void> addLine(
+        String text, {
+        int align = 0,
+        bool bold = false,
+        int size = 0,
+      }) async {
         buffer.addAll([0x1B, 0x61, align]);
 
         int n = 0;
@@ -77,7 +101,7 @@ class ReceiptPrinter {
         if (size == 1 || size == 3) n |= 0x10;
         if (size == 2 || size == 3) n |= 0x20;
         buffer.addAll([0x1B, 0x21, n]);
-        
+
         try {
           if (text.isNotEmpty) {
             final encoded = await CharsetConverter.encode("Shift_JIS", text);
@@ -86,7 +110,7 @@ class ReceiptPrinter {
         } catch (e) {
           buffer.addAll(text.codeUnits.map((e) => e > 255 ? 63 : e).toList());
         }
-        
+
         buffer.addAll([0x0A]);
         buffer.addAll([0x1B, 0x21, 0x00]);
       }
@@ -96,9 +120,12 @@ class ReceiptPrinter {
       await addLine("");
       await addLine("領 収 書", align: 1, size: 1);
       await addLine("--------------------------------", align: 1);
-      
+
       await addLine("日時: ${DateTime.now().toString().substring(0, 19)}");
       await addLine("No: $receiptNumber");
+      if (invoiceNumber.isNotEmpty) {
+        await addLine("登録番号: $invoiceNumber");
+      }
       if (extraInfo != null && extraInfo.isNotEmpty) {
         await addLine(extraInfo, bold: true);
       }
@@ -108,15 +135,34 @@ class ReceiptPrinter {
       for (var item in details) {
         final name = item['product_name']?.toString() ?? '';
         final code = item['product_code']?.toString() ?? '';
-        final qty = item['quantity'] is int ? item['quantity'] as int : (item['quantity'] as num).toInt();
-        final price = item['unit_price'] is int ? item['unit_price'] as int : (item['unit_price'] as num).toInt();
-        final sub = item['subtotal'] is int ? item['subtotal'] as int : (item['subtotal'] as num).toInt();
+        final qty = item['quantity'] is int
+            ? item['quantity'] as int
+            : (item['quantity'] as num).toInt();
+        final price = item['unit_price'] is int
+            ? item['unit_price'] as int
+            : (item['unit_price'] as num).toInt();
+        final sub = item['subtotal'] is int
+            ? item['subtotal'] as int
+            : (item['subtotal'] as num).toInt();
+        final originalPrice = item['original_unit_price'];
+        final discountReason = item['discount_reason']?.toString();
 
         final lineTitle = code.isNotEmpty ? '$code  $name' : name;
         await addLine(lineTitle, align: 0, bold: true);
-        await addLine("  $qty x $price  = $sub", align: 2);
+        if (originalPrice != null) {
+          final origInt = originalPrice is int
+              ? originalPrice
+              : (originalPrice as num).toInt();
+          await addLine("  $qty x $origInt  → $price  = $sub", align: 2);
+          final reasonText = discountReason != null && discountReason.isNotEmpty
+              ? '  [値引: $discountReason]'
+              : '  [値引]';
+          await addLine(reasonText, align: 2);
+        } else {
+          await addLine("  $qty x $price  = $sub", align: 2);
+        }
       }
-      
+
       await addLine("");
       await addLine("--------------------------------", align: 1);
       if (subtotalExTax > 0) {
@@ -124,6 +170,23 @@ class ReceiptPrinter {
         await addLine("消費税    ¥$taxAmount", align: 2);
       }
       await addLine("合計  ¥$totalAmount", align: 2, size: 3, bold: true);
+
+      // 税率別内訳（適格簡易請求書: 税率ごとに区分した税込対価と消費税額）
+      if (taxBreakdown != null && taxBreakdown.isNotEmpty) {
+        await addLine("");
+        for (final b in taxBreakdown) {
+          final rate = b['tax_rate'] ?? 0;
+          final taxable = b['taxable_amount'] ?? 0;
+          final tax = b['tax_amount'] ?? 0;
+          final taxType = b['tax_type'] ?? 0;
+          if (taxType == 2) {
+            await addLine("非課税対象  ¥$taxable", align: 2);
+          } else {
+            final mark = taxType == 1 ? "外税" : "内税";
+            await addLine("$rate%対象  ¥$taxable ($mark ¥$tax)", align: 2);
+          }
+        }
+      }
       await addLine("");
 
       for (var p in paymentMethods) {
@@ -138,15 +201,15 @@ class ReceiptPrinter {
       await addLine("");
       await addLine("--------------------------------", align: 1);
       await addLine("ご利用ありがとうございます", align: 1);
-      
+
       // --- レシート識別用 QRコード (長い文字列対応) ---
-      
+
       buffer.addAll([0x0A, 0x0A]); // 前に余白を開ける
       buffer.addAll([0x1B, 0x61, 0x01]); // 中央揃え
 
       // QRコードに埋め込むデータ
       List<int> qrData = receiptNumber.codeUnits;
-      
+
       // データ長 + 3バイト (コマンド仕様)
       int dataLen = qrData.length + 3;
       int pL = dataLen % 256;
@@ -167,7 +230,7 @@ class ReceiptPrinter {
 
       // 5. メモリに格納したQRコードを印字
       buffer.addAll([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30]);
-      
+
       buffer.addAll([0x1B, 0x61, 0x00]); // 一旦左揃えにリセット
       // ----------------------------------------------------
 
@@ -182,9 +245,8 @@ class ReceiptPrinter {
       // Send Data
       socket.add(buffer);
       await socket.flush();
-      
     } catch (e) {
-      print("Printer Error: $e");
+      developer.log("Printer Error: $e");
     } finally {
       socket?.destroy();
     }
@@ -212,7 +274,11 @@ class ReceiptPrinter {
 
     Socket? socket;
     try {
-      socket = await Socket.connect(targetIp, 9100, timeout: const Duration(seconds: 3));
+      socket = await Socket.connect(
+        targetIp,
+        9100,
+        timeout: const Duration(seconds: 3),
+      );
       final List<int> buffer = [];
 
       buffer.addAll([0x1B, 0x40]);
@@ -220,7 +286,12 @@ class ReceiptPrinter {
       buffer.addAll([0x1B, 0x74, 0x01]);
       buffer.addAll([0x1C, 0x43, 0x01]);
 
-      Future<void> addLine(String text, {int align = 0, bool bold = false, int size = 0}) async {
+      Future<void> addLine(
+        String text, {
+        int align = 0,
+        bool bold = false,
+        int size = 0,
+      }) async {
         buffer.addAll([0x1B, 0x61, align]);
         int n = 0;
         if (bold) n |= 0x08;
@@ -251,9 +322,15 @@ class ReceiptPrinter {
       for (var item in details) {
         final name = item['product_name']?.toString() ?? '';
         final code = item['product_code']?.toString() ?? '';
-        final qty = item['quantity'] is int ? item['quantity'] as int : (item['quantity'] as num).toInt();
-        final price = item['unit_price'] is int ? item['unit_price'] as int : (item['unit_price'] as num).toInt();
-        final sub = item['subtotal'] is int ? item['subtotal'] as int : (item['subtotal'] as num).toInt();
+        final qty = item['quantity'] is int
+            ? item['quantity'] as int
+            : (item['quantity'] as num).toInt();
+        final price = item['unit_price'] is int
+            ? item['unit_price'] as int
+            : (item['unit_price'] as num).toInt();
+        final sub = item['subtotal'] is int
+            ? item['subtotal'] as int
+            : (item['subtotal'] as num).toInt();
         final lineTitle = code.isNotEmpty ? '$code  $name' : name;
         await addLine(lineTitle, align: 0, bold: true);
         await addLine("  $qty x $price  = $sub", align: 2);
@@ -267,7 +344,9 @@ class ReceiptPrinter {
         await addLine("元会計の支払方法", align: 0, bold: true);
         for (final pm in paymentMethods) {
           final method = pm['method']?.toString() ?? '';
-          final amount = pm['amount'] is int ? pm['amount'] as int : (pm['amount'] as num?)?.toInt() ?? 0;
+          final amount = pm['amount'] is int
+              ? pm['amount'] as int
+              : (pm['amount'] as num?)?.toInt() ?? 0;
           await addLine("  $method: ¥$amount", align: 2);
         }
         await addLine("");
@@ -284,12 +363,22 @@ class ReceiptPrinter {
       final int pL = dataLen % 256;
       final int pH = dataLen ~/ 256;
 
-      buffer.addAll([0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00]); // Model 2
-      buffer.addAll([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x04]);        // サイズ4
-      buffer.addAll([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x30]);        // 誤り訂正L
+      buffer.addAll([
+        0x1D,
+        0x28,
+        0x6B,
+        0x04,
+        0x00,
+        0x31,
+        0x41,
+        0x32,
+        0x00,
+      ]); // Model 2
+      buffer.addAll([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x04]); // サイズ4
+      buffer.addAll([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x30]); // 誤り訂正L
       buffer.addAll([0x1D, 0x28, 0x6B, pL, pH, 0x31, 0x50, 0x30]);
       buffer.addAll(qrData);
-      buffer.addAll([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30]);        // 印字
+      buffer.addAll([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30]); // 印字
       buffer.addAll([0x1B, 0x61, 0x00]);
 
       await addLine(refundReceiptNumber, align: 1);
@@ -299,7 +388,7 @@ class ReceiptPrinter {
       socket.add(buffer);
       await socket.flush();
     } catch (e) {
-      print("Refund Printer Error: $e");
+      developer.log("Refund Printer Error: $e");
     } finally {
       socket?.destroy();
     }
@@ -323,7 +412,11 @@ class ReceiptPrinter {
 
     Socket? socket;
     try {
-      socket = await Socket.connect(targetIp, 9100, timeout: const Duration(seconds: 3));
+      socket = await Socket.connect(
+        targetIp,
+        9100,
+        timeout: const Duration(seconds: 3),
+      );
       final List<int> buffer = [];
 
       buffer.addAll([0x1B, 0x40]);
@@ -331,7 +424,12 @@ class ReceiptPrinter {
       buffer.addAll([0x1B, 0x74, 0x01]);
       buffer.addAll([0x1C, 0x43, 0x01]);
 
-      Future<void> addLine(String text, {int align = 0, bool bold = false, int size = 0}) async {
+      Future<void> addLine(
+        String text, {
+        int align = 0,
+        bool bold = false,
+        int size = 0,
+      }) async {
         buffer.addAll([0x1B, 0x61, align]);
         int n = 0;
         if (bold) n |= 0x08;
@@ -364,10 +462,14 @@ class ReceiptPrinter {
 
       for (var item in details) {
         final name = item['product_name']?.toString() ?? '';
-        final qty = item['quantity'] is int ? item['quantity'] as int : (item['quantity'] as num).toInt();
-        final price = item['unit_price'] is int ? item['unit_price'] as int : (item['unit_price'] as num).toInt();
+        final qty = item['quantity'] is int
+            ? item['quantity'] as int
+            : (item['quantity'] as num).toInt();
+        final price = item['unit_price'] is int
+            ? item['unit_price'] as int
+            : (item['unit_price'] as num).toInt();
         await addLine(name, bold: true);
-        await addLine('  ${qty}個  x  ¥$price  =  ¥${price * qty}', align: 2);
+        await addLine('  $qty個  x  ¥$price  =  ¥${price * qty}', align: 2);
       }
 
       await addLine('');
@@ -381,7 +483,407 @@ class ReceiptPrinter {
       socket.add(buffer);
       await socket.flush();
     } catch (e) {
-      print('Hold Slip Print Error: $e');
+      developer.log('Hold Slip Print Error: $e');
+    } finally {
+      socket?.destroy();
+    }
+  }
+
+  /// 途中回収レシートを印刷する。
+  static Future<void> printPickupReceipt({
+    required int pickupAmount,
+    required String employeeName,
+    String? reason,
+  }) async {
+    const storage = FlutterSecureStorage();
+    String targetIp = '192.168.192.168';
+    String storeName = 'お会計';
+    final String? savedIp = await storage.read(key: 'PrinterIP');
+    final String? savedName = await storage.read(key: 'StoreName');
+    if (savedIp != null && savedIp.isNotEmpty) targetIp = savedIp;
+    if (savedName != null && savedName.isNotEmpty) storeName = savedName;
+
+    Socket? socket;
+    try {
+      socket = await Socket.connect(
+        targetIp,
+        9100,
+        timeout: const Duration(seconds: 3),
+      );
+      final List<int> buffer = [];
+
+      buffer.addAll([0x1B, 0x40]);
+      buffer.addAll([0x1B, 0x52, 0x08]);
+      buffer.addAll([0x1B, 0x74, 0x01]);
+      buffer.addAll([0x1C, 0x43, 0x01]);
+
+      Future<void> addLine(
+        String text, {
+        int align = 0,
+        bool bold = false,
+        int size = 0,
+      }) async {
+        buffer.addAll([0x1B, 0x61, align]);
+        int n = 0;
+        if (bold) n |= 0x08;
+        if (size == 1 || size == 3) n |= 0x10;
+        if (size == 2 || size == 3) n |= 0x20;
+        buffer.addAll([0x1B, 0x21, n]);
+        try {
+          if (text.isNotEmpty) {
+            final encoded = await CharsetConverter.encode('Shift_JIS', text);
+            buffer.addAll(encoded);
+          }
+        } catch (e) {
+          buffer.addAll(text.codeUnits.map((e) => e > 255 ? 63 : e).toList());
+        }
+        buffer.addAll([0x0A]);
+        buffer.addAll([0x1B, 0x21, 0x00]);
+      }
+
+      final now = DateTime.now();
+      final dateStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} '
+          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
+
+      await addLine(storeName.toUpperCase(), align: 1, size: 3, bold: true);
+      await addLine('');
+      await addLine('** レジ金 途中回収 **', align: 1, size: 1);
+      await addLine('--------------------------------', align: 1);
+      await addLine('日時: $dateStr');
+      await addLine('担当: $employeeName');
+      await addLine('--------------------------------', align: 1);
+      await addLine('回収金額', align: 1);
+      await addLine(
+        '¥${pickupAmount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
+        align: 1,
+        size: 3,
+        bold: true,
+      );
+      await addLine('--------------------------------', align: 1);
+      if (reason != null && reason.isNotEmpty) {
+        await addLine('理由: $reason');
+      }
+      await addLine('');
+
+      buffer.addAll([0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A]);
+      buffer.addAll([0x1D, 0x56, 0x00]);
+      socket.add(buffer);
+      await socket.flush();
+    } catch (e) {
+      developer.log('Pickup Receipt Print Error: $e');
+    } finally {
+      socket?.destroy();
+    }
+  }
+
+  /// 領収書（宛名・但し書き付き）を印字する。
+  /// receipt は /api/v1/sales/:id/issue_receipt のレスポンスの receipt 部。
+  /// 再発行時は「再発行」を明示する。
+  static Future<void> printFormalReceipt({
+    required Map<String, dynamic> receipt,
+    required bool reissue,
+  }) async {
+    const storage = FlutterSecureStorage();
+    String targetIp = '192.168.192.168';
+    String storeName = 'お会計';
+    final String? savedIp = await storage.read(key: 'PrinterIP');
+    final String? savedName = await storage.read(key: 'StoreName');
+    if (savedIp != null && savedIp.isNotEmpty) targetIp = savedIp;
+    if (savedName != null && savedName.isNotEmpty) storeName = savedName;
+
+    Socket? socket;
+    try {
+      socket = await Socket.connect(
+        targetIp,
+        9100,
+        timeout: const Duration(seconds: 3),
+      );
+      final List<int> buffer = [];
+
+      buffer.addAll([0x1B, 0x40]);
+      buffer.addAll([0x1B, 0x52, 0x08]);
+      buffer.addAll([0x1B, 0x74, 0x01]);
+      buffer.addAll([0x1C, 0x43, 0x01]);
+
+      Future<void> addLine(
+        String text, {
+        int align = 0,
+        bool bold = false,
+        int size = 0,
+      }) async {
+        buffer.addAll([0x1B, 0x61, align]);
+        int n = 0;
+        if (bold) n |= 0x08;
+        if (size == 1 || size == 3) n |= 0x10;
+        if (size == 2 || size == 3) n |= 0x20;
+        buffer.addAll([0x1B, 0x21, n]);
+        try {
+          if (text.isNotEmpty) {
+            final encoded = await CharsetConverter.encode('Shift_JIS', text);
+            buffer.addAll(encoded);
+          }
+        } catch (e) {
+          buffer.addAll(text.codeUnits.map((e) => e > 255 ? 63 : e).toList());
+        }
+        buffer.addAll([0x0A]);
+        buffer.addAll([0x1B, 0x21, 0x00]);
+      }
+
+      String yen(dynamic v) {
+        final n = (v as num?)?.toInt() ?? 0;
+        return '¥${n.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}';
+      }
+
+      final totalAmount = (receipt['total_amount'] as num?)?.toInt() ?? 0;
+      final addressee = receipt['addressee']?.toString() ?? '';
+      final purpose = receipt['purpose']?.toString() ?? 'お品代として';
+      final receiptNumber = receipt['receipt_number']?.toString() ?? '';
+      final invoiceNumber =
+          receipt['invoice_registration_number']?.toString() ?? '';
+      final stampRequired = receipt['revenue_stamp_required'] == true;
+
+      final now = DateTime.now();
+      final dateStr = '${now.year}年${now.month}月${now.day}日';
+
+      await addLine('領 収 書', align: 1, size: 3, bold: true);
+      if (reissue) {
+        await addLine('（再発行）', align: 1, bold: true);
+      }
+      await addLine('');
+      await addLine('発行日: $dateStr', align: 2);
+      await addLine('--------------------------------', align: 1);
+      await addLine('');
+      // 宛名（空欄時は手書き用の下線を印字する）
+      if (addressee.isNotEmpty) {
+        await addLine('$addressee  様', size: 1, bold: true);
+      } else {
+        await addLine('＿＿＿＿＿＿＿＿＿＿＿  様', size: 1);
+      }
+      await addLine('');
+      await addLine('金額', align: 1);
+      await addLine('${yen(totalAmount)}－', align: 1, size: 3, bold: true);
+      await addLine('');
+      await addLine('但し $purpose');
+      await addLine('上記正に領収いたしました', align: 1);
+      await addLine('');
+
+      // 税率別内訳（適格簡易請求書の記載事項）
+      final breakdowns = (receipt['tax_breakdowns'] as List?) ?? [];
+      if (breakdowns.isNotEmpty) {
+        await addLine('--------------------------------', align: 1);
+        await addLine('[内訳]');
+        for (final row in breakdowns) {
+          final b = row as Map;
+          final rate = b['tax_rate'] ?? 0;
+          // tax_type: 0=内税 1=外税 2=非課税
+          final taxType = (b['tax_type'] as num?)?.toInt() ?? 0;
+          if (taxType == 2) {
+            await addLine('非課税対象  ${yen(b['taxable_amount'])}', align: 2);
+          } else {
+            await addLine(
+              '$rate%対象  ${yen(b['taxable_amount'])} (消費税 ${yen(b['tax_amount'])})',
+              align: 2,
+            );
+          }
+        }
+      }
+      await addLine('--------------------------------', align: 1);
+      if (invoiceNumber.isNotEmpty) {
+        await addLine('登録番号: $invoiceNumber');
+      }
+      await addLine('取引No: $receiptNumber');
+      await addLine('');
+      await addLine(storeName, bold: true);
+      await addLine('');
+
+      // 収入印紙欄（5万円以上の営業に関する受取書）
+      if (stampRequired) {
+        await addLine('┌────────┐', align: 2);
+        await addLine('│  収入印紙   │', align: 2);
+        await addLine('│              │', align: 2);
+        await addLine('└────────┘', align: 2);
+      }
+
+      buffer.addAll([0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A]);
+      buffer.addAll([0x1D, 0x56, 0x00]);
+      socket.add(buffer);
+      await socket.flush();
+    } catch (e) {
+      developer.log('Formal Receipt Print Error: $e');
+    } finally {
+      socket?.destroy();
+    }
+  }
+
+  /// 点検（X）/ 精算（Z）レポートを印字する。
+  /// report は /api/v1/pos_devices/register_report のレスポンス。
+  static Future<void> printRegisterReport(Map<String, dynamic> report) async {
+    const storage = FlutterSecureStorage();
+    String targetIp = '192.168.192.168';
+    String storeName = 'お会計';
+    final String? savedIp = await storage.read(key: 'PrinterIP');
+    final String? savedName = await storage.read(key: 'StoreName');
+    if (savedIp != null && savedIp.isNotEmpty) targetIp = savedIp;
+    if (savedName != null && savedName.isNotEmpty) storeName = savedName;
+
+    Socket? socket;
+    try {
+      socket = await Socket.connect(
+        targetIp,
+        9100,
+        timeout: const Duration(seconds: 3),
+      );
+      final List<int> buffer = [];
+
+      buffer.addAll([0x1B, 0x40]);
+      buffer.addAll([0x1B, 0x52, 0x08]);
+      buffer.addAll([0x1B, 0x74, 0x01]);
+      buffer.addAll([0x1C, 0x43, 0x01]);
+
+      Future<void> addLine(
+        String text, {
+        int align = 0,
+        bool bold = false,
+        int size = 0,
+      }) async {
+        buffer.addAll([0x1B, 0x61, align]);
+        int n = 0;
+        if (bold) n |= 0x08;
+        if (size == 1 || size == 3) n |= 0x10;
+        if (size == 2 || size == 3) n |= 0x20;
+        buffer.addAll([0x1B, 0x21, n]);
+        try {
+          if (text.isNotEmpty) {
+            final encoded = await CharsetConverter.encode('Shift_JIS', text);
+            buffer.addAll(encoded);
+          }
+        } catch (e) {
+          buffer.addAll(text.codeUnits.map((e) => e > 255 ? 63 : e).toList());
+        }
+        buffer.addAll([0x0A]);
+        buffer.addAll([0x1B, 0x21, 0x00]);
+      }
+
+      String yen(dynamic v) {
+        final n = (v as num?)?.toInt() ?? 0;
+        final sign = n < 0 ? '-' : '';
+        final s = n.abs().toString().replaceAllMapped(
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (m) => '${m[1]},',
+        );
+        return '$sign¥$s';
+      }
+
+      final isZ = report['report_type'] == 'z';
+      final session = (report['register_session'] as Map?) ?? {};
+      final totals = (report['totals'] as Map?) ?? {};
+      final breakdown = (report['breakdown'] as Map?) ?? {};
+
+      final now = DateTime.now();
+      final dateStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} '
+          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+
+      await addLine(storeName, align: 1, size: 3, bold: true);
+      await addLine('');
+      await addLine(
+        isZ ? '** 精算レポート (Z) **' : '** 点検レポート (X) **',
+        align: 1,
+        size: 1,
+        bold: true,
+      );
+      await addLine('--------------------------------', align: 1);
+      await addLine('発行日時: $dateStr');
+      await addLine('営業日: ${session['business_date'] ?? ''}');
+      await addLine('レジNo: ${session['pos_name'] ?? ''}');
+      await addLine('精算No(Z): ${session['z_number'] ?? ''}');
+      await addLine('--------------------------------', align: 1);
+
+      await addLine('売上件数  ${totals['sales_count'] ?? 0} 件', align: 2);
+      await addLine('総売上  ${yen(totals['sales_total'])}', align: 2, bold: true);
+      await addLine('値引合計  ${yen(totals['discount_total'])}', align: 2);
+      await addLine(
+        '返品  ${totals['refund_count'] ?? 0}件 ${yen(totals['refund_total'])}',
+        align: 2,
+      );
+      await addLine(
+        '取消  ${totals['void_count'] ?? 0}件 ${yen(totals['void_total'])}',
+        align: 2,
+      );
+
+      // 決済手段別
+      final payments = (breakdown['payment_breakdown'] as Map?) ?? {};
+      if (payments.isNotEmpty) {
+        await addLine('--------------------------------', align: 1);
+        await addLine('[決済手段別]');
+        const labels = {
+          'cash': '現金',
+          'card': 'カード',
+          'barcode': 'バーコード',
+          'emoney': '電子マネー',
+        };
+        for (final entry in payments.entries) {
+          final label = labels[entry.key] ?? entry.key.toString();
+          await addLine('$label  ${yen(entry.value)}', align: 2);
+        }
+      }
+
+      // 税率別
+      final taxRows = (breakdown['tax_breakdown'] as List?) ?? [];
+      if (taxRows.isNotEmpty) {
+        await addLine('--------------------------------', align: 1);
+        await addLine('[税率別]');
+        for (final row in taxRows) {
+          final r = row as Map;
+          await addLine(
+            '${r['tax_rate']}%対象  ${yen(r['net_amount'])} (税 ${yen(r['net_tax'])})',
+            align: 2,
+          );
+        }
+      }
+
+      // 現金在高
+      await addLine('--------------------------------', align: 1);
+      await addLine('[現金]');
+      await addLine('釣銭準備金  ${yen(session['opening_float'])}', align: 2);
+      await addLine('現金売上  ${yen(totals['cash_sales_total'])}', align: 2);
+      await addLine('現金返金  ${yen(totals['cash_refund_total'])}', align: 2);
+      await addLine('入金  ${yen(totals['cash_in_total'])}', align: 2);
+      await addLine('出金  ${yen(totals['cash_out_total'])}', align: 2);
+      await addLine(
+        '理論在高  ${yen(report['expected_cash_amount'])}',
+        align: 2,
+        bold: true,
+      );
+      if (isZ) {
+        await addLine(
+          '実査額  ${yen(report['closing_counted_amount'])}',
+          align: 2,
+          bold: true,
+        );
+        await addLine(
+          '過不足  ${yen(report['cash_diff_amount'])}',
+          align: 2,
+          size: 1,
+          bold: true,
+        );
+        if (report['next_opening_float'] != null) {
+          await addLine(
+            '翌営業日準備金  ${yen(report['next_opening_float'])}',
+            align: 2,
+          );
+        }
+      }
+      await addLine('--------------------------------', align: 1);
+      await addLine('');
+
+      buffer.addAll([0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A]);
+      buffer.addAll([0x1D, 0x56, 0x00]);
+      socket.add(buffer);
+      await socket.flush();
+    } catch (e) {
+      developer.log('Register Report Print Error: $e');
     } finally {
       socket?.destroy();
     }

@@ -5,9 +5,7 @@ import 'package:onlipos/product/product.dart';
 import 'package:onlipos/product/product_repository.dart';
 
 class InventoryInOutView extends StatefulWidget {
-  const InventoryInOutView({
-    super.key,
-  });
+  const InventoryInOutView({super.key});
 
   @override
   State<InventoryInOutView> createState() => _InventoryInOutViewState();
@@ -33,8 +31,9 @@ class _InventoryInOutViewState extends State<InventoryInOutView> {
   final TextEditingController _employeePinController = TextEditingController();
 
   final TextEditingController _janController = TextEditingController();
-  final TextEditingController _quantityController =
-      TextEditingController(text: '1');
+  final TextEditingController _quantityController = TextEditingController(
+    text: '1',
+  );
   bool _isInbound = true;
 
   final List<InventoryMovementItem> _items = [];
@@ -72,6 +71,7 @@ class _InventoryInOutViewState extends State<InventoryInOutView> {
 
     try {
       final result = await LoginApi.verifyEmployee(code: code, pin: pin);
+      if (!mounted) return;
 
       if (result['success'] == true) {
         setState(() {
@@ -102,12 +102,14 @@ class _InventoryInOutViewState extends State<InventoryInOutView> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('認証中にエラーが発生しました: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('認証中にエラーが発生しました: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -141,6 +143,7 @@ class _InventoryInOutViewState extends State<InventoryInOutView> {
     }
 
     final product = await _productRepository.findProductByCode(jan);
+    if (!mounted) return;
     if (product == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -152,11 +155,13 @@ class _InventoryInOutViewState extends State<InventoryInOutView> {
     }
 
     setState(() {
-      _items.add(InventoryMovementItem(
-        product: product,
-        quantity: qty,
-        isInbound: _isInbound,
-      ));
+      _items.add(
+        InventoryMovementItem(
+          product: product,
+          quantity: qty,
+          isInbound: _isInbound,
+        ),
+      );
       _janController.clear();
       _quantityController.text = '1';
       _isInbound = true;
@@ -188,17 +193,20 @@ class _InventoryInOutViewState extends State<InventoryInOutView> {
     });
 
     final movements = _items
-        .map((e) => {
-              'jan_code': e.product.code,
-              'quantity': e.quantity,
-              'direction': e.isInbound ? 'in' : 'out',
-            })
+        .map(
+          (e) => {
+            'jan_code': e.product.code,
+            'quantity': e.quantity,
+            'direction': e.isInbound ? 'in' : 'out',
+          },
+        )
         .toList();
 
     final result = await _inventoryApi.moveStocks(
       employeeId: _employeeId!,
       movements: movements,
     );
+    if (!mounted) return;
 
     setState(() {
       _isSubmitting = false;
@@ -227,9 +235,7 @@ class _InventoryInOutViewState extends State<InventoryInOutView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('入出荷管理'),
-      ),
+      appBar: AppBar(title: const Text('入出荷管理')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -279,7 +285,10 @@ class _InventoryInOutViewState extends State<InventoryInOutView> {
             if (_employeeId != null && _employeeName != null)
               Text(
                 '認証済み担当者: $_employeeName (ID: $_employeeId)',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             const SizedBox(height: 16),
             const Text(
@@ -331,10 +340,7 @@ class _InventoryInOutViewState extends State<InventoryInOutView> {
                   ],
                 ),
                 const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: _addItem,
-                  child: const Text('追加'),
-                ),
+                ElevatedButton(onPressed: _addItem, child: const Text('追加')),
               ],
             ),
             const SizedBox(height: 16),
@@ -354,7 +360,8 @@ class _InventoryInOutViewState extends State<InventoryInOutView> {
                           child: ListTile(
                             title: Text(item.product.name),
                             subtitle: Text(
-                                'JAN: ${item.product.code} / 数量: ${item.quantity} / ${item.isInbound ? '入庫' : '出庫'}'),
+                              'JAN: ${item.product.code} / 数量: ${item.quantity} / ${item.isInbound ? '入庫' : '出庫'}',
+                            ),
                             trailing: IconButton(
                               icon: const Icon(Icons.delete),
                               onPressed: () {
@@ -391,4 +398,3 @@ class _InventoryInOutViewState extends State<InventoryInOutView> {
     );
   }
 }
-

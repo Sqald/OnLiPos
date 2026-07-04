@@ -17,8 +17,9 @@ class StockCheckApi {
       return {'success': false, 'message': '端末認証トークンが見つかりません'};
     }
 
-    final normalizedUrl =
-        baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final normalizedUrl = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
     final url = Uri.parse('$normalizedUrl/api/v1/store_stocks');
 
     try {

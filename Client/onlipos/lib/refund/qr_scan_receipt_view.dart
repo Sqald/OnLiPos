@@ -16,8 +16,7 @@ class _QrScanReceiptViewState extends State<QrScanReceiptView> {
   MobileScannerController? _controller;
   bool _hasScanned = false;
 
-  bool get _isMobile =>
-      !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+  bool get _isMobile => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
   @override
   void dispose() {
@@ -43,9 +42,7 @@ class _QrScanReceiptViewState extends State<QrScanReceiptView> {
     if (!_isMobile) {
       // デスクトップなどモバイル非対応環境では説明のみ表示
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('レシートQRを読み取る'),
-        ),
+        appBar: AppBar(title: const Text('レシートQRを読み取る')),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(16.0),
@@ -84,10 +81,7 @@ class _QrScanReceiptViewState extends State<QrScanReceiptView> {
           ),
         ],
       ),
-      body: MobileScanner(
-        controller: _controller!,
-        onDetect: _onDetect,
-      ),
+      body: MobileScanner(controller: _controller!, onDetect: _onDetect),
     );
   }
 }

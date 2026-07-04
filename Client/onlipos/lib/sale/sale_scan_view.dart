@@ -13,16 +13,20 @@ import 'package:onlipos/sale/hold_order_api.dart';
 import 'package:onlipos/sale/transfer_order_api.dart';
 import 'package:onlipos/product/product_lookup_api.dart';
 import 'package:onlipos/sale/escpos/lan_recipt_api.dart';
+import 'package:onlipos/sale/price_edit_dialog.dart';
 
 export 'sale_item.dart' show ScannedItem;
 
 class SaleScanView extends StatefulWidget {
   final String operatorName;
   final int operatorId;
+
   /// 'standard' | 'restaurant' | 'retail'
   final String storeMode;
+
   /// 飲食店モード時の卓番（restaurant モードのみ使用）
   final String? tableNumber;
+
   /// ホストがクライアントから受け取った転送注文のプリロードアイテム
   final List<ScannedItem>? initialItems;
 
@@ -136,7 +140,11 @@ class _SaleScanViewState extends State<SaleScanView> {
       setState(() {
         // overridePrice が設定されていない行のみ同一商品としてマージする
         final existingIdx = _scannedItems.indexWhere(
-            (item) => item.product.code == barcode && item.bundleCode == null && item.overridePrice == null);
+          (item) =>
+              item.product.code == barcode &&
+              item.bundleCode == null &&
+              item.overridePrice == null,
+        );
         if (existingIdx != -1) {
           _scannedItems[existingIdx].quantity++;
         } else {
@@ -159,10 +167,12 @@ class _SaleScanViewState extends State<SaleScanView> {
       setState(() {
         for (final product in expandedProducts) {
           final item = bundle.items.firstWhere(
-              (i) => i.productId == product.id,
-              orElse: () => BundleItem(productId: product.id, quantity: 1));
+            (i) => i.productId == product.id,
+            orElse: () => BundleItem(productId: product.id, quantity: 1),
+          );
           final existingIdx = _scannedItems.indexWhere(
-              (s) => s.product.id == product.id && s.bundleCode == bundle.code);
+            (s) => s.product.id == product.id && s.bundleCode == bundle.code,
+          );
           if (existingIdx != -1) {
             _scannedItems[existingIdx].quantity += item.quantity;
           } else {
@@ -231,7 +241,11 @@ class _SaleScanViewState extends State<SaleScanView> {
       }
       setState(() {
         final existingIdx = _scannedItems.indexWhere(
-            (item) => item.product.code == barcode && item.bundleCode == null && item.overridePrice == null);
+          (item) =>
+              item.product.code == barcode &&
+              item.bundleCode == null &&
+              item.overridePrice == null,
+        );
         if (existingIdx != -1) {
           _scannedItems[existingIdx].quantity++;
         } else {
@@ -260,62 +274,17 @@ class _SaleScanViewState extends State<SaleScanView> {
 
   Future<void> _editItemPrice(int index) async {
     final item = _scannedItems[index];
-    final controller = TextEditingController(text: '${item.price}');
-    final newPrice = await showDialog<int>(
+    final result = await showDialog<({int price, String? reason})>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('価格変更'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(item.product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text('元の価格: ¥${item.product.price}'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(
-                labelText: '新しい価格',
-                prefixText: '¥',
-                border: OutlineInputBorder(),
-              ),
-              autofocus: true,
-              onSubmitted: (_) {
-                final p = int.tryParse(controller.text);
-                if (p != null && p >= 0) Navigator.of(ctx).pop(p);
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('キャンセル'),
-          ),
-          if (item.overridePrice != null)
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(item.product.price),
-              child: const Text('元の価格に戻す'),
-            ),
-          ElevatedButton(
-            onPressed: () {
-              final p = int.tryParse(controller.text);
-              if (p != null && p >= 0) Navigator.of(ctx).pop(p);
-            },
-            child: const Text('変更'),
-          ),
-        ],
-      ),
+      builder: (ctx) => PriceEditDialog(product: item.product),
     );
 
-    controller.dispose();
-    if (newPrice == null || !mounted) {
+    if (result == null || !mounted) {
       _focusNode.requestFocus();
       return;
     }
     setState(() {
+      final newPrice = result.price;
       final newOverride = newPrice == item.product.price ? null : newPrice;
       _scannedItems[index] = ScannedItem(
         product: item.product,
@@ -323,6 +292,7 @@ class _SaleScanViewState extends State<SaleScanView> {
         bundleName: item.bundleName,
         quantity: item.quantity,
         overridePrice: newOverride,
+        discountReason: newOverride != null ? result.reason : null,
       );
       _calculateTotals();
     });
@@ -372,6 +342,9 @@ class _SaleScanViewState extends State<SaleScanView> {
       final sub = item.subtotal;
       final exTax = (sub * 100 / (100 + taxRate)).floor();
       final taxAmt = sub - exTax;
+      final hasDiscount =
+          item.overridePrice != null &&
+          item.overridePrice! < item.product.price;
       return {
         'product_id': item.product.id,
         'product_name': item.product.name,
@@ -382,9 +355,9 @@ class _SaleScanViewState extends State<SaleScanView> {
         'tax_rate': taxRate,
         'tax_amount': taxAmt,
         if (item.bundleCode != null) 'bundle_code': item.bundleCode,
-        // 価格変更がある場合は元の定価を送信（割引額の記録に使用）
-        if (item.overridePrice != null && item.overridePrice! < item.product.price)
-          'original_unit_price': item.product.price,
+        if (hasDiscount) 'original_unit_price': item.product.price,
+        if (hasDiscount && item.discountReason != null)
+          'discount_reason': item.discountReason,
       };
     }).toList();
 
@@ -493,7 +466,7 @@ class _SaleScanViewState extends State<SaleScanView> {
   void _showHoldRecallDialog() {
     showDialog(
       context: context,
-      builder: (context) => _HoldRecallDialog(
+      builder: (_) => _HoldRecallDialog(
         onConfirmed: (holdNumber) async {
           RecalledHoldOrder? recalled;
           try {
@@ -522,6 +495,7 @@ class _SaleScanViewState extends State<SaleScanView> {
             }
             return;
           }
+          if (!mounted) return;
           setState(() {
             _scannedItems.clear();
             _scannedItems.addAll(recalled!.items);
@@ -575,10 +549,10 @@ class _SaleScanViewState extends State<SaleScanView> {
     try {
       final transferId = await TransferOrderApi.createTransfer(
         operatorName: widget.operatorName,
-        operatorId:   widget.operatorId,
-        totalAmount:  _totalAmount,
-        items:        _scannedItems,
-        tableNumber:  widget.tableNumber,
+        operatorId: widget.operatorId,
+        totalAmount: _totalAmount,
+        items: _scannedItems,
+        tableNumber: widget.tableNumber,
       );
 
       setState(() {
@@ -598,10 +572,7 @@ class _SaleScanViewState extends State<SaleScanView> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('転送に失敗しました: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('転送に失敗しました: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -668,9 +639,7 @@ class _SaleScanViewState extends State<SaleScanView> {
       autofocus: true,
       onKeyEvent: _handleKeyEvent,
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(_appBarTitle),
-        ),
+        appBar: AppBar(title: Text(_appBarTitle)),
         body: Row(
           children: [
             Expanded(
@@ -688,7 +657,9 @@ class _SaleScanViewState extends State<SaleScanView> {
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                           children: [
                             _buildCategoryChip(null, 'すべて'),
-                            ..._categories.map((c) => _buildCategoryChip(c.id, c.name)),
+                            ..._categories.map(
+                              (c) => _buildCategoryChip(c.id, c.name),
+                            ),
                           ],
                         ),
                       ),
@@ -701,7 +672,10 @@ class _SaleScanViewState extends State<SaleScanView> {
                             final item = _scannedItems[index];
                             final hasOverride = item.overridePrice != null;
                             return Card(
-                              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
                               child: InkWell(
                                 onLongPress: () => _editItemPrice(index),
                                 borderRadius: BorderRadius.circular(12),
@@ -710,17 +684,34 @@ class _SaleScanViewState extends State<SaleScanView> {
                                     children: [
                                       if (item.bundleCode != null)
                                         Container(
-                                          margin: const EdgeInsets.only(right: 6),
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          margin: const EdgeInsets.only(
+                                            right: 6,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
                                           decoration: BoxDecoration(
                                             color: Colors.orange[100],
-                                            borderRadius: BorderRadius.circular(4),
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
                                           ),
-                                          child: Text('セット', style: TextStyle(fontSize: 12, color: Colors.orange[900])),
+                                          child: Text(
+                                            'セット',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.orange[900],
+                                            ),
+                                          ),
                                         ),
                                       Expanded(
-                                        child: Text(item.product.name,
-                                            style: const TextStyle(fontWeight: FontWeight.bold)),
+                                        child: Text(
+                                          item.product.name,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -730,18 +721,26 @@ class _SaleScanViewState extends State<SaleScanView> {
                                             Text(
                                               '¥${item.product.price}',
                                               style: TextStyle(
-                                                decoration: TextDecoration.lineThrough,
+                                                decoration:
+                                                    TextDecoration.lineThrough,
                                                 color: Colors.grey[500],
                                                 fontSize: 13,
                                               ),
                                             ),
                                             const SizedBox(width: 6),
                                             Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 2,
+                                                  ),
                                               decoration: BoxDecoration(
                                                 color: Colors.red[50],
-                                                borderRadius: BorderRadius.circular(4),
-                                                border: Border.all(color: Colors.red.shade200),
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                                border: Border.all(
+                                                  color: Colors.red.shade200,
+                                                ),
                                               ),
                                               child: Text(
                                                 '¥${item.overridePrice}',
@@ -753,21 +752,37 @@ class _SaleScanViewState extends State<SaleScanView> {
                                               ),
                                             ),
                                             const SizedBox(width: 6),
-                                            Text('(税${item.product.taxRate}%)',
-                                                style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                                            Text(
+                                              '(税${item.product.taxRate}%)',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: Colors.grey[600],
+                                              ),
+                                            ),
                                           ],
                                         )
-                                      : Text('¥${item.product.price}  (税${item.product.taxRate}%)'),
+                                      : Text(
+                                          '¥${item.product.price}  (税${item.product.taxRate}%)',
+                                        ),
                                   trailing: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       IconButton(
-                                          icon: const Icon(Icons.remove_circle_outline),
-                                          onPressed: () => _decrementItem(index)),
-                                      Text('${item.quantity}', style: const TextStyle(fontSize: 18)),
+                                        icon: const Icon(
+                                          Icons.remove_circle_outline,
+                                        ),
+                                        onPressed: () => _decrementItem(index),
+                                      ),
+                                      Text(
+                                        '${item.quantity}',
+                                        style: const TextStyle(fontSize: 18),
+                                      ),
                                       IconButton(
-                                          icon: const Icon(Icons.add_circle_outline),
-                                          onPressed: () => _incrementItem(index)),
+                                        icon: const Icon(
+                                          Icons.add_circle_outline,
+                                        ),
+                                        onPressed: () => _incrementItem(index),
+                                      ),
                                       GestureDetector(
                                         onTap: () => _editItemPrice(index),
                                         child: SizedBox(
@@ -777,8 +792,12 @@ class _SaleScanViewState extends State<SaleScanView> {
                                             textAlign: TextAlign.right,
                                             style: TextStyle(
                                               fontSize: 16,
-                                              color: hasOverride ? Colors.red[700] : null,
-                                              fontWeight: hasOverride ? FontWeight.bold : null,
+                                              color: hasOverride
+                                                  ? Colors.red[700]
+                                                  : null,
+                                              fontWeight: hasOverride
+                                                  ? FontWeight.bold
+                                                  : null,
                                             ),
                                           ),
                                         ),
@@ -806,31 +825,48 @@ class _SaleScanViewState extends State<SaleScanView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Text('点数',
-                          style: TextStyle(
-                              fontSize: 24, fontWeight: FontWeight.bold),
-                          textAlign: TextAlign.center),
-                      Text('$_totalItems',
-                          style: const TextStyle(
-                              fontSize: 48, fontWeight: FontWeight.bold),
-                          textAlign: TextAlign.center),
+                      const Text(
+                        '点数',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      Text(
+                        '$_totalItems',
+                        style: const TextStyle(
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
                       const Divider(height: 32),
-                      const Text('合計（税込）',
-                          style: TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.bold),
-                          textAlign: TextAlign.center),
-                      Text('¥ $_totalAmount',
-                          style: const TextStyle(
-                              fontSize: 40,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.red),
-                          textAlign: TextAlign.center),
+                      const Text(
+                        '合計（税込）',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      Text(
+                        '¥ $_totalAmount',
+                        style: const TextStyle(
+                          fontSize: 40,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
                       if (_totalTax > 0) ...[
                         const SizedBox(height: 8),
                         Text(
                           'うち消費税 ¥$_totalTax',
                           style: TextStyle(
-                              fontSize: 14, color: Colors.grey[600]),
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -889,8 +925,13 @@ class _SaleScanViewState extends State<SaleScanView> {
                       ? ElevatedButton.icon(
                           onPressed: _transferToHost,
                           icon: const Icon(Icons.send, size: 28),
-                          label: const Text('転　送',
-                              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                          label: const Text(
+                            '転　送',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF2D89EF),
                             foregroundColor: Colors.white,
@@ -899,8 +940,13 @@ class _SaleScanViewState extends State<SaleScanView> {
                       : ElevatedButton.icon(
                           onPressed: _subtotal,
                           icon: const Icon(Icons.payment, size: 28),
-                          label: const Text('小計',
-                              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                          label: const Text(
+                            '小計',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green,
                             foregroundColor: Colors.white,
@@ -984,17 +1030,21 @@ class _HoldRecallDialogState extends State<_HoldRecallDialog> {
         child: _isLoading
             ? const SizedBox(
                 height: 80,
-                child: Center(child: CircularProgressIndicator()))
+                child: Center(child: CircularProgressIndicator()),
+              )
             : SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (_holds.isNotEmpty) ...[
-                      const Text('保留中の注文',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey)),
+                      const Text(
+                        '保留中の注文',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       ..._holds.map(
                         (hold) => Card(
@@ -1004,13 +1054,15 @@ class _HoldRecallDialogState extends State<_HoldRecallDialog> {
                               child: Text(
                                 '${hold.holdNumber}',
                                 style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.purple[900]),
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.purple[900],
+                                ),
                               ),
                             ),
                             title: Text('担当: ${hold.operatorName}'),
                             subtitle: Text(
-                                '¥${hold.totalAmount}  ${hold.createdAt.toLocal().toString().substring(11, 16)}'),
+                              '¥${hold.totalAmount}  ${hold.createdAt.toLocal().toString().substring(11, 16)}',
+                            ),
                             onTap: () {
                               widget.onConfirmed(hold.holdNumber);
                               Navigator.of(context).pop();
@@ -1023,9 +1075,7 @@ class _HoldRecallDialogState extends State<_HoldRecallDialog> {
                     TextField(
                       controller: _controller,
                       keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly
-                      ],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       autofocus: _holds.isEmpty,
                       decoration: const InputDecoration(
                         labelText: '保留番号を入力',
@@ -1040,8 +1090,9 @@ class _HoldRecallDialogState extends State<_HoldRecallDialog> {
       ),
       actions: [
         TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('キャンセル')),
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('キャンセル'),
+        ),
         ElevatedButton(onPressed: _confirm, child: const Text('呼び出し')),
       ],
     );

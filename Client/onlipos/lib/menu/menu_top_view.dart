@@ -2,22 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:onlipos/cash/cash_check_view.dart';
 import 'package:onlipos/cash/cash_close_view.dart';
+import 'package:onlipos/cash/cash_movement_view.dart';
+import 'package:onlipos/cash/cash_pickup_view.dart';
 import 'package:onlipos/login/operator_input_view.dart';
 import 'package:onlipos/inventory/inventory_inout_view.dart';
 import 'package:onlipos/inventory/stock_check_view.dart';
+import 'package:onlipos/pop/pop_view.dart';
+import 'package:onlipos/price/price_edit_view.dart';
 import 'package:onlipos/refund/return_refund_view.dart';
+import 'package:onlipos/journal/journal_list_view.dart';
 import 'package:onlipos/sale/host_waiting_view.dart';
+import 'package:onlipos/sale/receipt_issue_view.dart';
 import 'package:onlipos/sale/store_sales_view.dart';
 import 'package:onlipos/settings/settings_view.dart';
 
 class MenuTopView extends StatefulWidget {
   final int employeeId;
   final String employeeName;
+  final List<String> permissions;
 
   const MenuTopView({
     super.key,
     required this.employeeId,
     required this.employeeName,
+    this.permissions = const [],
   });
 
   @override
@@ -40,6 +48,10 @@ class _MenuTopViewState extends State<MenuTopView> {
   }
 
   bool get _isHost => _posRole == 'host';
+  bool get _canEditPrices => widget.permissions.contains('edit_prices');
+  bool get _canViewSales => widget.permissions.contains('view_sales');
+  bool get _canCashPickup => widget.permissions.contains('cash_pickup');
+  bool get _canViewJournal => widget.permissions.contains('view_journal');
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +77,10 @@ class _MenuTopViewState extends State<MenuTopView> {
                 children: [
                   Icon(Icons.computer, size: 14, color: Colors.white),
                   SizedBox(width: 4),
-                  Text('ホスト機', style: TextStyle(fontSize: 12, color: Colors.white)),
+                  Text(
+                    'ホスト機',
+                    style: TextStyle(fontSize: 12, color: Colors.white),
+                  ),
                 ],
               ),
             ),
@@ -81,7 +96,10 @@ class _MenuTopViewState extends State<MenuTopView> {
                 children: [
                   Icon(Icons.tablet_android, size: 14, color: Colors.white),
                   SizedBox(width: 4),
-                  Text('クライアント機', style: TextStyle(fontSize: 12, color: Colors.white)),
+                  Text(
+                    'クライアント機',
+                    style: TextStyle(fontSize: 12, color: Colors.white),
+                  ),
                 ],
               ),
             ),
@@ -237,17 +255,65 @@ class _MenuTopViewState extends State<MenuTopView> {
                     },
                   ),
                   _MenuTile(
-                    title: '売上確認',
-                    icon: Icons.bar_chart,
-                    color: const Color(0xFF7A3B69), // Metro Magenta
+                    title: '領収書発行',
+                    icon: Icons.receipt,
+                    color: const Color(0xFF6D8764), // Metro Olive
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (context) => const StoreSalesView(),
+                          builder: (context) => ReceiptIssueView(
+                            operatorName: widget.employeeName,
+                            operatorId: widget.employeeId,
+                          ),
                         ),
                       );
                     },
                   ),
+                  if (_canCashPickup)
+                    _MenuTile(
+                      title: '途中回収',
+                      icon: Icons.move_to_inbox,
+                      color: const Color(0xFFE65100), // Deep Orange
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => CashPickupView(
+                              employeeId: widget.employeeId,
+                              employeeName: widget.employeeName,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  if (_canCashPickup)
+                    _MenuTile(
+                      title: 'レジ入出金',
+                      icon: Icons.swap_vert,
+                      color: const Color(0xFF00796B), // Teal
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => CashMovementView(
+                              employeeId: widget.employeeId,
+                              employeeName: widget.employeeName,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  if (_canViewSales)
+                    _MenuTile(
+                      title: '店舗売上',
+                      icon: Icons.bar_chart,
+                      color: const Color(0xFF7A3B69), // Metro Magenta
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const StoreSalesView(),
+                          ),
+                        );
+                      },
+                    ),
                   _MenuTile(
                     title: '在庫確認',
                     icon: Icons.warehouse,
@@ -260,6 +326,44 @@ class _MenuTopViewState extends State<MenuTopView> {
                       );
                     },
                   ),
+                  _MenuTile(
+                    title: 'POP印刷',
+                    icon: Icons.local_offer,
+                    color: const Color(0xFF4CAF50), // Green
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const PopView(),
+                        ),
+                      );
+                    },
+                  ),
+                  if (_canEditPrices)
+                    _MenuTile(
+                      title: '店舗価格\n設定',
+                      icon: Icons.price_change,
+                      color: const Color(0xFFFF6F00), // Amber Dark
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const PriceEditView(),
+                          ),
+                        );
+                      },
+                    ),
+                  if (_canViewJournal)
+                    _MenuTile(
+                      title: 'ジャーナル',
+                      icon: Icons.menu_book,
+                      color: const Color(0xFF5C6BC0), // Indigo
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const JournalListView(),
+                          ),
+                        );
+                      },
+                    ),
                   _MenuTile(
                     title: '設定',
                     icon: Icons.settings,
@@ -297,7 +401,7 @@ class _MenuTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tileColor = onTap != null ? color : color.withOpacity(0.4);
+    final tileColor = onTap != null ? color : color.withValues(alpha: 0.4);
 
     return Material(
       color: tileColor,

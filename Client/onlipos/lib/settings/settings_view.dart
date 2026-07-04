@@ -89,9 +89,7 @@ class _SettingsViewState extends State<SettingsView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('設定'),
-      ),
+      appBar: AppBar(title: const Text('設定')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Padding(
@@ -119,11 +117,16 @@ class _SettingsViewState extends State<SettingsView> {
                   Card(
                     child: ListTile(
                       title: const Text('未送信オフライン会計'),
-                      subtitle: Text(_offlinePendingCount > 0
-                          ? '$_offlinePendingCount 件（マスタ同期時に自動送信）'
-                          : 'なし'),
+                      subtitle: Text(
+                        _offlinePendingCount > 0
+                            ? '$_offlinePendingCount 件（マスタ同期時に自動送信）'
+                            : 'なし',
+                      ),
                       trailing: _offlinePendingCount > 0
-                          ? const Icon(Icons.warning_amber, color: Colors.orange)
+                          ? const Icon(
+                              Icons.warning_amber,
+                              color: Colors.orange,
+                            )
                           : const Icon(Icons.check_circle, color: Colors.green),
                     ),
                   ),
@@ -164,4 +167,3 @@ class _SettingsViewState extends State<SettingsView> {
     );
   }
 }
-

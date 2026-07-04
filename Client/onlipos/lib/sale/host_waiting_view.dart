@@ -71,14 +71,20 @@ class _HostWaitingViewState extends State<HostWaitingView> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('担当: ${entry.operatorName}',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(
+              '担当: ${entry.operatorName}',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
             if (entry.tableNumber != null)
-              Text('卓番: ${entry.tableNumber}',
-                  style: const TextStyle(color: Colors.orange)),
+              Text(
+                '卓番: ${entry.tableNumber}',
+                style: const TextStyle(color: Colors.orange),
+              ),
             const SizedBox(height: 8),
-            Text('${entry.itemCount}点  ¥${entry.totalAmount}',
-                style: const TextStyle(fontSize: 16)),
+            Text(
+              '${entry.itemCount}点  ¥${entry.totalAmount}',
+              style: const TextStyle(fontSize: 16),
+            ),
           ],
         ),
         actions: [
@@ -146,7 +152,7 @@ class _HostWaitingViewState extends State<HostWaitingView> {
             child: Padding(
               padding: const EdgeInsets.only(right: 12),
               child: Text(
-                '${_secondsUntilRefresh}秒後に更新',
+                '$_secondsUntilRefresh秒後に更新',
                 style: const TextStyle(fontSize: 13, color: Colors.grey),
               ),
             ),
@@ -162,106 +168,121 @@ class _HostWaitingViewState extends State<HostWaitingView> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Colors.white))
           : _transfers.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.inbox_outlined, size: 80, color: Colors.grey[600]),
-                      const SizedBox(height: 16),
-                      Text(
-                        '転送待ちの注文はありません',
-                        style: TextStyle(fontSize: 20, color: Colors.grey[400]),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'クライアント機からの転送を待っています',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.inbox_outlined, size: 80, color: Colors.grey[600]),
+                  const SizedBox(height: 16),
+                  Text(
+                    '転送待ちの注文はありません',
+                    style: TextStyle(fontSize: 20, color: Colors.grey[400]),
                   ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _transfers.length,
-                  itemBuilder: (context, index) {
-                    final t = _transfers[index];
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      color: const Color(0xFF3A3A3A),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            // アイコン
-                            Container(
-                              width: 56,
-                              height: 56,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF2D89EF),
+                  const SizedBox(height: 8),
+                  Text(
+                    'クライアント機からの転送を待っています',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _transfers.length,
+              itemBuilder: (context, index) {
+                final t = _transfers[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  color: const Color(0xFF3A3A3A),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        // アイコン
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2D89EF),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.send,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        // 情報
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '担当: ${t.operatorName}',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              if (t.tableNumber != null)
+                                Text(
+                                  '卓 ${t.tableNumber}',
+                                  style: const TextStyle(
+                                    color: Colors.orange,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${t.itemCount}点  ¥${t.totalAmount}',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                              Text(
+                                _elapsed(t.createdAt),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // 受け取るボタン
+                        SizedBox(
+                          width: 120,
+                          height: 56,
+                          child: ElevatedButton(
+                            onPressed: () => _claimTransfer(t),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Icon(Icons.send,
-                                  color: Colors.white, size: 28),
                             ),
-                            const SizedBox(width: 16),
-                            // 情報
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '担当: ${t.operatorName}',
-                                    style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white),
-                                  ),
-                                  if (t.tableNumber != null)
-                                    Text(
-                                      '卓 ${t.tableNumber}',
-                                      style: const TextStyle(
-                                          color: Colors.orange, fontSize: 14),
-                                    ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '${t.itemCount}点  ¥${t.totalAmount}',
-                                    style: const TextStyle(
-                                        fontSize: 16, color: Colors.white70),
-                                  ),
-                                  Text(
-                                    _elapsed(t.createdAt),
-                                    style: TextStyle(
-                                        fontSize: 13, color: Colors.grey[500]),
-                                  ),
-                                ],
+                            child: const Text(
+                              '受け取る',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                            // 受け取るボタン
-                            SizedBox(
-                              width: 120,
-                              height: 56,
-                              child: ElevatedButton(
-                                onPressed: () => _claimTransfer(t),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green,
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8)),
-                                ),
-                                child: const Text('受け取る',
-                                    style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold)),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }

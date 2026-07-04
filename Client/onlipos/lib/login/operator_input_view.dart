@@ -29,7 +29,10 @@ class _OperatorInputViewState extends State<OperatorInputView> {
     final operatorCode = _controller.text;
     if (operatorCode.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('担当者コードを入力してください。'), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text('担当者コードを入力してください。'),
+          backgroundColor: Colors.red,
+        ),
       );
       _focusNode.requestFocus();
       return;
@@ -76,6 +79,7 @@ class _OperatorInputViewState extends State<OperatorInputView> {
             ),
           );
         }
+        // operator.permissions は将来の拡張用（現在は参照しない）
       }
     } catch (e) {
       if (mounted) {

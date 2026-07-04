@@ -1,4 +1,3 @@
-
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -16,7 +15,9 @@ class ProvisioningApi {
       throw Exception('端末認証トークンが見つかりません');
     }
 
-    final normalizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final normalizedUrl = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
     final url = Uri.parse('$normalizedUrl/api/v1/pos_devices/provisioning');
 
     try {

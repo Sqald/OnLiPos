@@ -41,7 +41,10 @@ class TableOrderApi {
     final base = await _baseUrl();
     final headers = await _headers();
     final response = await http
-        .get(Uri.parse('$base/api/v1/table_orders/$tableNumber'), headers: headers)
+        .get(
+          Uri.parse('$base/api/v1/table_orders/$tableNumber'),
+          headers: headers,
+        )
         .timeout(const Duration(seconds: 5));
     if (response.statusCode == 200) {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -55,7 +58,9 @@ class TableOrderApi {
 
   /// 指定テーブルのアイテムを保存する（upsert）。
   static Future<void> saveItems(
-      String tableNumber, List<ScannedItem> items) async {
+    String tableNumber,
+    List<ScannedItem> items,
+  ) async {
     final base = await _baseUrl();
     final headers = await _headers();
     await http

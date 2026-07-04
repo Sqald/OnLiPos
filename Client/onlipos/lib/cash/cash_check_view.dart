@@ -84,7 +84,9 @@ class _CashCheckViewState extends State<CashCheckView> {
           _diffAmount = _totalAmount - _expectedAmount!;
         }
         if (result['last_logged_at'] != null) {
-          _lastLoggedAt = DateTime.tryParse(result['last_logged_at'].toString());
+          _lastLoggedAt = DateTime.tryParse(
+            result['last_logged_at'].toString(),
+          );
         }
       }
     });
@@ -124,28 +126,37 @@ class _CashCheckViewState extends State<CashCheckView> {
           _diffAmount = _totalAmount - _expectedAmount!;
         }
         if (result['last_logged_at'] != null) {
-          _lastLoggedAt = DateTime.tryParse(result['last_logged_at'].toString());
+          _lastLoggedAt = DateTime.tryParse(
+            result['last_logged_at'].toString(),
+          );
         }
       }
     });
 
     if (result['success'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('レジ金チェックを登録しました')),
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('レジ金チェックを登録しました')));
+      // 点検（X）レポートを印字（セッションが開いている場合のみデータが返る）
+      final report = await _api.fetchRegisterReport(
+        employeeId: widget.employeeId,
       );
+      if (report['success'] == true) {
+        await ReceiptPrinter.printRegisterReport(report);
+      }
     } else {
       final message = result['message']?.toString() ?? 'エラーが発生しました';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
   String _formatCurrency(int number) {
     return number.toString().replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (m) => '${m[1]},',
-        );
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]},',
+    );
   }
 
   Widget _buildDenominationInputs() {
@@ -167,7 +178,10 @@ class _CashCheckViewState extends State<CashCheckView> {
                     width: 100,
                     child: Text(
                       '¥${_formatCurrency(denomination)}',
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                       textAlign: TextAlign.right,
                     ),
                   ),
@@ -180,7 +194,10 @@ class _CashCheckViewState extends State<CashCheckView> {
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
                         suffixText: '枚',
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 16,
+                        ),
                       ),
                     ),
                   ),
@@ -205,7 +222,10 @@ class _CashCheckViewState extends State<CashCheckView> {
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           SizedBox(height: compact ? 8 : 24),
-          const Text('レジ内現金 合計', style: TextStyle(fontSize: 16, color: Colors.grey)),
+          const Text(
+            'レジ内現金 合計',
+            style: TextStyle(fontSize: 16, color: Colors.grey),
+          ),
           Text(
             '¥${_formatCurrency(_totalAmount)}',
             style: TextStyle(
@@ -214,7 +234,9 @@ class _CashCheckViewState extends State<CashCheckView> {
               color: Colors.blue,
             ),
           ),
-          if (_lastAmount != null || _expectedAmount != null || _diffAmount != null)
+          if (_lastAmount != null ||
+              _expectedAmount != null ||
+              _diffAmount != null)
             Card(
               margin: const EdgeInsets.only(top: 8),
               child: Padding(
@@ -222,19 +244,35 @@ class _CashCheckViewState extends State<CashCheckView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('チェック結果',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                    const Text(
+                      'チェック結果',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     if (_lastLoggedAt != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 4.0, bottom: 6.0),
-                        child: Text('前回チェック: ${_lastLoggedAt!.toLocal()}',
-                            style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                        child: Text(
+                          '前回チェック: ${_lastLoggedAt!.toLocal()}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                          ),
+                        ),
                       ),
-                    if (_lastAmount != null) _buildResultRow('前回レジ金', _lastAmount!),
-                    if (_expectedAmount != null) _buildResultRow('想定レジ金', _expectedAmount!),
+                    if (_lastAmount != null)
+                      _buildResultRow('前回レジ金', _lastAmount!),
+                    if (_expectedAmount != null)
+                      _buildResultRow('想定レジ金', _expectedAmount!),
                     _buildResultRow('今回レジ金', _totalAmount),
                     if (_diffAmount != null)
-                      _buildResultRow('差異', _diffAmount!, highlight: _diffAmount != 0),
+                      _buildResultRow(
+                        '差異',
+                        _diffAmount!,
+                        highlight: _diffAmount != 0,
+                      ),
                   ],
                 ),
               ),
@@ -270,8 +308,13 @@ class _CashCheckViewState extends State<CashCheckView> {
                           foregroundColor: Colors.white,
                         ),
                         child: _isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('チェック結果を登録', style: TextStyle(fontSize: 18)),
+                            ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
+                            : const Text(
+                                'チェック結果を登録',
+                                style: TextStyle(fontSize: 18),
+                              ),
                       ),
                     ),
                   ),
@@ -290,16 +333,30 @@ class _CashCheckViewState extends State<CashCheckView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('担当者: ${widget.employeeName}',
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text(
+                        '担当者: ${widget.employeeName}',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       const SizedBox(height: 24),
-                      const Text('レジ内現金 合計',
-                          style: TextStyle(fontSize: 16, color: Colors.grey)),
-                      Text('¥${_formatCurrency(_totalAmount)}',
-                          style: const TextStyle(
-                              fontSize: 40, fontWeight: FontWeight.bold, color: Colors.blue)),
+                      const Text(
+                        'レジ内現金 合計',
+                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                      ),
+                      Text(
+                        '¥${_formatCurrency(_totalAmount)}',
+                        style: const TextStyle(
+                          fontSize: 40,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
+                        ),
+                      ),
                       const SizedBox(height: 24),
-                      if (_lastAmount != null || _expectedAmount != null || _diffAmount != null)
+                      if (_lastAmount != null ||
+                          _expectedAmount != null ||
+                          _diffAmount != null)
                         Card(
                           margin: const EdgeInsets.only(top: 8),
                           child: Padding(
@@ -307,20 +364,38 @@ class _CashCheckViewState extends State<CashCheckView> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('チェック結果',
-                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                const Text(
+                                  'チェック結果',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                                 if (_lastLoggedAt != null)
                                   Padding(
-                                    padding: const EdgeInsets.only(top: 4.0, bottom: 8.0),
-                                    child: Text('前回チェック: ${_lastLoggedAt!.toLocal()}',
-                                        style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                    padding: const EdgeInsets.only(
+                                      top: 4.0,
+                                      bottom: 8.0,
+                                    ),
+                                    child: Text(
+                                      '前回チェック: ${_lastLoggedAt!.toLocal()}',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
                                   ),
-                                if (_lastAmount != null) _buildResultRow('前回レジ金', _lastAmount!),
+                                if (_lastAmount != null)
+                                  _buildResultRow('前回レジ金', _lastAmount!),
                                 if (_expectedAmount != null)
                                   _buildResultRow('想定レジ金', _expectedAmount!),
                                 _buildResultRow('今回レジ金', _totalAmount),
                                 if (_diffAmount != null)
-                                  _buildResultRow('差異', _diffAmount!, highlight: _diffAmount != 0),
+                                  _buildResultRow(
+                                    '差異',
+                                    _diffAmount!,
+                                    highlight: _diffAmount != 0,
+                                  ),
                               ],
                             ),
                           ),
@@ -336,8 +411,13 @@ class _CashCheckViewState extends State<CashCheckView> {
                             foregroundColor: Colors.white,
                           ),
                           child: _isLoading
-                              ? const CircularProgressIndicator(color: Colors.white)
-                              : const Text('チェック結果を登録', style: TextStyle(fontSize: 20)),
+                              ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                )
+                              : const Text(
+                                  'チェック結果を登録',
+                                  style: TextStyle(fontSize: 20),
+                                ),
                         ),
                       ),
                     ],
@@ -371,4 +451,3 @@ class _CashCheckViewState extends State<CashCheckView> {
     );
   }
 }
-

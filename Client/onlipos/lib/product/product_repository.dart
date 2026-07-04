@@ -25,12 +25,29 @@ class ProductRepository {
     return null;
   }
 
+  Future<List<Product>> searchByName(String query) async {
+    if (query.isEmpty) return [];
+    final db = await _db;
+    final maps = await db.query(
+      'products',
+      where: 'name LIKE ?',
+      whereArgs: ['%$query%'],
+      orderBy: 'name',
+      limit: 50,
+    );
+    return maps.map((m) => Product.fromMap(m)).toList();
+  }
+
   /// カテゴリIDごとの商品一覧（null = カテゴリなし）
   Future<List<Product>> getProductsByCategory(int? categoryId) async {
     final db = await _db;
     final List<Map<String, dynamic>> maps = categoryId == null
         ? await db.query('products', where: 'category_id IS NULL')
-        : await db.query('products', where: 'category_id = ?', whereArgs: [categoryId]);
+        : await db.query(
+            'products',
+            where: 'category_id = ?',
+            whereArgs: [categoryId],
+          );
     return maps.map((map) => Product.fromMap(map)).toList();
   }
 
@@ -43,7 +60,10 @@ class ProductRepository {
     );
     return rows
         .where((r) => r['category_id'] != null && r['category_name'] != null)
-        .map((r) => (id: r['category_id'] as int, name: r['category_name'] as String))
+        .map(
+          (r) =>
+              (id: r['category_id'] as int, name: r['category_name'] as String),
+        )
         .toList();
   }
 
@@ -65,11 +85,15 @@ class ProductRepository {
       whereArgs: [bundleId],
     );
 
-    final items = itemRows.map((r) => BundleItem(
-      productId: r['product_id'] as int,
-      productCode: r['product_code'] as String?,
-      quantity: r['quantity'] as int,
-    )).toList();
+    final items = itemRows
+        .map(
+          (r) => BundleItem(
+            productId: r['product_id'] as int,
+            productCode: r['product_code'] as String?,
+            quantity: r['quantity'] as int,
+          ),
+        )
+        .toList();
 
     return ProductBundle(
       id: bundleId,
@@ -94,18 +118,24 @@ class ProductRepository {
         where: 'product_bundle_id = ?',
         whereArgs: [bundleId],
       );
-      final items = itemRows.map((r) => BundleItem(
-        productId: r['product_id'] as int,
-        productCode: r['product_code'] as String?,
-        quantity: r['quantity'] as int,
-      )).toList();
-      result.add(ProductBundle(
-        id: bundleId,
-        code: bundleRow['code'] as String,
-        name: bundleRow['name'] as String,
-        price: (bundleRow['price'] as int?) ?? 0,
-        items: items,
-      ));
+      final items = itemRows
+          .map(
+            (r) => BundleItem(
+              productId: r['product_id'] as int,
+              productCode: r['product_code'] as String?,
+              quantity: r['quantity'] as int,
+            ),
+          )
+          .toList();
+      result.add(
+        ProductBundle(
+          id: bundleId,
+          code: bundleRow['code'] as String,
+          name: bundleRow['name'] as String,
+          price: (bundleRow['price'] as int?) ?? 0,
+          items: items,
+        ),
+      );
     }
     return result;
   }

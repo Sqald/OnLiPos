@@ -96,79 +96,85 @@ class _TableNumberInputViewState extends State<TableNumberInputView> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-              const Text(
-                '卓番を入力してください',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              TextField(
-                controller: _controller,
-                focusNode: _focusNode,
-                autofocus: true,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 56, fontWeight: FontWeight.bold),
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: '卓番',
-                ),
-                onSubmitted: _openTable,
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: () => _openTable(_controller.text),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('確定', style: TextStyle(fontSize: 20)),
-                ),
-              ),
-              const SizedBox(height: 40),
-              if (_isLoadingTables)
-                const Center(child: CircularProgressIndicator())
-              else if (_activeTables.isNotEmpty) ...[
                 const Text(
-                  '注文中のテーブル',
-                  style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey,
-                      fontWeight: FontWeight.bold),
+                  '卓番を入力してください',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
-                const Divider(),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  alignment: WrapAlignment.center,
-                  children: _activeTables.map((table) {
-                    return SizedBox(
-                      width: 100,
-                      height: 64,
-                      child: ElevatedButton(
-                        onPressed: () => _openTable(table),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange[100],
-                          foregroundColor: Colors.orange[900],
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: Text(
-                          '卓 $table',
-                          style: const TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    );
-                  }).toList(),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  autofocus: true,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 56,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: '卓番',
+                  ),
+                  onSubmitted: _openTable,
                 ),
-              ],
+                const SizedBox(height: 24),
+                SizedBox(
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: () => _openTable(_controller.text),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('確定', style: TextStyle(fontSize: 20)),
+                  ),
+                ),
+                const SizedBox(height: 40),
+                if (_isLoadingTables)
+                  const Center(child: CircularProgressIndicator())
+                else if (_activeTables.isNotEmpty) ...[
+                  const Text(
+                    '注文中のテーブル',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    alignment: WrapAlignment.center,
+                    children: _activeTables.map((table) {
+                      return SizedBox(
+                        width: 100,
+                        height: 64,
+                        child: ElevatedButton(
+                          onPressed: () => _openTable(table),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange[100],
+                            foregroundColor: Colors.orange[900],
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            '卓 $table',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
               ],
             ),
           ),

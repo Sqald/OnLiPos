@@ -8,7 +8,7 @@ import 'package:sqflite/sqflite.dart';
 /// 同一DBファイルを別々にオープンすることによる "database is locked" を防ぐ。
 class DatabaseService {
   static const _dbName = 'pos_app.db';
-  static const _dbVersion = 5;
+  static const _dbVersion = 6;
 
   DatabaseService._();
   static final DatabaseService instance = DatabaseService._();
@@ -48,6 +48,7 @@ class DatabaseService {
         name TEXT,
         description TEXT,
         price INTEGER,
+        list_price INTEGER,
         tax_rate INTEGER DEFAULT 10,
         status TEXT,
         updated_at TEXT,
@@ -84,7 +85,9 @@ class DatabaseService {
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-      await db.execute('ALTER TABLE products ADD COLUMN tax_category INTEGER DEFAULT 0');
+      await db.execute(
+        'ALTER TABLE products ADD COLUMN tax_category INTEGER DEFAULT 0',
+      );
 
       await db.execute('''
         CREATE TABLE IF NOT EXISTS product_bundles (
@@ -115,7 +118,9 @@ class DatabaseService {
       ''');
     }
     if (oldVersion < 4) {
-      await db.execute('ALTER TABLE products ADD COLUMN tax_rate INTEGER DEFAULT 10');
+      await db.execute(
+        'ALTER TABLE products ADD COLUMN tax_rate INTEGER DEFAULT 10',
+      );
       // v2移行で追加された tax_category から値を移行（存在しない場合は無視）
       try {
         await db.execute(
@@ -129,6 +134,9 @@ class DatabaseService {
     if (oldVersion < 5) {
       await db.execute('ALTER TABLE products ADD COLUMN category_id INTEGER');
       await db.execute('ALTER TABLE products ADD COLUMN category_name TEXT');
+    }
+    if (oldVersion < 6) {
+      await db.execute('ALTER TABLE products ADD COLUMN list_price INTEGER');
     }
   }
 }

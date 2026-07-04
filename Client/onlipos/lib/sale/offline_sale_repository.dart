@@ -5,7 +5,10 @@ import 'package:onlipos/product/database_service.dart';
 class OfflineSaleRepository {
   Future<Database> get _db => DatabaseService.instance.database;
 
-  Future<void> enqueue(String receiptNumber, Map<String, dynamic> payload) async {
+  Future<void> enqueue(
+    String receiptNumber,
+    Map<String, dynamic> payload,
+  ) async {
     final db = await _db;
     await db.insert('offline_sales_queue', {
       'receipt_number': receiptNumber,
@@ -21,7 +24,9 @@ class OfflineSaleRepository {
 
   Future<int> getPendingCount() async {
     final db = await _db;
-    final result = await db.rawQuery('SELECT COUNT(*) as count FROM offline_sales_queue');
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM offline_sales_queue',
+    );
     return (result.first['count'] as int?) ?? 0;
   }
 

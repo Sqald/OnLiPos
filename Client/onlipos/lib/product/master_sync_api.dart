@@ -8,10 +8,7 @@ class ProductSyncService {
   final String baseUrl;
   final String authToken;
 
-  ProductSyncService({
-    required this.baseUrl,
-    required this.authToken,
-  });
+  ProductSyncService({required this.baseUrl, required this.authToken});
 
   /// 商品マスタの同期を実行する
   /// [onProgress] コールバックで現在の処理件数を通知します
@@ -69,22 +66,19 @@ class ProductSyncService {
         await db.transaction((txn) async {
           final batch = txn.batch();
           for (var product in products) {
-            batch.insert(
-              'products',
-              {
-                'id': product['id'],
-                'code': product['code'],
-                'name': product['name'],
-                'description': product['description'],
-                'price': product['price'],
-                'tax_rate': product['tax_rate'] ?? 10,
-                'status': product['status'],
-                'updated_at': product['updated_at'],
-                'category_id': product['category_id'],
-                'category_name': product['category_name'],
-              },
-              conflictAlgorithm: ConflictAlgorithm.replace,
-            );
+            batch.insert('products', {
+              'id': product['id'],
+              'code': product['code'],
+              'name': product['name'],
+              'description': product['description'],
+              'price': product['price'],
+              'list_price': product['list_price'],
+              'tax_rate': product['tax_rate'] ?? 10,
+              'status': product['status'],
+              'updated_at': product['updated_at'],
+              'category_id': product['category_id'],
+              'category_name': product['category_name'],
+            }, conflictAlgorithm: ConflictAlgorithm.replace);
           }
           await batch.commit(noResult: true);
         });
@@ -94,7 +88,7 @@ class ProductSyncService {
         if (onProgress != null) {
           onProgress(totalProcessed);
         }
-        print('Synced $totalProcessed products so far...'); // コンソールに進捗出力
+        developer.log('Synced $totalProcessed products so far...');
 
         // 5. 次のループのためのパラメータ更新
         hasMore = data['has_more'] ?? false;
@@ -132,7 +126,6 @@ class ProductSyncService {
       });
 
       developer.log('Product sync completed. Total: $totalProcessed');
-
     } catch (e) {
       developer.log('Error during product sync: $e');
       rethrow;

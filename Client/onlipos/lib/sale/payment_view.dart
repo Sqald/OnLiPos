@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:onlipos/sale/send_to_api.dart';
 import 'package:onlipos/sale/escpos/lan_recipt_api.dart';
+import 'package:onlipos/sale/tax_breakdown_calculator.dart';
 
 class PaymentView extends StatefulWidget {
   final String operatorName;
@@ -10,6 +12,7 @@ class PaymentView extends StatefulWidget {
   final int subtotalExTax;
   final int taxAmount;
   final List<Map<String, dynamic>> saleDetails;
+
   /// 飲食店モード時の卓番など、レシートに追記する情報（例: '卓 3'）
   final String? extraInfo;
 
@@ -31,7 +34,8 @@ class PaymentView extends StatefulWidget {
 enum PaymentMethodType {
   cash(0, '現金', Icons.money),
   card(1, 'カード', Icons.credit_card),
-  barcode(2, 'バーコード', Icons.qr_code);
+  barcode(2, 'バーコード', Icons.qr_code),
+  emoney(3, '電子マネー', Icons.contactless);
 
   final int value;
   final String label;
@@ -81,9 +85,11 @@ class _PaymentViewState extends State<PaymentView> {
     if (_remainingAmount != 0) return;
 
     // 現金払いがある場合はお預かり金入力へ
-    final cashPayment = _payments.where((p) => p.method == PaymentMethodType.cash).fold(0, (sum, p) => sum + p.amount);
+    final cashPayment = _payments
+        .where((p) => p.method == PaymentMethodType.cash)
+        .fold(0, (sum, p) => sum + p.amount);
     int tenderedCash = 0;
-    
+
     if (cashPayment > 0) {
       final result = await Navigator.push(
         context,
@@ -94,7 +100,7 @@ class _PaymentViewState extends State<PaymentView> {
           ),
         ),
       );
-      
+
       // お預かり金入力がキャンセルされた場合
       if (result == null) return;
       tenderedCash = result as int;
@@ -111,20 +117,25 @@ class _PaymentViewState extends State<PaymentView> {
         taxAmount: widget.taxAmount,
         details: widget.saleDetails,
         payments: _payments
-            .map((p) => {
-                  'method': p.method.value,
-                  'amount': p.amount,
-                })
+            .map((p) => {'method': p.method.value, 'amount': p.amount})
             .toList(),
       );
 
       // レシート印刷処理
       try {
         final receiptNo = response['receipt_number'] ?? "UNKNOWN";
-        final paymentList = _payments.map((p) => {
-          'method': p.method.label,
-          'amount': p.amount,
-        }).toList();
+        final paymentList = _payments
+            .map((p) => {'method': p.method.label, 'amount': p.amount})
+            .toList();
+
+        // 税率別内訳（適格簡易請求書対応: 税率ごとに端数処理1回）
+        const storage = FlutterSecureStorage();
+        final rounding =
+            await storage.read(key: 'TaxRoundingMethod') ?? 'round_down';
+        final taxBreakdown = TaxBreakdownCalculator.fromDetails(
+          widget.saleDetails,
+          rounding: rounding,
+        );
 
         await ReceiptPrinter().printReceipt(
           receiptNumber: receiptNo,
@@ -136,9 +147,10 @@ class _PaymentViewState extends State<PaymentView> {
           change: tenderedCash > 0 ? tenderedCash - cashPayment : 0,
           tenderedCash: tenderedCash,
           extraInfo: widget.extraInfo,
+          taxBreakdown: taxBreakdown,
         );
       } catch (e) {
-        print("Printing failed: $e");
+        debugPrint("Printing failed: $e");
       }
 
       if (mounted) {
@@ -166,9 +178,7 @@ class _PaymentViewState extends State<PaymentView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('決済 - 担当: ${widget.operatorName}'),
-      ),
+      appBar: AppBar(title: Text('決済 - 担当: ${widget.operatorName}')),
       body: LayoutBuilder(
         builder: (context, constraints) {
           // 画面幅が狭い場合（スマホ等）は縦スクロールレイアウト
@@ -176,10 +186,7 @@ class _PaymentViewState extends State<PaymentView> {
             return SingleChildScrollView(
               child: Column(
                 children: [
-                  SizedBox(
-                    height: 300,
-                    child: _buildPaymentList(),
-                  ),
+                  SizedBox(height: 300, child: _buildPaymentList()),
                   const Divider(height: 1),
                   Container(
                     color: Colors.white,
@@ -192,10 +199,7 @@ class _PaymentViewState extends State<PaymentView> {
           // PC/タブレット向け横分割レイアウト
           return Row(
             children: [
-              Expanded(
-                flex: 4,
-                child: _buildPaymentList(),
-              ),
+              Expanded(flex: 4, child: _buildPaymentList()),
               const VerticalDivider(width: 1),
               Expanded(
                 flex: 3,
@@ -222,7 +226,10 @@ class _PaymentViewState extends State<PaymentView> {
         children: [
           const Padding(
             padding: EdgeInsets.all(16.0),
-            child: Text('支払い内訳', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            child: Text(
+              '支払い内訳',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
           ),
           Expanded(
             child: ListView.builder(
@@ -230,14 +237,26 @@ class _PaymentViewState extends State<PaymentView> {
               itemBuilder: (context, index) {
                 final payment = _payments[index];
                 return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
                   child: ListTile(
                     leading: Icon(payment.method.icon, color: Colors.blue),
-                    title: Text(payment.method.label, style: const TextStyle(fontSize: 18)),
+                    title: Text(
+                      payment.method.label,
+                      style: const TextStyle(fontSize: 18),
+                    ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('¥${payment.amount}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                        Text(
+                          '¥${payment.amount}',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         const SizedBox(width: 16),
                         IconButton(
                           icon: const Icon(Icons.delete, color: Colors.red),
@@ -281,7 +300,10 @@ class _PaymentViewState extends State<PaymentView> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 24),
-              const Text('支払い方法を選択', style: TextStyle(fontSize: 16, color: Colors.grey)),
+              const Text(
+                '支払い方法を選択',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 16,
@@ -293,13 +315,20 @@ class _PaymentViewState extends State<PaymentView> {
                     height: 80,
                     child: ElevatedButton.icon(
                       icon: Icon(method.icon, size: 32),
-                      label: Text(method.label, style: const TextStyle(fontSize: 18)),
+                      label: Text(
+                        method.label,
+                        style: const TextStyle(fontSize: 18),
+                      ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue[50],
                         foregroundColor: Colors.blue[900],
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                      onPressed: _remainingAmount > 0 ? () => _addPayment(method) : null,
+                      onPressed: _remainingAmount > 0
+                          ? () => _addPayment(method)
+                          : null,
                     ),
                   );
                 }).toList(),
@@ -308,7 +337,9 @@ class _PaymentViewState extends State<PaymentView> {
               SizedBox(
                 height: 80,
                 child: ElevatedButton(
-                  onPressed: (_remainingAmount == 0 && !_isProcessing) ? _processPayment : null,
+                  onPressed: (_remainingAmount == 0 && !_isProcessing)
+                      ? _processPayment
+                      : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
@@ -316,7 +347,13 @@ class _PaymentViewState extends State<PaymentView> {
                   ),
                   child: _isProcessing
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('会計確定', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
+                      : const Text(
+                          '会計確定',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
             ],
@@ -336,13 +373,34 @@ class _PaymentViewState extends State<PaymentView> {
     return content;
   }
 
-  Widget _buildSummaryRow(String label, int amount, {bool isTotal = false, bool small = false, Color? color}) {
-    final labelSize = isTotal ? 24.0 : small ? 13.0 : 20.0;
-    final amountSize = isTotal ? 40.0 : small ? 15.0 : 32.0;
+  Widget _buildSummaryRow(
+    String label,
+    int amount, {
+    bool isTotal = false,
+    bool small = false,
+    Color? color,
+  }) {
+    final labelSize = isTotal
+        ? 24.0
+        : small
+        ? 13.0
+        : 20.0;
+    final amountSize = isTotal
+        ? 40.0
+        : small
+        ? 15.0
+        : 32.0;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(fontSize: labelSize, fontWeight: isTotal ? FontWeight.bold : FontWeight.normal, color: small ? Colors.grey[600] : null)),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: labelSize,
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+            color: small ? Colors.grey[600] : null,
+          ),
+        ),
         Text(
           '¥ $amount',
           style: TextStyle(
@@ -415,7 +473,10 @@ class _AmountInputDialogState extends State<_AmountInputDialog> {
         onSubmitted: (_) => _confirm(),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('キャンセル')),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('キャンセル'),
+        ),
         ElevatedButton(onPressed: _confirm, child: const Text('確定')),
       ],
     );
@@ -427,7 +488,11 @@ class CashTenderView extends StatefulWidget {
   final int totalCashAmount;
   final String operatorName;
 
-  const CashTenderView({super.key, required this.totalCashAmount, required this.operatorName});
+  const CashTenderView({
+    super.key,
+    required this.totalCashAmount,
+    required this.operatorName,
+  });
 
   @override
   State<CashTenderView> createState() => _CashTenderViewState();
@@ -472,8 +537,11 @@ class _CashTenderViewState extends State<CashTenderView> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('現金支払額: ¥${widget.totalCashAmount}',
-                    style: const TextStyle(fontSize: 24), textAlign: TextAlign.center),
+                Text(
+                  '現金支払額: ¥${widget.totalCashAmount}',
+                  style: const TextStyle(fontSize: 24),
+                  textAlign: TextAlign.center,
+                ),
                 const SizedBox(height: 32),
                 TextField(
                   controller: _controller,
@@ -486,7 +554,10 @@ class _CashTenderViewState extends State<CashTenderView> {
                     prefixText: '¥ ',
                     border: OutlineInputBorder(),
                   ),
-                  style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 48,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 32),
                 Text(
@@ -502,9 +573,13 @@ class _CashTenderViewState extends State<CashTenderView> {
                 SizedBox(
                   height: 64,
                   child: ElevatedButton(
-                    onPressed: _canFinish ? () => Navigator.of(context).pop(_tender) : null,
+                    onPressed: _canFinish
+                        ? () => Navigator.of(context).pop(_tender)
+                        : null,
                     style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green, foregroundColor: Colors.white),
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
                     child: const Text('会計完了', style: TextStyle(fontSize: 24)),
                   ),
                 ),

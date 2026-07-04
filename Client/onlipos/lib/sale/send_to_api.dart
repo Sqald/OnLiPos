@@ -38,6 +38,8 @@ class SentToApi {
         'tax_amount': taxAmount,
         'payment_method': payments.isNotEmpty ? payments.first['method'] : 0,
         'receipt_number': receiptNumber,
+        // 販売時刻。オフライン後送でも実際の会計時刻がサーバーに記録される
+        'sold_at': DateTime.now().toIso8601String(),
       },
       'employee_id': employeeId,
       'details': details,
@@ -45,15 +47,17 @@ class SentToApi {
     };
 
     try {
-      final response = await http.post(
-        uri,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode(requestBody),
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .post(
+            uri,
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode(requestBody),
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 201) {
         final responseData = jsonDecode(response.body);
@@ -81,31 +85,74 @@ class SentToApi {
     }
   }
 
+  /// 領収書発行を記録する（発行履歴がジャーナルに残り、2回目以降は再発行になる）。
+  Future<Map<String, dynamic>> issueReceipt({
+    required int saleId,
+    required int employeeId,
+    String? addressee,
+    String? purpose,
+  }) async {
+    String? baseUrl = await _storage.read(key: 'AccessUrl');
+    String? token = await _storage.read(key: 'LoginToken');
+
+    if (baseUrl == null || token == null) {
+      throw Exception('認証情報が見つかりません。ログインしてください。');
+    }
+    if (baseUrl.endsWith('/')) {
+      baseUrl = baseUrl.substring(0, baseUrl.length - 1);
+    }
+
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/v1/sales/$saleId/issue_receipt'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: jsonEncode({
+            'employee_id': employeeId,
+            if (addressee != null && addressee.isNotEmpty)
+              'addressee': addressee,
+            if (purpose != null && purpose.isNotEmpty) 'purpose': purpose,
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
   /// オフラインキューの送信をバックグラウンドで試みる（エラーは無視）
   void _tryDrainInBackground() {
     drainOfflineQueue().catchError((_) => 0);
   }
 
-  Future<Map<String, dynamic>> _saveOffline(Map<String, dynamic> requestBody) async {
+  Future<Map<String, dynamic>> _saveOffline(
+    Map<String, dynamic> requestBody,
+  ) async {
     final receiptNumber = await _generateLocalReceiptNumber();
-    (requestBody['sale'] as Map<String, dynamic>)['receipt_number'] = receiptNumber;
+    (requestBody['sale'] as Map<String, dynamic>)['receipt_number'] =
+        receiptNumber;
 
     await _offlineRepo.enqueue(receiptNumber, requestBody);
 
-    return {
-      'success': true,
-      'offline': true,
-      'receipt_number': receiptNumber,
-    };
+    return {'success': true, 'offline': true, 'receipt_number': receiptNumber};
   }
 
   Future<String> _generateLocalReceiptNumber() async {
     final posId = await _storage.read(key: 'ReceiptPosId') ?? '0';
-    final userLoginName = await _storage.read(key: 'ReceiptUserLoginName') ?? 'unknown';
-    final storeAsciiName = await _storage.read(key: 'ReceiptStoreAsciiName') ?? 'unknown';
-    final seq = int.tryParse(await _storage.read(key: 'NextReceiptSequence') ?? '1') ?? 1;
+    final userLoginName =
+        await _storage.read(key: 'ReceiptUserLoginName') ?? 'unknown';
+    final storeAsciiName =
+        await _storage.read(key: 'ReceiptStoreAsciiName') ?? 'unknown';
+    final seq =
+        int.tryParse(await _storage.read(key: 'NextReceiptSequence') ?? '1') ??
+        1;
 
-    await _storage.write(key: 'NextReceiptSequence', value: (seq + 1).toString());
+    await _storage.write(
+      key: 'NextReceiptSequence',
+      value: (seq + 1).toString(),
+    );
 
     return '$userLoginName-$storeAsciiName-$posId-${seq.toString().padLeft(8, '0')}';
   }
@@ -127,18 +174,21 @@ class SentToApi {
     int sent = 0;
     for (final row in pending) {
       final id = row['id'] as int;
-      final payload = jsonDecode(row['payload'] as String) as Map<String, dynamic>;
+      final payload =
+          jsonDecode(row['payload'] as String) as Map<String, dynamic>;
 
       try {
-        final response = await http.post(
-          Uri.parse('$baseUrl/api/v1/sales'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: jsonEncode(payload),
-        ).timeout(const Duration(seconds: 15));
+        final response = await http
+            .post(
+              Uri.parse('$baseUrl/api/v1/sales'),
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: jsonEncode(payload),
+            )
+            .timeout(const Duration(seconds: 15));
 
         if (response.statusCode == 201) {
           final data = jsonDecode(response.body) as Map<String, dynamic>;

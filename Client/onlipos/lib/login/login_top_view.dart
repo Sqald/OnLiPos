@@ -8,7 +8,7 @@ class LoginTopView extends StatefulWidget {
   const LoginTopView({super.key});
 
   @override
-  _LoginTopViewState createState() => _LoginTopViewState();
+  State<LoginTopView> createState() => _LoginTopViewState();
 }
 
 class _LoginTopViewState extends State<LoginTopView> {
@@ -22,6 +22,7 @@ class _LoginTopViewState extends State<LoginTopView> {
   // 取得した従業員情報を保持する変数
   int? _employeeId;
   String? _employeeName;
+  List<String> _permissions = [];
 
   Future<void> _handleLogin() async {
     setState(() {
@@ -45,6 +46,11 @@ class _LoginTopViewState extends State<LoginTopView> {
       // 成功時：変数に保存
       _employeeId = result['employee_id'];
       _employeeName = result['employee_name'];
+      _permissions =
+          (result['permissions'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [];
 
       // 変数を使って次の処理へ渡す
       _proceedToNextStep();
@@ -66,6 +72,7 @@ class _LoginTopViewState extends State<LoginTopView> {
           employeeId: _employeeId!,
           employeeName: _employeeName!,
           openDate: _selectedDate,
+          permissions: _permissions,
         ),
       ),
     );
@@ -120,8 +127,10 @@ class _LoginTopViewState extends State<LoginTopView> {
                 if (_errorMessage.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16.0),
-                    child: Text(_errorMessage,
-                        style: const TextStyle(color: Colors.red)),
+                    child: Text(
+                      _errorMessage,
+                      style: const TextStyle(color: Colors.red),
+                    ),
                   ),
                 InkWell(
                   onTap: () => _selectDate(context),
@@ -166,7 +175,9 @@ class _LoginTopViewState extends State<LoginTopView> {
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
                         : const Text('業務開始'),
                   ),
@@ -179,7 +190,8 @@ class _LoginTopViewState extends State<LoginTopView> {
                       onPressed: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (context) => const SetupPage(title: 'サーバー設定'),
+                            builder: (context) =>
+                                const SetupPage(title: 'サーバー設定'),
                           ),
                         );
                       },

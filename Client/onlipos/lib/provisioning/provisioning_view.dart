@@ -65,8 +65,8 @@ class _ProvisioningPageState extends State<ProvisioningPage> {
               final roleLabel = val == 'host'
                   ? 'ホスト機'
                   : val == 'client'
-                      ? 'クライアント機'
-                      : '標準';
+                  ? 'クライアント機'
+                  : '標準';
               _syncedSettings['POSロール'] = roleLabel;
             }
           }
@@ -78,15 +78,25 @@ class _ProvisioningPageState extends State<ProvisioningPage> {
               _syncedSettings['店舗名'] = val;
             }
             if (storeCtx['tax_rate_standard'] != null) {
-              await storage.write(key: 'TaxRateStandard', value: storeCtx['tax_rate_standard'].toString());
+              await storage.write(
+                key: 'TaxRateStandard',
+                value: storeCtx['tax_rate_standard'].toString(),
+              );
             }
             if (storeCtx['tax_rate_reduced'] != null) {
-              await storage.write(key: 'TaxRateReduced', value: storeCtx['tax_rate_reduced'].toString());
+              await storage.write(
+                key: 'TaxRateReduced',
+                value: storeCtx['tax_rate_reduced'].toString(),
+              );
             }
             if (storeCtx['store_mode'] != null) {
               final val = storeCtx['store_mode'].toString();
               await storage.write(key: 'StoreMode', value: val);
-              final modeLabel = val == 'restaurant' ? '飲食店' : val == 'retail' ? '小売店' : '標準';
+              final modeLabel = val == 'restaurant'
+                  ? '飲食店'
+                  : val == 'retail'
+                  ? '小売店'
+                  : '標準';
               _syncedSettings['店舗モード'] = modeLabel;
             }
           }
@@ -101,14 +111,16 @@ class _ProvisioningPageState extends State<ProvisioningPage> {
           baseUrl: baseUrl,
           authToken: authToken,
         );
-        
-        await syncService.syncProducts(onProgress: (count) {
-          if (!mounted) return;
-          setState(() {
-            _processedCount = count;
-            _statusMessage = '商品マスタ同期中...';
-          });
-        });
+
+        await syncService.syncProducts(
+          onProgress: (count) {
+            if (!mounted) return;
+            setState(() {
+              _processedCount = count;
+              _statusMessage = '商品マスタ同期中...';
+            });
+          },
+        );
 
         // オフライン会計キューの送信を試みる
         setState(() => _statusMessage = 'オフライン会計を送信中...');
@@ -132,7 +144,7 @@ class _ProvisioningPageState extends State<ProvisioningPage> {
         _statusMessage = 'エラーが発生しました';
       });
       await Future.delayed(const Duration(seconds: 2));
-      
+
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => const LoginTopView()),
@@ -165,55 +177,85 @@ class _ProvisioningPageState extends State<ProvisioningPage> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10)],
+                boxShadow: const [
+                  BoxShadow(color: Colors.black26, blurRadius: 10),
+                ],
               ),
               child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Icon(Icons.check_circle, color: Colors.green, size: 64),
-                const SizedBox(height: 16),
-                const Text('セットアップ完了', textAlign: TextAlign.center, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 24),
-                if (_syncedSettings.isNotEmpty) ...[
-                  const Text('取得した設定', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-                  const Divider(),
-                  ..._syncedSettings.entries.map((e) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(e.key),
-                        Text(e.value, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  )),
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.green, size: 64),
                   const SizedBox(height: 16),
-                ],
-                const Text('マスタ同期', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-                const Divider(),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('処理件数'),
-                    Text('$_processedCount 件', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    'セットアップ完了',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 24),
+                  if (_syncedSettings.isNotEmpty) ...[
+                    const Text(
+                      '取得した設定',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Divider(),
+                    ..._syncedSettings.entries.map(
+                      (e) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(e.key),
+                            Text(
+                              e.value,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                   ],
-                ),
-                const SizedBox(height: 32),
-                ElevatedButton(
-                  onPressed: _onOkPressed,
-                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
-                  child: const Text('OK'),
-                ),
-              ],
+                  const Text(
+                    'マスタ同期',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Divider(),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('処理件数'),
+                      Text(
+                        '$_processedCount 件',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
+                  ElevatedButton(
+                    onPressed: _onOkPressed,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
-    );
-  }
+      );
+    }
 
-  return Scaffold(
+    return Scaffold(
       backgroundColor: Colors.grey[200],
       body: Center(
         child: Column(

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'setup_api.dart';
 import '../provisioning/provisioning_view.dart';
 
-
 class SetupPage extends StatefulWidget {
   const SetupPage({super.key, required this.title});
   final String title;
@@ -13,7 +12,9 @@ class SetupPage extends StatefulWidget {
 }
 
 class _SetupPageState extends State<SetupPage> {
-  final _accessUrlController = TextEditingController(text: kDebugMode ? 'http://localhost:3000' : 'https://onlipos.com');
+  final _accessUrlController = TextEditingController(
+    text: kDebugMode ? 'http://localhost:3000' : 'https://onlipos.com',
+  );
   final _userLoginController = TextEditingController();
   final _storeAsciiNameController = TextEditingController();
   final _posTokenAsciiNameController = TextEditingController();
@@ -103,59 +104,81 @@ class _SetupPageState extends State<SetupPage> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: _isLoading ? null : () async {
-                      if (_accessUrlController.text.isNotEmpty &&
-                          _userLoginController.text.isNotEmpty &&
-                          _storeAsciiNameController.text.isNotEmpty &&
-                          _posTokenAsciiNameController.text.isNotEmpty &&
-                          _posTokenPasswordController.text.isNotEmpty) {
-                        setState(() {
-                          _isLoading = true;
-                        });
-                        try {
-                          bool ans = await Setup_Api().posLogin(
-                            url: _accessUrlController.text,
-                            userLogin: _userLoginController.text,
-                            storeName: _storeAsciiNameController.text,
-                            posName: _posTokenAsciiNameController.text,
-                            posPassword: _posTokenPasswordController.text,
-                          );
-                          if (ans == true) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('セットアップ成功')));
-                              Navigator.of(context).push(MaterialPageRoute(
-                                builder: (context) => const ProvisioningPage(),
-                              )).then((_) {
-                                if (mounted) {
+                    onPressed: _isLoading
+                        ? null
+                        : () async {
+                            if (_accessUrlController.text.isNotEmpty &&
+                                _userLoginController.text.isNotEmpty &&
+                                _storeAsciiNameController.text.isNotEmpty &&
+                                _posTokenAsciiNameController.text.isNotEmpty &&
+                                _posTokenPasswordController.text.isNotEmpty) {
+                              setState(() {
+                                _isLoading = true;
+                              });
+                              try {
+                                bool ans = await SetupApi().posLogin(
+                                  url: _accessUrlController.text,
+                                  userLogin: _userLoginController.text,
+                                  storeName: _storeAsciiNameController.text,
+                                  posName: _posTokenAsciiNameController.text,
+                                  posPassword: _posTokenPasswordController.text,
+                                );
+                                if (ans == true) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('セットアップ成功')),
+                                    );
+                                    Navigator.of(context)
+                                        .push(
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                const ProvisioningPage(),
+                                          ),
+                                        )
+                                        .then((_) {
+                                          if (mounted) {
+                                            setState(() {
+                                              _isLoading = false;
+                                            });
+                                          }
+                                        });
+                                  }
+                                } else {
+                                  if (context.mounted) {
+                                    setState(() {
+                                      _isLoading = false;
+                                    });
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('ログインに失敗しました'),
+                                      ),
+                                    );
+                                  }
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
                                   setState(() {
                                     _isLoading = false;
                                   });
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('エラー: $e')),
+                                  );
                                 }
-                              });
+                              }
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('入力される値が不足しています。'),
+                                ),
+                              );
                             }
-                          } else {
-                            if (mounted) {
-                              setState(() {
-                                _isLoading = false;
-                              });
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ログインに失敗しました')));
-                            }
-                          }
-                        } catch (e) {
-                          if (mounted) {
-                            setState(() {
-                              _isLoading = false;
-                            });
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('エラー: $e')));
-                          }
-                        }
-                      } else {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('入力される値が不足しています。')));
-                    }},
+                          },
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
-                    child: _isLoading ? const Text('接続中') : const Text('セットアップ'),
+                    child: _isLoading
+                        ? const Text('接続中')
+                        : const Text('セットアップ'),
                   ),
                 ),
               ],

@@ -25,13 +25,13 @@ class TransferOrderEntry {
 
   factory TransferOrderEntry.fromJson(Map<String, dynamic> json) {
     return TransferOrderEntry(
-      id:           json['id'] as int,
+      id: json['id'] as int,
       operatorName: json['operator_name'] as String,
-      operatorId:   json['operator_id'] as int,
-      totalAmount:  json['total_amount'] as int,
-      itemCount:    json['item_count'] as int,
-      tableNumber:  json['table_number'] as String?,
-      createdAt:    DateTime.parse(json['created_at'] as String),
+      operatorId: json['operator_id'] as int,
+      totalAmount: json['total_amount'] as int,
+      itemCount: json['item_count'] as int,
+      tableNumber: json['table_number'] as String?,
+      createdAt: DateTime.parse(json['created_at'] as String),
     );
   }
 }
@@ -79,7 +79,9 @@ class TransferOrderApi {
     final response = await http
         .get(Uri.parse('$url/api/v1/transfer_orders'), headers: headers)
         .timeout(const Duration(seconds: 5));
-    if (response.statusCode != 200) throw Exception('HTTP ${response.statusCode}');
+    if (response.statusCode != 200) {
+      throw Exception('HTTP ${response.statusCode}');
+    }
     final json = jsonDecode(response.body) as Map<String, dynamic>;
     final list = (json['transfer_orders'] as List<dynamic>);
     return list
@@ -100,16 +102,22 @@ class TransferOrderApi {
     final body = jsonEncode({
       'transfer_order': {
         'operator_name': operatorName,
-        'operator_id':   operatorId,
-        'total_amount':  totalAmount,
-        'table_number':  tableNumber,
-        'items':         items.map((e) => e.toJson()).toList(),
-      }
+        'operator_id': operatorId,
+        'total_amount': totalAmount,
+        'table_number': tableNumber,
+        'items': items.map((e) => e.toJson()).toList(),
+      },
     });
     final response = await http
-        .post(Uri.parse('$url/api/v1/transfer_orders'), headers: headers, body: body)
+        .post(
+          Uri.parse('$url/api/v1/transfer_orders'),
+          headers: headers,
+          body: body,
+        )
         .timeout(const Duration(seconds: 5));
-    if (response.statusCode != 201) throw Exception('HTTP ${response.statusCode}');
+    if (response.statusCode != 201) {
+      throw Exception('HTTP ${response.statusCode}');
+    }
     final json = jsonDecode(response.body) as Map<String, dynamic>;
     return json['id'] as int;
   }
@@ -121,17 +129,19 @@ class TransferOrderApi {
     final response = await http
         .delete(Uri.parse('$url/api/v1/transfer_orders/$id'), headers: headers)
         .timeout(const Duration(seconds: 5));
-    if (response.statusCode != 200) throw Exception('HTTP ${response.statusCode}');
+    if (response.statusCode != 200) {
+      throw Exception('HTTP ${response.statusCode}');
+    }
     final json = jsonDecode(response.body) as Map<String, dynamic>;
     final order = json['transfer_order'] as Map<String, dynamic>;
     final rawItems = (order['items'] as List<dynamic>);
     return ClaimedTransferOrder(
-      id:           order['id'] as int,
+      id: order['id'] as int,
       operatorName: order['operator_name'] as String,
-      operatorId:   order['operator_id'] as int,
-      totalAmount:  order['total_amount'] as int,
-      tableNumber:  order['table_number'] as String?,
-      items:        rawItems
+      operatorId: order['operator_id'] as int,
+      totalAmount: order['total_amount'] as int,
+      tableNumber: order['table_number'] as String?,
+      items: rawItems
           .map((e) => ScannedItem.fromJson(e as Map<String, dynamic>))
           .toList(),
     );

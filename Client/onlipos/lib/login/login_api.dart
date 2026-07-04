@@ -29,7 +29,9 @@ class LoginApi {
       return {'success': false, 'message': '端末認証トークンが見つかりません'};
     }
 
-    final normalizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final normalizedUrl = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
     final url = Uri.parse('$normalizedUrl/api/v1/pos_devices/top_user_login');
 
     try {
@@ -40,11 +42,7 @@ class LoginApi {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: jsonEncode({
-          'code': code,
-          'pin': pin,
-          'open_date': openDate,
-        }),
+        body: jsonEncode({'code': code, 'pin': pin, 'open_date': openDate}),
       );
       return _parseResponse(response);
     } catch (e) {
@@ -69,7 +67,9 @@ class LoginApi {
       return {'success': false, 'message': '端末認証トークンが見つかりません'};
     }
 
-    final normalizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final normalizedUrl = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
     final url = Uri.parse('$normalizedUrl/api/v1/pos_devices/verify_employee');
 
     try {
@@ -90,8 +90,9 @@ class LoginApi {
     }
   }
 
-  /// 担当者コードを確認し、名前とIDを返す。オフライン時は適切なエラーを返す。
-  static Future<({String name, int id})> validateOperator(String code) async {
+  /// 担当者コードを確認し、名前・ID・権限リストを返す。オフライン時は適切なエラーを返す。
+  static Future<({String name, int id, List<String> permissions})>
+  validateOperator(String code) async {
     const storage = FlutterSecureStorage();
     String? baseUrl = await storage.read(key: 'AccessUrl');
     String? token = await storage.read(key: 'LoginToken');
@@ -99,7 +100,9 @@ class LoginApi {
     if (baseUrl == null) throw Exception('接続先URLが設定されていません');
     if (token == null) throw Exception('端末認証トークンが見つかりません');
 
-    final normalizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final normalizedUrl = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
     final url = Uri.parse('$normalizedUrl/api/v1/pos_devices/check_operator');
 
     try {
@@ -115,7 +118,16 @@ class LoginApi {
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       if (data['success'] == true) {
-        return (name: data['name'] as String, id: data['employee_id'] as int);
+        final permissions =
+            (data['permissions'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            [];
+        return (
+          name: data['name'] as String,
+          id: data['employee_id'] as int,
+          permissions: permissions,
+        );
       } else {
         throw Exception(data['message'] ?? '担当者が見つかりません');
       }

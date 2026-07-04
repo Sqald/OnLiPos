@@ -2,8 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-class Setup_Api {
-
+class SetupApi {
   Future<bool> posLogin({
     required String url,
     required String userLogin,
@@ -14,14 +13,17 @@ class Setup_Api {
     final baseUrl = url.endsWith('/') ? url.substring(0, url.length - 1) : url;
     final response = await http.post(
       Uri.parse('$baseUrl/api/v1/pos_devices/login'),
-      headers: {'Content-Type': 'application/json','Accept': 'application/json',},
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
       body: jsonEncode({
         "pos": {
           "userName": userLogin,
           "storeName": storeName,
           "posName": posName,
           "password": posPassword,
-        }
+        },
       }),
     );
 
@@ -37,17 +39,38 @@ class Setup_Api {
       await storage.write(key: 'LoginToken', value: body['token']);
       await storage.write(key: 'AccessUrl', value: url);
       if (body['pos_id'] != null) {
-        await storage.write(key: 'ReceiptPosId', value: body['pos_id'].toString());
+        await storage.write(
+          key: 'ReceiptPosId',
+          value: body['pos_id'].toString(),
+        );
       }
       if (body['user_login_name'] != null) {
-        await storage.write(key: 'ReceiptUserLoginName', value: body['user_login_name'].toString());
+        await storage.write(
+          key: 'ReceiptUserLoginName',
+          value: body['user_login_name'].toString(),
+        );
       }
       if (body['store_ascii_name'] != null) {
-        await storage.write(key: 'ReceiptStoreAsciiName', value: body['store_ascii_name'].toString());
+        await storage.write(
+          key: 'ReceiptStoreAsciiName',
+          value: body['store_ascii_name'].toString(),
+        );
       }
       if (body['next_receipt_sequence'] != null) {
-        await storage.write(key: 'NextReceiptSequence', value: body['next_receipt_sequence'].toString());
+        await storage.write(
+          key: 'NextReceiptSequence',
+          value: body['next_receipt_sequence'].toString(),
+        );
       }
+      // インボイス対応: 適格請求書発行事業者の登録番号と税端数処理方式
+      await storage.write(
+        key: 'InvoiceRegistrationNumber',
+        value: body['invoice_registration_number']?.toString() ?? '',
+      );
+      await storage.write(
+        key: 'TaxRoundingMethod',
+        value: body['tax_rounding_method']?.toString() ?? 'round_down',
+      );
       return true;
     } else {
       return false;

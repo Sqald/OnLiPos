@@ -15,9 +15,9 @@ void main() {
   PlatformDispatcher.instance.onError = (error, stack) {
     if (error is AssertionError &&
         error.message.toString().contains('data.physical != 0')) {
-      return true; 
+      return true;
     }
-    return false; 
+    return false;
   };
 
   if (!kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS)) {
@@ -62,7 +62,8 @@ class _MyAppState extends State<MyApp> {
     }
 
     // 2. デスクトップ向けのウィンドウ設定
-    if (!kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
+    if (!kIsWeb &&
+        (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
       await windowManager.ensureInitialized();
 
       WindowOptions windowOptions = const WindowOptions(
@@ -75,16 +76,16 @@ class _MyAppState extends State<MyApp> {
       windowManager.waitUntilReadyToShow(windowOptions, () async {
         await windowManager.show();
         await windowManager.focus();
-        
+
         // 修正ポイント3: ゴースト化を防ぐため、一呼吸（300ミリ秒）置いてから全画面化する
         await Future.delayed(const Duration(milliseconds: 300));
-        await windowManager.setFullScreen(true); 
+        await windowManager.setFullScreen(true);
       });
     }
 
     // 3. モバイル向けの全画面＆横画面固定設定
     if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
       await SystemChrome.setPreferredOrientations([
         DeviceOrientation.landscapeLeft,
         DeviceOrientation.landscapeRight,
@@ -97,10 +98,12 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       title: 'OnliPos Client',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple), 
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
       // initialViewが決まるまではローディングインジケーターを出しておく
-      home: initialView ?? const Scaffold(body: Center(child: CircularProgressIndicator())),
+      home:
+          initialView ??
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
     );
   }
 }

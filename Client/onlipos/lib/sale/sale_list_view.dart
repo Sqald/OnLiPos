@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:onlipos/login/operator_input_view.dart';
 import 'package:onlipos/product/product.dart';
 import 'package:onlipos/product/product_repository.dart';
 import 'package:onlipos/sale/payment_view.dart';
 import 'package:onlipos/sale/sale_item.dart';
+import 'package:onlipos/sale/price_edit_dialog.dart';
 import 'package:onlipos/sale/transfer_order_api.dart';
 
 // ─── データモデル ─────────────────────────────────────────────────
@@ -14,9 +14,16 @@ class _ProductItem {
   final Product product;
   // null の場合は product.price を使用。値引き・賞味期限値変更などで上書きする
   final int? overridePrice;
+  // 値引き理由（手動値引き時のみ）
+  final String? discountReason;
   int quantity;
 
-  _ProductItem({required this.product, this.overridePrice, this.quantity = 0});
+  _ProductItem({
+    required this.product,
+    this.overridePrice,
+    this.discountReason,
+    this.quantity = 0,
+  });
 
   int get effectivePrice => overridePrice ?? product.price;
   int get subtotal => effectivePrice * quantity;
@@ -29,15 +36,16 @@ class _ProductItem {
 
 class _BundleItem {
   final ProductBundle bundle;
-  int quantity;
+  int quantity = 0;
+
   /// 1セット分の実際の合計価格（bundle.price > 0 ならそれ、0なら構成商品合計）
   final int pricePerUnit;
+
   /// 1セット分の消費税額
   final int taxPerUnit;
 
   _BundleItem({
     required this.bundle,
-    this.quantity = 0,
     this.pricePerUnit = 0,
     this.taxPerUnit = 0,
   });
@@ -52,7 +60,11 @@ class SaleListView extends StatefulWidget {
   final String operatorName;
   final int operatorId;
 
-  const SaleListView({super.key, required this.operatorName, required this.operatorId});
+  const SaleListView({
+    super.key,
+    required this.operatorName,
+    required this.operatorId,
+  });
 
   @override
   State<SaleListView> createState() => _SaleListViewState();
@@ -130,11 +142,13 @@ class _SaleListViewState extends State<SaleListView>
         componentTotal += sub;
       }
       final pricePerUnit = b.price > 0 ? b.price : componentTotal;
-      bundleItems.add(_BundleItem(
-        bundle: b,
-        pricePerUnit: pricePerUnit,
-        taxPerUnit: taxPerUnit,
-      ));
+      bundleItems.add(
+        _BundleItem(
+          bundle: b,
+          pricePerUnit: pricePerUnit,
+          taxPerUnit: taxPerUnit,
+        ),
+      );
     }
 
     if (!mounted) return;
@@ -154,14 +168,18 @@ class _SaleListViewState extends State<SaleListView>
         _filteredBundleItems = List.of(_allBundleItems);
       } else {
         _filteredProductItems = _allProductItems
-            .where((i) =>
-                i.product.name.toLowerCase().contains(q) ||
-                i.product.code.toLowerCase().contains(q))
+            .where(
+              (i) =>
+                  i.product.name.toLowerCase().contains(q) ||
+                  i.product.code.toLowerCase().contains(q),
+            )
             .toList();
         _filteredBundleItems = _allBundleItems
-            .where((i) =>
-                i.bundle.name.toLowerCase().contains(q) ||
-                i.bundle.code.toLowerCase().contains(q))
+            .where(
+              (i) =>
+                  i.bundle.name.toLowerCase().contains(q) ||
+                  i.bundle.code.toLowerCase().contains(q),
+            )
             .toList();
       }
     });
@@ -201,58 +219,20 @@ class _SaleListViewState extends State<SaleListView>
   }
 
   Future<void> _addCustomPriceItem(Product product) async {
-    final controller = TextEditingController(text: '${product.price}');
-    final newPrice = await showDialog<int>(
+    final result = await showDialog<({int price, String? reason})>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('価格変更で追加'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text('元の価格: ¥${product.price}'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(
-                labelText: '新しい価格',
-                prefixText: '¥',
-                border: OutlineInputBorder(),
-              ),
-              autofocus: true,
-              onSubmitted: (_) {
-                final p = int.tryParse(controller.text);
-                if (p != null && p >= 0) Navigator.of(ctx).pop(p);
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('キャンセル'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final p = int.tryParse(controller.text);
-              if (p != null && p >= 0) Navigator.of(ctx).pop(p);
-            },
-            child: const Text('追加'),
-          ),
-        ],
-      ),
+      builder: (ctx) => PriceEditDialog(product: product),
     );
 
-    controller.dispose();
-    if (newPrice == null) return;
+    if (result == null) return;
+    final newPrice = result.price;
+    final reason = result.reason;
 
     if (newPrice == product.price) {
       // 元の価格と同じなら通常の行のカウンタを上げる
       final regularIdx = _allProductItems.indexWhere(
-          (i) => i.product.id == product.id && i.overridePrice == null);
+        (i) => i.product.id == product.id && i.overridePrice == null,
+      );
       if (regularIdx != -1) {
         setState(() => _allProductItems[regularIdx].quantity++);
       }
@@ -261,14 +241,20 @@ class _SaleListViewState extends State<SaleListView>
 
     // 同じ商品・同じ価格のカスタムアイテムが既にあればそのカウンタを上げる
     final existingIdx = _allProductItems.indexWhere(
-        (i) => i.product.id == product.id && i.overridePrice == newPrice);
+      (i) => i.product.id == product.id && i.overridePrice == newPrice,
+    );
     if (existingIdx != -1) {
       setState(() => _allProductItems[existingIdx].quantity++);
     } else {
       // 新規カスタムアイテムを先頭に挿入し、フィルタ済みリストを再構築
       _allProductItems.insert(
         0,
-        _ProductItem(product: product, overridePrice: newPrice, quantity: 1),
+        _ProductItem(
+          product: product,
+          overridePrice: newPrice,
+          discountReason: reason,
+          quantity: 1,
+        ),
       );
       _applyFilter();
     }
@@ -276,14 +262,20 @@ class _SaleListViewState extends State<SaleListView>
 
   void _allClear() {
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const OperatorInputView(isListView: true)),
+      MaterialPageRoute(
+        builder: (_) => const OperatorInputView(isListView: true),
+      ),
       (route) => false,
     );
   }
 
   Future<void> _subtotal() async {
-    final selectedProducts = _allProductItems.where((i) => i.quantity > 0).toList();
-    final selectedBundles = _allBundleItems.where((i) => i.quantity > 0).toList();
+    final selectedProducts = _allProductItems
+        .where((i) => i.quantity > 0)
+        .toList();
+    final selectedBundles = _allBundleItems
+        .where((i) => i.quantity > 0)
+        .toList();
 
     if (selectedProducts.isEmpty && selectedBundles.isEmpty) return;
 
@@ -299,6 +291,9 @@ class _SaleListViewState extends State<SaleListView>
       final taxAmt = sub - exTax;
       totalAmount += sub;
       totalTax += taxAmt;
+      final hasDiscount =
+          item.overridePrice != null &&
+          item.overridePrice! < item.product.price;
       details.add({
         'product_id': item.product.id,
         'product_name': item.product.name,
@@ -308,6 +303,9 @@ class _SaleListViewState extends State<SaleListView>
         'subtotal': sub,
         'tax_rate': taxRate,
         'tax_amount': taxAmt,
+        if (hasDiscount) 'original_unit_price': item.product.price,
+        if (hasDiscount && item.discountReason != null)
+          'discount_reason': item.discountReason,
       });
     }
 
@@ -341,6 +339,7 @@ class _SaleListViewState extends State<SaleListView>
       }
     }
 
+    if (!mounted) return;
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -370,8 +369,12 @@ class _SaleListViewState extends State<SaleListView>
 
   // ─── クライアントモード：ホストへ転送 ────────────────────────
   Future<void> _transferToHost() async {
-    final selectedProducts = _allProductItems.where((i) => i.quantity > 0).toList();
-    final selectedBundles = _allBundleItems.where((i) => i.quantity > 0).toList();
+    final selectedProducts = _allProductItems
+        .where((i) => i.quantity > 0)
+        .toList();
+    final selectedBundles = _allBundleItems
+        .where((i) => i.quantity > 0)
+        .toList();
 
     if (selectedProducts.isEmpty && selectedBundles.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -412,7 +415,13 @@ class _SaleListViewState extends State<SaleListView>
     // _ProductItem / _BundleItem → ScannedItem に変換
     final List<ScannedItem> items = [];
     for (final item in selectedProducts) {
-      items.add(ScannedItem(product: item.product, quantity: item.quantity, overridePrice: item.overridePrice));
+      items.add(
+        ScannedItem(
+          product: item.product,
+          quantity: item.quantity,
+          overridePrice: item.overridePrice,
+        ),
+      );
     }
     for (final bundleItem in selectedBundles) {
       final expandedProducts = await _repo.expandBundle(bundleItem.bundle);
@@ -421,12 +430,14 @@ class _SaleListViewState extends State<SaleListView>
           (i) => i.productId == ep.id,
           orElse: () => BundleItem(productId: ep.id, quantity: 1),
         );
-        items.add(ScannedItem(
-          product: ep,
-          bundleCode: bundleItem.bundle.code,
-          bundleName: bundleItem.bundle.name,
-          quantity: bItem.quantity * bundleItem.quantity,
-        ));
+        items.add(
+          ScannedItem(
+            product: ep,
+            bundleCode: bundleItem.bundle.code,
+            bundleName: bundleItem.bundle.name,
+            quantity: bItem.quantity * bundleItem.quantity,
+          ),
+        );
       }
     }
 
@@ -460,10 +471,7 @@ class _SaleListViewState extends State<SaleListView>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('転送に失敗しました: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('転送に失敗しました: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -477,18 +485,38 @@ class _SaleListViewState extends State<SaleListView>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('点数', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-          Text('$_totalItems', style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+          const Text(
+            '点数',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
+          Text(
+            '$_totalItems',
+            style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
           const Divider(height: 32),
-          const Text('合計（税込）', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-          Text('¥ $_totalAmount',
-              style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.red),
-              textAlign: TextAlign.center),
+          const Text(
+            '合計（税込）',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
+          Text(
+            '¥ $_totalAmount',
+            style: const TextStyle(
+              fontSize: 40,
+              fontWeight: FontWeight.bold,
+              color: Colors.red,
+            ),
+            textAlign: TextAlign.center,
+          ),
           if (_totalTax > 0) ...[
             const SizedBox(height: 8),
-            Text('うち消費税 ¥$_totalTax',
-                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                textAlign: TextAlign.center),
+            Text(
+              'うち消費税 ¥$_totalTax',
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
           ],
           const Spacer(),
         ],
@@ -510,7 +538,10 @@ class _SaleListViewState extends State<SaleListView>
           margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           color: hasOverride ? Colors.red[50] : null,
           child: ListTile(
-            title: Text(item.product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+            title: Text(
+              item.product.name,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             subtitle: hasOverride
                 ? Row(
                     children: [
@@ -525,7 +556,10 @@ class _SaleListViewState extends State<SaleListView>
                       ),
                       const SizedBox(width: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.red[100],
                           borderRadius: BorderRadius.circular(4),
@@ -539,11 +573,15 @@ class _SaleListViewState extends State<SaleListView>
                         ),
                       ),
                       const SizedBox(width: 6),
-                      Text('(税${item.product.taxRate}%)',
-                          style: TextStyle(color: Colors.grey[600])),
+                      Text(
+                        '(税${item.product.taxRate}%)',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
                     ],
                   )
-                : Text('${item.product.code}  ¥${item.product.price}  (税${item.product.taxRate}%)'),
+                : Text(
+                    '${item.product.code}  ¥${item.product.price}  (税${item.product.taxRate}%)',
+                  ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -589,9 +627,15 @@ class _SaleListViewState extends State<SaleListView>
                 color: Colors.orange[100],
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text('セット', style: TextStyle(fontSize: 12, color: Colors.orange[900])),
+              child: Text(
+                'セット',
+                style: TextStyle(fontSize: 12, color: Colors.orange[900]),
+              ),
             ),
-            title: Text(item.bundle.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+            title: Text(
+              item.bundle.name,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             subtitle: Text(
               '${item.bundle.code}  '
               '${item.bundle.items.length}点セット'
@@ -623,12 +667,22 @@ class _SaleListViewState extends State<SaleListView>
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        IconButton(icon: const Icon(Icons.remove_circle_outline), onPressed: onDecrement),
+        IconButton(
+          icon: const Icon(Icons.remove_circle_outline),
+          onPressed: onDecrement,
+        ),
         SizedBox(
           width: 36,
-          child: Text('$quantity', textAlign: TextAlign.center, style: const TextStyle(fontSize: 18)),
+          child: Text(
+            '$quantity',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 18),
+          ),
         ),
-        IconButton(icon: const Icon(Icons.add_circle_outline), onPressed: onIncrement),
+        IconButton(
+          icon: const Icon(Icons.add_circle_outline),
+          onPressed: onIncrement,
+        ),
         if (displayAmount != null)
           SizedBox(
             width: 90,
@@ -689,7 +743,9 @@ class _SaleListViewState extends State<SaleListView>
                     filled: true,
                     fillColor: Colors.white,
                     contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
               ),
@@ -715,10 +771,7 @@ class _SaleListViewState extends State<SaleListView>
                   flex: 2,
                   child: TabBarView(
                     controller: _tabController,
-                    children: [
-                      _buildProductTab(),
-                      _buildBundleTab(),
-                    ],
+                    children: [_buildProductTab(), _buildBundleTab()],
                   ),
                 ),
                 Expanded(flex: 1, child: _buildSummaryPanel()),
@@ -749,22 +802,34 @@ class _SaleListViewState extends State<SaleListView>
                     ? ElevatedButton.icon(
                         onPressed: _totalItems > 0 ? _transferToHost : null,
                         icon: const Icon(Icons.send, size: 28),
-                        label: const Text('転　送',
-                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                        label: const Text(
+                          '転　送',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              _totalItems > 0 ? const Color(0xFF2D89EF) : Colors.grey,
+                          backgroundColor: _totalItems > 0
+                              ? const Color(0xFF2D89EF)
+                              : Colors.grey,
                           foregroundColor: Colors.white,
                         ),
                       )
                     : ElevatedButton.icon(
                         onPressed: _totalItems > 0 ? _subtotal : null,
                         icon: const Icon(Icons.payment, size: 28),
-                        label: const Text('小計',
-                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                        label: const Text(
+                          '小計',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              _totalItems > 0 ? Colors.green : Colors.grey,
+                          backgroundColor: _totalItems > 0
+                              ? Colors.green
+                              : Colors.grey,
                           foregroundColor: Colors.white,
                         ),
                       ),

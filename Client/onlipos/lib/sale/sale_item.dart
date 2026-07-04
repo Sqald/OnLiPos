@@ -8,6 +8,8 @@ class ScannedItem {
   int quantity;
   // null の場合は product.price を使用。値引き・賞味期限値変更などで上書きする
   int? overridePrice;
+  // 値引き理由（手動値引き時のみ）
+  String? discountReason;
 
   ScannedItem({
     required this.product,
@@ -15,17 +17,19 @@ class ScannedItem {
     this.bundleName,
     this.quantity = 1,
     this.overridePrice,
+    this.discountReason,
   });
 
   int get price => overridePrice ?? product.price;
 
   ScannedItem copy() => ScannedItem(
-        product: product,
-        bundleCode: bundleCode,
-        bundleName: bundleName,
-        quantity: quantity,
-        overridePrice: overridePrice,
-      );
+    product: product,
+    bundleCode: bundleCode,
+    bundleName: bundleName,
+    quantity: quantity,
+    overridePrice: overridePrice,
+    discountReason: discountReason,
+  );
 
   int get subtotal => price * quantity;
 
@@ -37,12 +41,13 @@ class ScannedItem {
   }
 
   Map<String, dynamic> toJson() => {
-        'product': product.toMap(),
-        'bundle_code': bundleCode,
-        'bundle_name': bundleName,
-        'quantity': quantity,
-        'override_price': overridePrice,
-      };
+    'product': product.toMap(),
+    'bundle_code': bundleCode,
+    'bundle_name': bundleName,
+    'quantity': quantity,
+    'override_price': overridePrice,
+    'discount_reason': discountReason,
+  };
 
   factory ScannedItem.fromJson(Map<String, dynamic> json) {
     return ScannedItem(
@@ -51,6 +56,7 @@ class ScannedItem {
       bundleName: json['bundle_name'] as String?,
       quantity: (json['quantity'] as num).toInt(),
       overridePrice: json['override_price'] as int?,
+      discountReason: json['discount_reason'] as String?,
     );
   }
 }

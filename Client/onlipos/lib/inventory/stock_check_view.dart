@@ -140,9 +140,7 @@ class _StockCheckViewState extends State<StockCheckView> {
             decoration: BoxDecoration(
               color: isLow ? Colors.red[50] : Colors.green[50],
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isLow ? Colors.red : Colors.green,
-              ),
+              border: Border.all(color: isLow ? Colors.red : Colors.green),
             ),
             child: Text(
               '$qty',

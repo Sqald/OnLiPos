@@ -21,8 +21,9 @@ class InventoryApi {
       return {'success': false, 'message': '端末認証トークンが見つかりません'};
     }
 
-    final normalizedUrl =
-        baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final normalizedUrl = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
     final url = Uri.parse('$normalizedUrl/api/v1/store_stocks/move');
 
     try {
@@ -33,10 +34,7 @@ class InventoryApi {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: jsonEncode({
-          'employee_id': employeeId,
-          'movements': movements,
-        }),
+        body: jsonEncode({'employee_id': employeeId, 'movements': movements}),
       );
 
       try {
@@ -45,10 +43,7 @@ class InventoryApi {
         return {'success': false, 'message': 'サーバーエラー: ${response.statusCode}'};
       }
     } catch (e) {
-      return {
-        'success': false,
-        'message': '通信エラーが発生しました: $e',
-      };
+      return {'success': false, 'message': '通信エラーが発生しました: $e'};
     }
   }
 }

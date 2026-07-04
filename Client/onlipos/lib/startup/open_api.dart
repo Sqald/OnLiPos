@@ -21,7 +21,9 @@ class OpenApi {
       return {'success': false, 'message': '端末認証トークンが見つかりません'};
     }
 
-    final normalizedUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final normalizedUrl = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
     final url = Uri.parse('$normalizedUrl/api/v1/pos_devices/open');
 
     try {
@@ -38,7 +40,9 @@ class OpenApi {
           'total_amount': totalAmount,
           // JSONのキーは文字列である必要があるため変換
           'cash_drawer': cashDrawer.map((key, value) {
-            final count = value is String ? (int.tryParse(value) ?? 0) : (value as int? ?? 0);
+            final count = value is String
+                ? (int.tryParse(value) ?? 0)
+                : (value as int? ?? 0);
             return MapEntry(key.toString(), count);
           }),
         }),

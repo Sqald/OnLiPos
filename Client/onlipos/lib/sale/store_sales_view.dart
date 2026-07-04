@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:onlipos/login/login_api.dart';
 import 'package:onlipos/sale/store_sales_api.dart';
 
+enum _PeriodMode { today, thisMonth, custom }
+
 class StoreSalesView extends StatefulWidget {
   const StoreSalesView({super.key});
 
@@ -10,16 +12,23 @@ class StoreSalesView extends StatefulWidget {
 }
 
 class _StoreSalesViewState extends State<StoreSalesView> {
-  // --- 認証フェーズ ---
+  // 認証フェーズ
   bool _authenticated = false;
   bool _isAuthenticating = false;
+  int? _employeeId;
   final _codeController = TextEditingController();
   final _pinController = TextEditingController();
 
-  // --- 売上表示フェーズ ---
+  // 期間
+  _PeriodMode _periodMode = _PeriodMode.today;
+  DateTimeRange _customRange = DateTimeRange(
+    start: DateTime.now(),
+    end: DateTime.now(),
+  );
+
+  // データ
   bool _isLoading = false;
   String? _errorMessage;
-  DateTime _selectedDate = DateTime.now();
   Map<String, dynamic>? _data;
 
   @override
@@ -27,6 +36,24 @@ class _StoreSalesViewState extends State<StoreSalesView> {
     _codeController.dispose();
     _pinController.dispose();
     super.dispose();
+  }
+
+  String _dateStr(DateTime dt) =>
+      '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+
+  ({String from, String to}) get _range {
+    final today = DateTime.now();
+    return switch (_periodMode) {
+      _PeriodMode.today => (from: _dateStr(today), to: _dateStr(today)),
+      _PeriodMode.thisMonth => (
+        from: _dateStr(DateTime(today.year, today.month, 1)),
+        to: _dateStr(today),
+      ),
+      _PeriodMode.custom => (
+        from: _dateStr(_customRange.start),
+        to: _dateStr(_customRange.end),
+      ),
+    };
   }
 
   Future<void> _authenticate() async {
@@ -47,30 +74,38 @@ class _StoreSalesViewState extends State<StoreSalesView> {
       if (result['success'] == true) {
         setState(() {
           _authenticated = true;
+          _employeeId = result['employee_id'] as int?;
           _isAuthenticating = false;
         });
-        _loadSales();
+        _loadSummary();
       } else {
         setState(() => _isAuthenticating = false);
         _showError(result['message']?.toString() ?? '認証に失敗しました');
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) setState(() => _isAuthenticating = false);
       _showError('認証中にエラーが発生しました');
     }
   }
 
-  Future<void> _loadSales() async {
+  Future<void> _loadSummary() async {
+    final eid = _employeeId;
+    if (eid == null) return;
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
-    final dateStr =
-        '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
-    final result = await StoreSalesApi.fetchSales(date: dateStr);
+    final r = _range;
+    final result = await StoreSalesApi.fetchSummary(
+      employeeId: eid,
+      from: r.from,
+      to: r.to,
+    );
 
     if (!mounted) return;
+
     if (result['success'] == true) {
       setState(() {
         _data = result;
@@ -84,43 +119,38 @@ class _StoreSalesViewState extends State<StoreSalesView> {
     }
   }
 
-  Future<void> _pickDate() async {
-    final picked = await showDatePicker(
+  Future<void> _pickCustomRange() async {
+    final range = await showDateRangePicker(
       context: context,
-      initialDate: _selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
+      initialDateRange: _customRange,
     );
-    if (picked != null && picked != _selectedDate) {
-      setState(() => _selectedDate = picked);
-      _loadSales();
+    if (range != null) {
+      setState(() {
+        _customRange = range;
+        _periodMode = _PeriodMode.custom;
+      });
+      _loadSummary();
     }
+  }
+
+  void _setPeriod(_PeriodMode mode) {
+    setState(() => _periodMode = mode);
+    _loadSummary();
   }
 
   void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: Colors.red),
-    );
-  }
-
-  String _paymentMethodLabel(String? method) {
-    switch (method) {
-      case 'cash':
-        return '現金';
-      case 'card':
-        return 'カード';
-      case 'barcode':
-        return 'バーコード';
-      default:
-        return method ?? '-';
-    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('売上確認')),
-      body: _authenticated ? _buildSalesBody() : _buildAuthBody(),
+      appBar: AppBar(title: const Text('店舗売上')),
+      body: _authenticated ? _buildBody() : _buildAuthBody(),
     );
   }
 
@@ -134,10 +164,10 @@ class _StoreSalesViewState extends State<StoreSalesView> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.lock, size: 64, color: Colors.grey),
+              const Icon(Icons.bar_chart, size: 64, color: Colors.grey),
               const SizedBox(height: 16),
               const Text(
-                'パスワードが設定された担当者のみアクセスできます',
+                '「店舗売上閲覧」権限が必要です',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 16),
               ),
@@ -183,67 +213,51 @@ class _StoreSalesViewState extends State<StoreSalesView> {
     );
   }
 
-  // ---- 売上一覧画面 ----
-  Widget _buildSalesBody() {
-    final dateLabel =
-        '${_selectedDate.year}/${_selectedDate.month.toString().padLeft(2, '0')}/${_selectedDate.day.toString().padLeft(2, '0')}';
-
+  // ---- メイン画面 ----
+  Widget _buildBody() {
     return Column(
       children: [
-        // 日付選択バー
-        Container(
-          color: Colors.grey[100],
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              const Icon(Icons.calendar_today, size: 18),
-              const SizedBox(width: 8),
-              Text(dateLabel, style: const TextStyle(fontSize: 16)),
-              const SizedBox(width: 8),
-              OutlinedButton(
-                onPressed: _pickDate,
-                child: const Text('日付変更'),
-              ),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                onPressed: _loadSales,
-                tooltip: '再読み込み',
-              ),
-            ],
-          ),
-        ),
-        // 集計バー
-        if (_data != null)
-          Container(
-            color: const Color(0xFF2D89EF),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
-              children: [
-                Text(
-                  '合計: ¥${_formatAmount(_data!['total_amount'])}',
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(width: 24),
-                Text(
-                  '件数: ${_data!['count']}件',
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                ),
-              ],
-            ),
-          ),
-        // 明細リスト
-        Expanded(
-          child: _buildList(),
-        ),
+        _buildPeriodBar(),
+        Expanded(child: _buildContent()),
       ],
     );
   }
 
-  Widget _buildList() {
+  Widget _buildPeriodBar() {
+    return Container(
+      color: Colors.grey[100],
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          _PeriodBtn(
+            label: '今日',
+            selected: _periodMode == _PeriodMode.today,
+            onTap: () => _setPeriod(_PeriodMode.today),
+          ),
+          const SizedBox(width: 8),
+          _PeriodBtn(
+            label: '今月',
+            selected: _periodMode == _PeriodMode.thisMonth,
+            onTap: () => _setPeriod(_PeriodMode.thisMonth),
+          ),
+          const SizedBox(width: 8),
+          _PeriodBtn(
+            label: 'カスタム',
+            selected: _periodMode == _PeriodMode.custom,
+            onTap: _pickCustomRange,
+          ),
+          const Spacer(),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadSummary,
+            tooltip: '再読み込み',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContent() {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -252,47 +266,284 @@ class _StoreSalesViewState extends State<StoreSalesView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+            Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                _errorMessage!,
+                style: const TextStyle(color: Colors.red),
+                textAlign: TextAlign.center,
+              ),
+            ),
             const SizedBox(height: 12),
-            ElevatedButton(onPressed: _loadSales, child: const Text('再試行')),
+            ElevatedButton(onPressed: _loadSummary, child: const Text('再試行')),
           ],
         ),
       );
     }
-    final sales = (_data?['sales'] as List?) ?? [];
-    if (sales.isEmpty) {
-      return const Center(child: Text('この日の売上はありません'));
-    }
-    return ListView.separated(
-      itemCount: sales.length,
-      separatorBuilder: (context, index) => const Divider(height: 1),
-      itemBuilder: (context, index) {
-        final s = sales[index] as Map<String, dynamic>;
-        return ListTile(
-          leading: Text(
-            s['created_at']?.toString() ?? '',
-            style: const TextStyle(fontSize: 14, color: Colors.grey),
-          ),
-          title: Text(
-            '¥${_formatAmount(s['total_amount'])}',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          subtitle: Text(
-            '${_paymentMethodLabel(s['payment_method']?.toString())}  /${s['employee_name'] ?? '-'}',
-          ),
-          trailing: Text(
-            s['receipt_number']?.toString() ?? '',
-            style: const TextStyle(fontSize: 11, color: Colors.grey),
-          ),
-        );
-      },
+    if (_data == null) return const SizedBox();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildTotalCard(),
+          const SizedBox(height: 12),
+          _buildPaymentCard(),
+          if ((_data!['refund_count'] as int? ?? 0) > 0) ...[
+            const SizedBox(height: 12),
+            _buildRefundCard(),
+          ],
+          const SizedBox(height: 16),
+          _buildDailySection(),
+          const SizedBox(height: 16),
+          _buildTopProductsSection(),
+        ],
+      ),
     );
   }
 
-  String _formatAmount(dynamic amount) {
-    if (amount == null) return '0';
-    final n = amount is int ? amount : int.tryParse(amount.toString()) ?? 0;
-    return n.toString().replaceAllMapped(
-        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+  Widget _buildTotalCard() {
+    final total = _data!['total_amount'] as int? ?? 0;
+    final count = _data!['sales_count'] as int? ?? 0;
+    final r = _range;
+    final period = r.from == r.to ? r.from : '${r.from} 〜 ${r.to}';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2D89EF),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            period,
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '¥${_fmt(total)}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            '$count 件',
+            style: const TextStyle(color: Colors.white70, fontSize: 16),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentCard() {
+    final b = (_data!['payment_breakdown'] as Map<String, dynamic>?) ?? {};
+    final cash = b['cash'] as int? ?? 0;
+    final card = b['card'] as int? ?? 0;
+    final barcode = b['barcode'] as int? ?? 0;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('支払方法内訳', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Divider(),
+            _AmountRow(label: '現金', amount: cash),
+            _AmountRow(label: 'カード', amount: card),
+            _AmountRow(label: 'バーコード決済', amount: barcode),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRefundCard() {
+    final count = _data!['refund_count'] as int? ?? 0;
+    final total = _data!['refund_total'] as int? ?? 0;
+
+    return Card(
+      color: Colors.pink[50],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            const Icon(Icons.replay, color: Colors.pink),
+            const SizedBox(width: 8),
+            Text('返品: $count 件', style: const TextStyle(color: Colors.pink)),
+            const Spacer(),
+            Text(
+              '¥${_fmt(total)}',
+              style: const TextStyle(
+                color: Colors.pink,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDailySection() {
+    final daily = (_data!['daily'] as List?) ?? [];
+    if (daily.length <= 1) return const SizedBox();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '日別売上',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        ...daily.map((d) {
+          final item = d as Map<String, dynamic>;
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Text(
+                  item['date']?.toString() ?? '',
+                  style: const TextStyle(color: Colors.grey),
+                ),
+                const Spacer(),
+                Text('${item['count']}件'),
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: 100,
+                  child: Text(
+                    '¥${_fmt(item['amount'] as int? ?? 0)}',
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildTopProductsSection() {
+    final products = (_data!['top_products'] as List?) ?? [];
+    if (products.isEmpty) return const SizedBox();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '売上上位商品',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        ...products.asMap().entries.map((entry) {
+          final idx = entry.key + 1;
+          final p = entry.value as Map<String, dynamic>;
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 28,
+                  child: Text(
+                    '$idx.',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    p['product_name']?.toString() ?? '',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Text(
+                  '${p['quantity']}個',
+                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: 90,
+                  child: Text(
+                    '¥${_fmt(p['amount'] as int? ?? 0)}',
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  String _fmt(int n) => n.toString().replaceAllMapped(
+    RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+    (m) => '${m[1]},',
+  );
+}
+
+class _PeriodBtn extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PeriodBtn({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        backgroundColor: selected ? const Color(0xFF2D89EF) : null,
+        foregroundColor: selected ? Colors.white : null,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      ),
+      child: Text(label),
+    );
+  }
+}
+
+class _AmountRow extends StatelessWidget {
+  final String label;
+  final int amount;
+
+  const _AmountRow({required this.label, required this.amount});
+
+  String _fmt(int n) => n.toString().replaceAllMapped(
+    RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+    (m) => '${m[1]},',
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Text(label),
+          const Spacer(),
+          Text(
+            '¥${_fmt(amount)}',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
   }
 }

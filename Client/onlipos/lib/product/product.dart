@@ -2,7 +2,11 @@ class Product {
   final int id;
   final String code;
   final String name;
+  final String? description;
+  // 適用価格（店舗売価があればそれ、なければ定価と同じ）
   final int price;
+  // 定価（product.price カラムの値）。店舗売価がなければ price と同じ
+  final int listPrice;
   final int taxRate; // 消費税率(%) デフォルト10
   final int? categoryId;
   final String? categoryName;
@@ -11,18 +15,25 @@ class Product {
     required this.id,
     required this.code,
     required this.name,
+    this.description,
     required this.price,
+    int? listPrice,
     this.taxRate = 10,
     this.categoryId,
     this.categoryName,
-  });
+  }) : listPrice = listPrice ?? price;
+
+  bool get hasStorePrice => listPrice != price;
 
   factory Product.fromMap(Map<String, dynamic> map) {
+    final price = map['price'] as int;
     return Product(
       id: map['id'] as int,
       code: map['code'] as String,
       name: map['name'] as String,
-      price: map['price'] as int,
+      description: map['description'] as String?,
+      price: price,
+      listPrice: (map['list_price'] as int?) ?? price,
       taxRate: (map['tax_rate'] as int?) ?? 10,
       categoryId: map['category_id'] as int?,
       categoryName: map['category_name'] as String?,
@@ -34,7 +45,9 @@ class Product {
       'id': id,
       'code': code,
       'name': name,
+      'description': description,
       'price': price,
+      'list_price': listPrice,
       'tax_rate': taxRate,
       'category_id': categoryId,
       'category_name': categoryName,

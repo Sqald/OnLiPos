@@ -3,13 +3,16 @@ import 'package:onlipos/login/login_api.dart';
 import 'package:onlipos/refund/refund_api.dart';
 import 'package:onlipos/refund/qr_scan_receipt_view.dart';
 import 'package:onlipos/sale/escpos/lan_recipt_api.dart';
-import 'package:onlipos/sale/payment_view.dart';
 
 class ReturnRefundView extends StatefulWidget {
   final String operatorName;
   final int operatorId;
 
-  const ReturnRefundView({super.key, this.operatorName = '担当者', this.operatorId = 0});
+  const ReturnRefundView({
+    super.key,
+    this.operatorName = '担当者',
+    this.operatorId = 0,
+  });
 
   @override
   State<ReturnRefundView> createState() => _ReturnRefundViewState();
@@ -29,7 +32,8 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
   final List<String?> _employeeNames = [null, null];
   final List<bool> _authLoading = [false, false];
 
-  final TextEditingController _receiptNumberController = TextEditingController();
+  final TextEditingController _receiptNumberController =
+      TextEditingController();
   bool _saleLoading = false;
   Map<String, dynamic>? _saleData;
 
@@ -66,6 +70,7 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
     }
     setState(() => _authLoading[index] = true);
     final result = await LoginApi.verifyEmployee(code: code, pin: pin);
+    if (!mounted) return;
     setState(() => _authLoading[index] = false);
 
     if (result['success'] == true) {
@@ -76,6 +81,21 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('同一の担当者による2名認証はできません'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+      // 返品権限チェック
+      final permissions =
+          (result['permissions'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [];
+      if (!permissions.contains('refund')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('この操作の権限がありません（返品）'),
             backgroundColor: Colors.red,
           ),
         );
@@ -121,6 +141,7 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
       _returnQuantities.clear();
     });
     final result = await RefundApi.getSaleByReceipt(receipt);
+    if (!mounted) return;
     setState(() => _saleLoading = false);
     if (result['success'] == true && result['details'] != null) {
       final sale = result['sale'] as Map<String, dynamic>?;
@@ -167,8 +188,7 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
     return total;
   }
 
-  bool get _hasReturnQuantity =>
-      _returnQuantities.values.any((q) => q > 0);
+  bool get _hasReturnQuantity => _returnQuantities.values.any((q) => q > 0);
 
   Future<void> _submitRefund() async {
     if (!_twoAuthenticated) {
@@ -192,10 +212,7 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
     final details = <Map<String, dynamic>>[];
     for (final entry in _returnQuantities.entries) {
       if (entry.value > 0) {
-        details.add({
-          'saledetail_id': entry.key,
-          'quantity': entry.value,
-        });
+        details.add({'saledetail_id': entry.key, 'quantity': entry.value});
       }
     }
     setState(() => _submitLoading = true);
@@ -204,12 +221,14 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
       employeeIds: _employeeIds.whereType<int>().toList(),
       details: details,
     );
+    if (!mounted) return;
     setState(() => _submitLoading = false);
     if (result['success'] == true) {
       final totalRefund = result['total_refund_amount'] is int
           ? result['total_refund_amount'] as int
           : _totalRefundAmount;
-      final refundReceiptNumber = result['refund_receipt_number']?.toString() ?? '';
+      final refundReceiptNumber =
+          result['refund_receipt_number']?.toString() ?? '';
 
       // 返品レシート用の明細（返品した行だけ）
       final refundDetailsForReceipt = <Map<String, dynamic>>[];
@@ -261,64 +280,18 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            '返品・返金を登録しました。返金合計: ¥$totalRefund',
-          ),
+          content: Text('返品・返金を登録しました。返金合計: ¥$totalRefund'),
           backgroundColor: Colors.green,
         ),
       );
 
-      // 未返品分の明細を組み立て、金額選択画面（PaymentView）で再会計
-      final keptDetails = <Map<String, dynamic>>[];
-      int keptTotal = 0;
-      if (_saleData != null && _saleData!['details'] != null) {
-        for (final d in _saleData!['details'] as List<dynamic>) {
-          final m = d as Map;
-          final id = m['id'] as int?;
-          final qty = _parseInt(m['quantity'], fallback: 0);
-          final returnQty = id != null ? (_returnQuantities[id] ?? 0) : 0;
-          final keepQty = qty - returnQty;
-          if (keepQty <= 0) continue;
-          final unitPrice = _parseInt(m['unit_price'], fallback: 0);
-          final subtotal = unitPrice * keepQty;
-          keptDetails.add({
-            'product_id': m['product_id'],
-            'product_name': m['product_name'] ?? '',
-            'product_code': m['product_code'] ?? '',
-            'quantity': keepQty,
-            'unit_price': unitPrice,
-            'subtotal': subtotal,
-          });
-          keptTotal += subtotal;
-        }
-      }
-
+      // サーバーが返品数量分だけ在庫・売上を調整するため、
+      // 未返品分の再会計は不要（元の会計が残数量分そのまま有効）。
+      // 残数量はサーバー側で管理され、後から追加の返品も可能。
       setState(() {
         _saleData = null;
         _returnQuantities.clear();
       });
-
-      if (keptDetails.isNotEmpty && keptTotal > 0 && mounted) {
-        final saleCompleted = await Navigator.push<bool>(
-          context,
-          MaterialPageRoute(
-            builder: (context) => PaymentView(
-              operatorName: widget.operatorName,
-              operatorId: widget.operatorId,
-              totalAmount: keptTotal,
-              saleDetails: keptDetails,
-            ),
-          ),
-        );
-        if (mounted && saleCompleted == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('再会計が完了しました'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -390,7 +363,10 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('従業員${i + 1}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                      Text(
+                        '従業員${i + 1}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
                       if (_employeeIds[i] != null)
                         Text(
                           '認証済み: ${_employeeNames[i] ?? ''} (ID: ${_employeeIds[i]})',
@@ -423,12 +399,16 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
                             ),
                             const SizedBox(width: 8),
                             ElevatedButton(
-                              onPressed: _authLoading[i] ? null : () => _authenticate(i),
+                              onPressed: _authLoading[i]
+                                  ? null
+                                  : () => _authenticate(i),
                               child: _authLoading[i]
                                   ? const SizedBox(
                                       width: 20,
                                       height: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
                                     )
                                   : const Text('認証'),
                             ),
@@ -466,7 +446,9 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton(
-                  onPressed: _saleLoading || !_twoAuthenticated ? null : _loadSale,
+                  onPressed: _saleLoading || !_twoAuthenticated
+                      ? null
+                      : _loadSale,
                   child: _saleLoading
                       ? const SizedBox(
                           width: 20,
@@ -495,12 +477,19 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
                 final name = m['product_name'] as String? ?? '';
                 final soldQty = (m['quantity'] as num?)?.toInt() ?? 0;
                 final unitPrice = (m['unit_price'] as num?)?.toInt() ?? 0;
+                // 返品可能数量（部分返品済みの場合は残数）。旧サーバーは販売数にフォールバック
+                final refundableQty =
+                    (m['refundable_quantity'] as num?)?.toInt() ?? soldQty;
                 if (id == null) return const SizedBox.shrink();
                 final returnQty = _returnQuantities[id] ?? 0;
                 return Card(
                   child: ListTile(
                     title: Text(name),
-                    subtitle: Text('販売: $soldQty 個  @ ¥$unitPrice'),
+                    subtitle: Text(
+                      refundableQty < soldQty
+                          ? '販売: $soldQty 個 (返品可能: $refundableQty 個)  @ ¥$unitPrice'
+                          : '販売: $soldQty 個  @ ¥$unitPrice',
+                    ),
                     trailing: SizedBox(
                       width: 120,
                       child: Row(
@@ -511,16 +500,25 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
                             onPressed: returnQty <= 0
                                 ? null
                                 : () {
-                                    setState(() => _returnQuantities[id] = returnQty - 1);
+                                    setState(
+                                      () =>
+                                          _returnQuantities[id] = returnQty - 1,
+                                    );
                                   },
                           ),
-                          Text('$returnQty', style: const TextStyle(fontSize: 18)),
+                          Text(
+                            '$returnQty',
+                            style: const TextStyle(fontSize: 18),
+                          ),
                           IconButton(
                             icon: const Icon(Icons.add),
-                            onPressed: returnQty >= soldQty
+                            onPressed: returnQty >= refundableQty
                                 ? null
                                 : () {
-                                    setState(() => _returnQuantities[id] = returnQty + 1);
+                                    setState(
+                                      () =>
+                                          _returnQuantities[id] = returnQty + 1,
+                                    );
                                   },
                           ),
                         ],
@@ -532,7 +530,10 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
               const SizedBox(height: 8),
               Text(
                 '返金合計: ¥$_totalRefundAmount',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -545,11 +546,16 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
                       : const Icon(Icons.check_circle),
                   label: Text(_submitLoading ? '処理中...' : '返品・返金する'),
-                  style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
                 ),
               ),
             ],

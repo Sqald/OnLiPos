@@ -10,8 +10,9 @@ class RefundApi {
     final baseUrl = await _storage.read(key: 'AccessUrl');
     final token = await _storage.read(key: 'LoginToken');
     if (baseUrl == null || token == null) return null;
-    final normalized =
-        baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final normalized = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
     return '$normalized|$token';
   }
 
@@ -24,7 +25,9 @@ class RefundApi {
   }
 
   /// レシート番号で売上を取得（返品対象の会計）
-  static Future<Map<String, dynamic>> getSaleByReceipt(String receiptNumber) async {
+  static Future<Map<String, dynamic>> getSaleByReceipt(
+    String receiptNumber,
+  ) async {
     final urlToken = await _baseUrlAndToken();
     if (urlToken == null) {
       return {'success': false, 'message': '認証情報がありません'};
@@ -32,8 +35,9 @@ class RefundApi {
     final parts = urlToken.split('|');
     final baseUrl = parts[0];
     final token = parts[1];
-    final uri = Uri.parse('$baseUrl/api/v1/refunds/sale_by_receipt')
-        .replace(queryParameters: {'receipt_number': receiptNumber});
+    final uri = Uri.parse(
+      '$baseUrl/api/v1/refunds/sale_by_receipt',
+    ).replace(queryParameters: {'receipt_number': receiptNumber});
 
     try {
       final response = await http.get(
