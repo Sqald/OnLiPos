@@ -15,6 +15,8 @@ class Product {
   final int taxRate; // 消費税率(%) デフォルト10
   final int? categoryId;
   final String? categoryName;
+  // 量り売り（計量）商品。true の場合、price は100gあたりの単価として扱う
+  final bool soldByWeight;
 
   Product({
     required this.id,
@@ -26,6 +28,7 @@ class Product {
     this.taxRate = 10,
     this.categoryId,
     this.categoryName,
+    this.soldByWeight = false,
   }) : listPrice = listPrice ?? price;
 
   bool get hasStorePrice => listPrice != price;
@@ -43,6 +46,7 @@ class Product {
       taxRate: (map['tax_rate'] as int?) ?? 10,
       categoryId: map['category_id'] as int?,
       categoryName: map['category_name'] as String?,
+      soldByWeight: (map['sold_by_weight'] as int?) == 1,
     );
   }
 
@@ -58,6 +62,7 @@ class Product {
       'tax_rate': taxRate,
       'category_id': categoryId,
       'category_name': categoryName,
+      'sold_by_weight': soldByWeight ? 1 : 0,
     };
   }
 }

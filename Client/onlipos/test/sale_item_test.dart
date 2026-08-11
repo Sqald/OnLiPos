@@ -71,6 +71,45 @@ void main() {
     });
   });
 
+  group('ScannedItem 量り売り（計量）商品', () {
+    test('weightGrams が設定されている場合、priceは100gあたり単価として重量から算出', () {
+      // 100gあたり ¥500、重量250g → 500 * 250 / 100 = 1250
+      final item = ScannedItem(
+        product: makeProduct(price: 500, taxRate: 8),
+        weightGrams: 250,
+      );
+      expect(item.subtotal, equals(1250));
+    });
+
+    test('quantity は無視され、weightGrams のみで小計が決まる', () {
+      final item = ScannedItem(
+        product: makeProduct(price: 500),
+        quantity: 5,
+        weightGrams: 100,
+      );
+      expect(item.subtotal, equals(500));
+    });
+
+    test('端数は四捨五入される', () {
+      // 100gあたり ¥333、重量150g → 333 * 1.5 = 499.5 → 500
+      final item = ScannedItem(
+        product: makeProduct(price: 333),
+        weightGrams: 150,
+      );
+      expect(item.subtotal, equals(500));
+    });
+
+    test('toJson/fromJson で weightGrams が保持される', () {
+      final item = ScannedItem(
+        product: makeProduct(price: 500),
+        weightGrams: 320,
+      );
+      final restored = ScannedItem.fromJson(item.toJson());
+      expect(restored.weightGrams, equals(320));
+      expect(restored.subtotal, equals(1600));
+    });
+  });
+
   group('ScannedItem.copy()', () {
     test('discountReason も複製される', () {
       final item = ScannedItem(
@@ -131,6 +170,31 @@ void main() {
       final p = Product.fromMap(map);
       expect(p.listPrice, equals(1000));
       expect(p.hasStorePrice, isFalse);
+    });
+
+    test('sold_by_weight が1の場合 soldByWeight は true', () {
+      final map = {
+        'id': 1,
+        'code': 'P001',
+        'name': '商品',
+        'price': 500,
+        'tax_rate': 8,
+        'sold_by_weight': 1,
+      };
+      final p = Product.fromMap(map);
+      expect(p.soldByWeight, isTrue);
+    });
+
+    test('sold_by_weight が未設定の場合 soldByWeight は false', () {
+      final map = {
+        'id': 1,
+        'code': 'P001',
+        'name': '商品',
+        'price': 1000,
+        'tax_rate': 10,
+      };
+      final p = Product.fromMap(map);
+      expect(p.soldByWeight, isFalse);
     });
   });
 }

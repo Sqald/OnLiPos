@@ -244,6 +244,31 @@
         </table>
       <% end %>
 
+      <%# 客層キー別売上（性別・年代） %>
+      <% if @customer_segment_summary.any? %>
+        <h3>客層キー別売上</h3>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>性別</th>
+              <th>年代</th>
+              <th class="text-right">件数</th>
+              <th class="text-right">売上金額</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @customer_segment_summary.each do |row| %>
+              <tr>
+                <td><%= row[:gender] %></td>
+                <td><%= row[:age_group] %></td>
+                <td class="text-right"><%= row[:count] %> 件</td>
+                <td class="text-right"><%= number_to_currency(row[:amount], unit: "¥") %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% end %>
+
       <% if @daily_summary.empty? && @product_ranking.empty? %>
         <div class="empty-message">
           <p>該当する売上データがありません。</p>

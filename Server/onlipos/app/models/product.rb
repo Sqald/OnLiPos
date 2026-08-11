@@ -20,6 +20,9 @@ class Product < ApplicationRecord
   # 税区分（0: 内税 = 現行既定, 1: 外税, 2: 非課税）
   enum :tax_type, { inclusive: 0, exclusive: 1, tax_free: 2 }, prefix: :tax
 
+  # 量り売り（計量）商品。true の場合、price は「100gあたりの単価」として扱う
+  # （寺岡精工の対面計量POS等に見られる方式）。会計時は重量(g)を入力して金額を算出する。
+
   # status を日本語表示用の文字列に変換する
   def status_i18n
     status == "active" ? "有効" : "廃盤"
@@ -55,6 +58,6 @@ class Product < ApplicationRecord
 
   # CSVで許可する属性のリスト
   def self.updatable_attributes
-    [ "code", "name", "price", "description", "status", "tax_rate" ]
+    [ "code", "name", "price", "description", "status", "tax_rate", "sold_by_weight" ]
   end
 end

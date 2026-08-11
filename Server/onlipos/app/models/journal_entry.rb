@@ -114,6 +114,8 @@ class JournalEntry < ApplicationRecord
         order_discount_value:  sale.order_discount_value,
         order_discount_total:  sale.order_discount_total,
         order_discount_reason: sale.order_discount_reason,
+        customer_gender:    sale.customer_gender,
+        customer_age_group: sale.customer_age_group,
         employee_name:  sale.employee&.name,
         store_name:     sale.store.name,
         pos_name:       sale.pos_token.name,

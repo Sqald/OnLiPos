@@ -57,6 +57,21 @@ class Api::V1::SalesController < Api::V1::BaseController
       emoney:  payments_scope.emoney.sum(:amount)
     }
 
+    # 客層キー（性別・年代）別の売上集計。未選択（NULL）は集計対象から除く
+    customer_segment_breakdown = sales
+      .where.not(customer_gender: nil)
+      .where.not(customer_age_group: nil)
+      .group(:customer_gender, :customer_age_group)
+      .select(Arel.sql("customer_gender, customer_age_group, COUNT(*) AS segment_count, SUM(total_amount) AS segment_amount"))
+      .map do |row|
+        {
+          gender:    row.customer_gender,
+          age_group: row.customer_age_group,
+          count:     row.segment_count.to_i,
+          amount:    row.segment_amount.to_i
+        }
+      end
+
     refunds_scope = Refund.where(store: store, business_date: range)
 
     daily = sales
@@ -96,7 +111,8 @@ class Api::V1::SalesController < Api::V1::BaseController
       void_total:        voided.sum(:total_amount),
       tax_breakdown:     tax_breakdown,
       daily:             daily.map { |d| { date: d.sale_date.to_s, count: d.sale_count.to_i, amount: d.day_amount.to_i } },
-      top_products:      top_products.map { |p| { product_name: p.product_name, quantity: p.total_qty.to_i, amount: p.total_amount.to_i } }
+      top_products:      top_products.map { |p| { product_name: p.product_name, quantity: p.total_qty.to_i, amount: p.total_amount.to_i } },
+      customer_segment_breakdown: customer_segment_breakdown
     }
   rescue ArgumentError
     render json: { success: false, message: "日付の形式が不正です" }, status: :bad_request
@@ -334,7 +350,8 @@ class Api::V1::SalesController < Api::V1::BaseController
   def sale_params
     # receipt_number / sold_at はオフライン同期時にクライアントから送られてくる場合がある
     params.require(:sale).permit(:total_amount, :payment_method, :receipt_number, :subtotal_ex_tax, :tax_amount, :sold_at,
-                                 :order_discount_type, :order_discount_value, :order_discount_reason)
+                                 :order_discount_type, :order_discount_value, :order_discount_reason,
+                                 :customer_gender, :customer_age_group)
   end
 
   # 現在開いているレジセッション（なければ nil = レガシー動作）
@@ -405,7 +422,9 @@ class Api::V1::SalesController < Api::V1::BaseController
         payment_method: main_method,
         receipt_number: sale_params[:receipt_number],
         subtotal_ex_tax: sale_params[:subtotal_ex_tax].to_i,
-        tax_amount: sale_params[:tax_amount].to_i
+        tax_amount: sale_params[:tax_amount].to_i,
+        customer_gender: sale_params[:customer_gender].presence,
+        customer_age_group: sale_params[:customer_age_group].presence
       )
     else
       Sale.new(sale_params)
@@ -421,7 +440,8 @@ class Api::V1::SalesController < Api::V1::BaseController
     details.each do |detail|
       attrs = detail.respond_to?(:permit) ?
         detail.permit(:product_id, :product_name, :product_code, :quantity, :unit_price, :subtotal,
-                      :tax_rate, :tax_amount, :tax_type, :bundle_code, :original_unit_price, :discount_reason) :
+                      :tax_rate, :tax_amount, :tax_type, :bundle_code, :original_unit_price, :discount_reason,
+                      :weight_grams) :
         detail
 
       # セット商品コードが指定されている場合はセット展開
@@ -444,6 +464,12 @@ class Api::V1::SalesController < Api::V1::BaseController
       unit_price = attrs[:unit_price].to_i
 
       raise ArgumentError, "明細の単価が負の値です: #{product.name}" if unit_price < 0
+
+      # 量り売り（計量）商品: price は100gあたりの単価。重量(g)の入力が必須
+      weight_grams = attrs[:weight_grams].presence&.to_i
+      if product.sold_by_weight
+        raise ArgumentError, "量り売り商品には重量(g)の指定が必要です: #{product.name}" if weight_grams.blank? || weight_grams <= 0
+      end
 
       quantity = attrs[:quantity].to_i
       subtotal = attrs[:subtotal].present? ? attrs[:subtotal].to_i : unit_price * quantity
@@ -469,7 +495,8 @@ class Api::V1::SalesController < Api::V1::BaseController
         tax_amount: tax_amount,
         original_unit_price: original_unit_price,
         discount_amount: discount_amount,
-        discount_reason: discount_reason
+        discount_reason: discount_reason,
+        weight_grams: weight_grams
       )
 
       deduct_stock(@sale.store, product, sale_detail.quantity, operator_employee)

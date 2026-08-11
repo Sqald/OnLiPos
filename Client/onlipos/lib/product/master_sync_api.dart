@@ -84,6 +84,7 @@ class ProductSyncService {
               'updated_at': product['updated_at'],
               'category_id': product['category_id'],
               'category_name': product['category_name'],
+              'sold_by_weight': (product['sold_by_weight'] == true) ? 1 : 0,
             }, conflictAlgorithm: ConflictAlgorithm.replace);
           }
           await batch.commit(noResult: true);

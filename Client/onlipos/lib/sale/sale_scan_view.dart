@@ -143,6 +143,10 @@ class _SaleScanViewState extends State<SaleScanView> {
 
     final product = await _productRepository.findProductByCode(barcode);
     if (product != null) {
+      if (product.soldByWeight) {
+        await _addWeightedProduct(product);
+        return;
+      }
       setState(() {
         // overridePrice が設定されていない行のみ同一商品としてマージする
         final existingIdx = _scannedItems.indexWhere(
@@ -245,6 +249,10 @@ class _SaleScanViewState extends State<SaleScanView> {
         _showNotFound(barcode);
         return;
       }
+      if (product.soldByWeight) {
+        await _addWeightedProduct(product);
+        return;
+      }
       setState(() {
         final existingIdx = _scannedItems.indexWhere(
           (item) =>
@@ -277,6 +285,31 @@ class _SaleScanViewState extends State<SaleScanView> {
     _totalItems = _scannedItems.fold(0, (sum, item) => sum + item.quantity);
     _totalAmount = _scannedItems.fold(0, (sum, item) => sum + item.subtotal);
     _totalTax = _scannedItems.fold(0, (sum, item) => sum + item.taxAmount);
+  }
+
+  // ---- 量り売り（計量）商品 ------------------------------------------
+
+  /// 量り売り商品は数量ではなく重量(g)から金額を算出するため、
+  /// 個数の自動マージは行わず、重量入力ダイアログを経て常に新しい行を追加する。
+  Future<void> _addWeightedProduct(Product product) async {
+    if (!mounted) return;
+    final grams = await showDialog<int>(
+      context: context,
+      builder: (ctx) => _WeightInputDialog(product: product),
+    );
+    if (grams == null || !mounted) {
+      _focusNode.requestFocus();
+      return;
+    }
+    setState(() {
+      _scannedItems.insert(
+        0,
+        ScannedItem(product: product, weightGrams: grams),
+      );
+      _calculateTotals();
+    });
+    _triggerTableSave();
+    _focusNode.requestFocus();
   }
 
   // 明細行を長押し/タップした際に価格変更ダイアログを開き、上書き価格を反映する
@@ -367,6 +400,7 @@ class _SaleScanViewState extends State<SaleScanView> {
         if (hasDiscount) 'original_unit_price': item.product.price,
         if (hasDiscount && item.discountReason != null)
           'discount_reason': item.discountReason,
+        if (item.weightGrams != null) 'weight_grams': item.weightGrams,
       };
     }).toList();
 
@@ -1105,6 +1139,89 @@ class _HoldRecallDialogState extends State<_HoldRecallDialog> {
           child: const Text('キャンセル'),
         ),
         ElevatedButton(onPressed: _confirm, child: const Text('呼び出し')),
+      ],
+    );
+  }
+}
+
+/// 量り売り（計量）商品の重量(g)を入力するダイアログ。
+/// 実機のはかりとは連携せず、レジ担当が読み取った重量を手入力する運用を想定する。
+class _WeightInputDialog extends StatefulWidget {
+  final Product product;
+
+  const _WeightInputDialog({required this.product});
+
+  @override
+  State<_WeightInputDialog> createState() => _WeightInputDialogState();
+}
+
+class _WeightInputDialogState extends State<_WeightInputDialog> {
+  final TextEditingController _controller = TextEditingController();
+  final FocusNode _fieldFocus = FocusNode();
+
+  int get _grams => int.tryParse(_controller.text) ?? 0;
+  int get _amount => (widget.product.price * _grams / 100).round();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _fieldFocus.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _fieldFocus.dispose();
+    super.dispose();
+  }
+
+  void _confirm() {
+    if (_grams <= 0) return;
+    Navigator.of(context).pop(_grams);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.product.name),
+      content: SizedBox(
+        width: 320,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('100gあたり ¥${widget.product.price}（量り売り）'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _controller,
+              focusNode: _fieldFocus,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: '重量 (g)',
+                border: OutlineInputBorder(),
+              ),
+              style: const TextStyle(fontSize: 24),
+              onChanged: (_) => setState(() {}),
+              onSubmitted: (_) => _confirm(),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '金額: ¥$_amount',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('キャンセル'),
+        ),
+        ElevatedButton(onPressed: _confirm, child: const Text('確定')),
       ],
     );
   }

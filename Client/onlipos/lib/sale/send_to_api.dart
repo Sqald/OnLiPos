@@ -21,6 +21,8 @@ class SentToApi {
     required int employeeId,
     required List<Map<String, dynamic>> details,
     required List<Map<String, dynamic>> payments,
+    String? customerGender,
+    String? customerAgeGroup,
   }) async {
     String? baseUrl = await _storage.read(key: 'AccessUrl');
     String? token = await _storage.read(key: 'LoginToken');
@@ -44,6 +46,9 @@ class SentToApi {
         'receipt_number': receiptNumber,
         // 販売時刻。オフライン後送でも実際の会計時刻がサーバーに記録される
         'sold_at': DateTime.now().toIso8601String(),
+        // 客層キー（性別・年代）。未選択の場合は送信しない
+        if (customerGender != null) 'customer_gender': customerGender,
+        if (customerAgeGroup != null) 'customer_age_group': customerAgeGroup,
       },
       'employee_id': employeeId,
       'details': details,

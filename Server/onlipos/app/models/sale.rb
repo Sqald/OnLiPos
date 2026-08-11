@@ -24,6 +24,17 @@ class Sale < ApplicationRecord
   # 小計割引の種別（0: 金額, 1: パーセント）。NULL は割引なし
   enum :order_discount_type, { amount: 0, percent: 1 }, prefix: :order_discount
 
+  # 客層キー（東芝テック製レジ等に見られる、性別・年代による匿名の客層データ収集）。NULLは未選択（任意入力）
+  enum :customer_gender, { male: 0, female: 1, other: 2 }, prefix: true
+  enum :customer_age_group, {
+    under19: 0,
+    twenties: 1,
+    thirties: 2,
+    forties: 3,
+    fifties: 4,
+    sixty_plus: 5
+  }, prefix: true
+
   validates :voided_at, :void_reason, presence: true, if: :voided?
 
   validates :total_amount, presence: true, numericality: { greater_than_or_equal_to: 0 }

@@ -78,4 +78,22 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_select "td", text: @employee.name
     assert_match(/3,300/, response.body)
   end
+
+  test "客層キー別売上が表示される" do
+    sale_segment = Sale.create!(
+      user: @user, store: @store, employee: @employee,
+      total_amount: 500, subtotal_ex_tax: 455, tax_amount: 45,
+      payment_method: :cash, customer_gender: :male, customer_age_group: :forties
+    )
+    sale_segment.sale_payments.create!(method: 0, amount: 500)
+
+    get dashboard_reports_path, params: {
+      from: Date.current.to_s,
+      to: Date.current.to_s
+    }
+    assert_response :success
+    assert_select "h3", text: "客層キー別売上"
+    assert_select "td", text: "男性"
+    assert_select "td", text: "40代"
+  end
 end

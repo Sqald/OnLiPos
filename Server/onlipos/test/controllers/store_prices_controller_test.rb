@@ -252,4 +252,19 @@ class StorePricesControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal prod_b["list_price"], prod_b["price"]
   end
+
+  test "products/sync レスポンスに sold_by_weight が含まれる" do
+    @product.update!(sold_by_weight: true)
+
+    post "/api/v1/products/sync",
+         headers: { "Authorization" => "Bearer #{@pos.token}" },
+         as: :json
+
+    data   = JSON.parse(response.body)
+    prod_a = data["products"].find { |p| p["id"] == @product.id }
+    prod_b = data["products"].find { |p| p["id"] == @product2.id }
+
+    assert_equal true,  prod_a["sold_by_weight"]
+    assert_equal false, prod_b["sold_by_weight"]
+  end
 end

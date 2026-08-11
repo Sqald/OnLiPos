@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_04_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_06_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -223,6 +223,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_04_000002) do
     t.string "name", null: false
     t.integer "price", default: 0, null: false
     t.bigint "product_category_id"
+    t.boolean "sold_by_weight", default: false, null: false
     t.integer "status", default: 0, null: false
     t.integer "tax_rate", default: 10, null: false
     t.integer "tax_type", default: 0, null: false
@@ -383,6 +384,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_04_000002) do
     t.integer "tax_type", default: 0, null: false
     t.integer "unit_price", null: false
     t.datetime "updated_at", null: false
+    t.integer "weight_grams"
     t.index ["product_id"], name: "index_saledetails_on_product_id"
     t.index ["sale_id"], name: "index_saledetails_on_sale_id"
   end
@@ -390,6 +392,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_04_000002) do
   create_table "sales", force: :cascade do |t|
     t.date "business_date"
     t.datetime "created_at", null: false
+    t.integer "customer_age_group"
+    t.integer "customer_gender"
     t.bigint "employee_id"
     t.string "order_discount_reason"
     t.integer "order_discount_total", default: 0, null: false

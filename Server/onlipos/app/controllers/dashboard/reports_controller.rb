@@ -18,6 +18,7 @@ class Dashboard::ReportsController < Dashboard::BaseController
       @payment_summary = []
       @employee_summary = []
       @tax_summary = []
+      @customer_segment_summary = []
       @total_sales_amount = 0
       @total_sales_count = 0
       @total_discount = 0
@@ -117,6 +118,39 @@ class Dashboard::ReportsController < Dashboard::BaseController
       )
       .map { |name, code, cnt, amount| { name: name, code: code, count: cnt, amount: amount } }
 
+    # 客層キー（性別・年代）別集計。未選択（NULL）は除外
+    # pluckがenumを整数/文字列どちらで返しても解決できるよう両方のキーを持たせる（payment_method_labelsと同様の方針）
+    gender_labels = {
+      0 => "男性", 1 => "女性", 2 => "その他",
+      "male" => "男性", "female" => "女性", "other" => "その他"
+    }
+    age_group_labels = {
+      0 => "〜19歳", 1 => "20代", 2 => "30代", 3 => "40代", 4 => "50代", 5 => "60歳〜",
+      "under19" => "〜19歳", "twenties" => "20代", "thirties" => "30代",
+      "forties" => "40代", "fifties" => "50代", "sixty_plus" => "60歳〜"
+    }
+    @customer_segment_summary = scope
+      .where.not(customer_gender: nil)
+      .where.not(customer_age_group: nil)
+      .group(:customer_gender, :customer_age_group)
+      .order(:customer_gender, :customer_age_group)
+      .pluck(
+        Arel.sql("customer_gender"),
+        Arel.sql("customer_age_group"),
+        Arel.sql("COUNT(*) AS cnt"),
+        Arel.sql("SUM(total_amount) AS amount")
+      )
+      .map do |gender, age_group, cnt, amount|
+        # pluck は customer_gender/customer_age_group が enum のため、
+        # Rails の型キャストにより既に "male" 等の enum 文字列で返る
+        {
+          gender: gender_labels[gender] || gender,
+          age_group: age_group_labels[age_group] || age_group,
+          count: cnt,
+          amount: amount
+        }
+      end
+
     respond_to do |format|
       format.html
       format.csv do
@@ -201,6 +235,11 @@ class Dashboard::ReportsController < Dashboard::BaseController
       csv << [ "--- 商品別売上ランキング ---" ]
       csv << [ "順位", "商品名", "販売数", "売上金額" ]
       @product_ranking.each_with_index { |r, i| csv << [ i + 1, r[:name], r[:quantity], r[:amount] ] }
+
+      csv << []
+      csv << [ "--- 客層キー別売上 ---" ]
+      csv << [ "性別", "年代", "件数", "売上金額" ]
+      @customer_segment_summary.each { |r| csv << [ r[:gender], r[:age_group], r[:count], r[:amount] ] }
     end
     "\xEF\xBB\xBF#{csv}"
   end

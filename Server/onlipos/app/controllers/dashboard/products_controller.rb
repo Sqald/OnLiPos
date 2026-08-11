@@ -85,6 +85,6 @@ class Dashboard::ProductsController < Dashboard::BaseController
 
   # 商品フォームのStrong Parameters
   def product_params
-    params.require(:product).permit(:code, :name, :price, :description, :status, :tax_rate, :product_category_id)
+    params.require(:product).permit(:code, :name, :price, :description, :status, :tax_rate, :product_category_id, :sold_by_weight)
   end
 end

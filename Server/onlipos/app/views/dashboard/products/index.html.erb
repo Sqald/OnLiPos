@@ -16,9 +16,10 @@
       <div class="card-body">
         <h3 class="card-title">CSVで一括登録・更新</h3>
         <p class="text-muted">
-          ヘッダー: <strong>code, name, price, description, status, tax_rate</strong> を含むCSVファイルを選択してください。<br>
+          ヘッダー: <strong>code, name, price, description, status, tax_rate, sold_by_weight</strong> を含むCSVファイルを選択してください。<br>
           statusは <strong>active</strong> または <strong>discontinued</strong>、
           tax_rateは整数（例: 10）を指定します。省略時は10%が適用されます。<br>
+          sold_by_weightは <strong>true</strong> にすると量り売り（計量）商品として登録され、priceは100gあたりの単価として扱われます。省略時はfalseです。<br>
           既存コードの商品は上書き更新されます。
         </p>
         <%= form_with(url: import_dashboard_products_path, multipart: true, local: true, class: "d-flex align-items-end") do |form| %>
@@ -81,7 +82,12 @@
             <td><%= product.code %></td>
             <td><%= product.name %></td>
             <td><%= product.product_category&.name || "-" %></td>
-            <td><%= number_to_currency(product.price) %></td>
+            <td>
+              <%= number_to_currency(product.price) %>
+              <% if product.sold_by_weight? %>
+                <span class="status-badge status-inactive">量り売り(100gあたり)</span>
+              <% end %>
+            </td>
             <td><%= product.tax_rate %>%</td>
             <td>
               <span class="status-badge <%= product.active? ? 'status-active' : 'status-inactive' %>">

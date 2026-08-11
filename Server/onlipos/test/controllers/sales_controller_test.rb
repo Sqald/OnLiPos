@@ -149,6 +149,96 @@ class SalesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 220, detail.discount_amount
   end
 
+  # ---- 客層キー ----
+
+  test "customer_gender / customer_age_group を送ると sale に保存される" do
+    post "/api/v1/sales",
+         params: {
+           sale: { total_amount: 1100, subtotal_ex_tax: 1000, tax_amount: 100,
+                   customer_gender: "female", customer_age_group: "thirties" },
+           employee_id: @employee.id,
+           details: [
+             { product_id: @product.id, product_name: @product.name,
+               quantity: 1, unit_price: 1100, subtotal: 1100, tax_rate: 10, tax_amount: 100 }
+           ],
+           payments: [ { method: 0, amount: 1100 } ]
+         },
+         headers: { "Authorization" => "Bearer #{@pos_token.token}" },
+         as: :json
+
+    assert_response :created
+    sale = Sale.find(JSON.parse(response.body)["sale_id"])
+    assert_equal "female", sale.customer_gender
+    assert_equal "thirties", sale.customer_age_group
+  end
+
+  test "customer_gender / customer_age_group を送らなくても売上を作成できる" do
+    post "/api/v1/sales",
+         params: {
+           sale: { total_amount: 1100, subtotal_ex_tax: 1000, tax_amount: 100 },
+           employee_id: @employee.id,
+           details: [
+             { product_id: @product.id, product_name: @product.name,
+               quantity: 1, unit_price: 1100, subtotal: 1100, tax_rate: 10, tax_amount: 100 }
+           ],
+           payments: [ { method: 0, amount: 1100 } ]
+         },
+         headers: { "Authorization" => "Bearer #{@pos_token.token}" },
+         as: :json
+
+    assert_response :created
+    sale = Sale.find(JSON.parse(response.body)["sale_id"])
+    assert_nil sale.customer_gender
+    assert_nil sale.customer_age_group
+  end
+
+  # ---- 量り売り（計量）商品 ----
+
+  test "量り売り商品は weight_grams が saledetail に保存される" do
+    scale_product = @user.products.create!(code: "P002", name: "量り売り商品", price: 500, tax_rate: 8, sold_by_weight: true)
+
+    post "/api/v1/sales",
+         params: {
+           sale: { total_amount: 250, subtotal_ex_tax: 232, tax_amount: 18 },
+           employee_id: @employee.id,
+           details: [
+             { product_id: scale_product.id, product_name: scale_product.name,
+               quantity: 1, unit_price: 500, subtotal: 250,
+               tax_rate: 8, tax_amount: 18, weight_grams: 500 }
+           ],
+           payments: [ { method: 0, amount: 250 } ]
+         },
+         headers: { "Authorization" => "Bearer #{@pos_token.token}" },
+         as: :json
+
+    assert_response :created
+    detail = Sale.find(JSON.parse(response.body)["sale_id"]).saledetails.first
+    assert_equal 500, detail.weight_grams
+    assert_equal 250, detail.subtotal
+  end
+
+  test "量り売り商品で weight_grams を送らない場合は 422 エラー" do
+    scale_product = @user.products.create!(code: "P003", name: "量り売り商品2", price: 500, tax_rate: 8, sold_by_weight: true)
+
+    post "/api/v1/sales",
+         params: {
+           sale: { total_amount: 250, subtotal_ex_tax: 232, tax_amount: 18 },
+           employee_id: @employee.id,
+           details: [
+             { product_id: scale_product.id, product_name: scale_product.name,
+               quantity: 1, unit_price: 500, subtotal: 250,
+               tax_rate: 8, tax_amount: 18 }
+           ],
+           payments: [ { method: 0, amount: 250 } ]
+         },
+         headers: { "Authorization" => "Bearer #{@pos_token.token}" },
+         as: :json
+
+    assert_response :unprocessable_entity
+    data = JSON.parse(response.body)
+    assert_not data["success"]
+  end
+
   test "unit_price が負の場合は 422 エラー" do
     post "/api/v1/sales",
          params: {

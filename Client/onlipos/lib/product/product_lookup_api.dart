@@ -45,6 +45,7 @@ class ProductLookupApi {
       taxRate: (p['tax_rate'] as int?) ?? 10,
       categoryId: p['category_id'] as int?,
       categoryName: p['category_name'] as String?,
+      soldByWeight: p['sold_by_weight'] as bool? ?? false,
     );
   }
 }

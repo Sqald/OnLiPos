@@ -130,6 +130,27 @@ class SalesSummaryControllerTest < ActionDispatch::IntegrationTest
     assert first_day.key?("amount")
   end
 
+  test "customer_segment_breakdown が客層キー別に集計される" do
+    Sale.create!(
+      user: @user, store: @store, pos_token: @pos,
+      total_amount: 500, payment_method: :cash,
+      subtotal_ex_tax: 455, tax_amount: 45,
+      customer_gender: :female, customer_age_group: :twenties
+    )
+
+    get "/api/v1/sales/summary",
+        params:  { employee_id: @viewer.id, from: today_str, to: today_str },
+        headers: auth_header
+
+    data = JSON.parse(response.body)
+    breakdown = data["customer_segment_breakdown"]
+    assert_kind_of Array, breakdown
+    row = breakdown.find { |r| r["gender"] == "female" && r["age_group"] == "twenties" }
+    assert row, "客層キー別集計に female/twenties が含まれること"
+    assert_equal 1,   row["count"]
+    assert_equal 500, row["amount"]
+  end
+
   test "refund_count と refund_total が返る" do
     get "/api/v1/sales/summary",
         params:  { employee_id: @viewer.id, from: today_str, to: today_str },

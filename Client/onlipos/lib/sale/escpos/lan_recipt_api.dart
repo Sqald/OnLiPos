@@ -151,10 +151,16 @@ class ReceiptPrinter {
             : (item['subtotal'] as num).toInt();
         final originalPrice = item['original_unit_price'];
         final discountReason = item['discount_reason']?.toString();
+        final weightGrams = item['weight_grams'];
 
         final lineTitle = code.isNotEmpty ? '$code  $name' : name;
         await addLine(lineTitle, align: 0, bold: true);
-        if (originalPrice != null) {
+        if (weightGrams != null) {
+          final grams = weightGrams is int
+              ? weightGrams
+              : (weightGrams as num).toInt();
+          await addLine("  ${grams}g (100gあたり¥$price)  = $sub", align: 2);
+        } else if (originalPrice != null) {
           final origInt = originalPrice is int
               ? originalPrice
               : (originalPrice as num).toInt();

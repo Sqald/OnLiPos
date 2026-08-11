@@ -15,6 +15,9 @@ class ScannedItem {
   int? overridePrice;
   // 値引き理由（手動値引き時のみ）
   String? discountReason;
+  // 量り売り（計量）商品の重量(g)。product.soldByWeight の商品のみ設定される。
+  // 設定時は price を100gあたりの単価として重量から金額を算出する
+  int? weightGrams;
 
   ScannedItem({
     required this.product,
@@ -23,6 +26,7 @@ class ScannedItem {
     this.quantity = 1,
     this.overridePrice,
     this.discountReason,
+    this.weightGrams,
   });
 
   int get price => overridePrice ?? product.price;
@@ -35,10 +39,16 @@ class ScannedItem {
     quantity: quantity,
     overridePrice: overridePrice,
     discountReason: discountReason,
+    weightGrams: weightGrams,
   );
 
-  // 小計（単価 × 数量）
-  int get subtotal => price * quantity;
+  // 小計。量り売り商品は重量(g)と100gあたり単価から算出する
+  int get subtotal {
+    if (weightGrams != null) {
+      return (price * weightGrams! / 100).round();
+    }
+    return price * quantity;
+  }
 
   // 消費税額（税込価格から逆算）
   int get taxAmount {
@@ -54,6 +64,7 @@ class ScannedItem {
     'quantity': quantity,
     'override_price': overridePrice,
     'discount_reason': discountReason,
+    'weight_grams': weightGrams,
   };
 
   factory ScannedItem.fromJson(Map<String, dynamic> json) {
@@ -64,6 +75,7 @@ class ScannedItem {
       quantity: (json['quantity'] as num).toInt(),
       overridePrice: json['override_price'] as int?,
       discountReason: json['discount_reason'] as String?,
+      weightGrams: (json['weight_grams'] as num?)?.toInt(),
     );
   }
 }

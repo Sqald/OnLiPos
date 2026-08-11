@@ -28,6 +28,13 @@
   </div>
 
   <div class="field">
+    <label>
+      <%= f.check_box :sold_by_weight %>
+      量り売り（計量）商品にする（基本価格は100gあたりの単価として扱われます）
+    </label>
+  </div>
+
+  <div class="field">
     <%= f.label :description, "商品説明" %>
     <%= f.text_area :description, rows: 4, class: "form-select", style: "height: auto;" %>
   </div>

@@ -52,10 +52,37 @@ class PaymentEntry {
   PaymentEntry(this.method, this.amount);
 }
 
+/// 客層キー: 東芝テック製レジ等の業務用POSに見られる、性別・年代による
+/// 匿名の客層データ収集機能。会計担当が任意で選択し、個人特定はしない。
+enum CustomerGenderKey {
+  male('male', '男性'),
+  female('female', '女性'),
+  other('other', 'その他');
+
+  final String value;
+  final String label;
+  const CustomerGenderKey(this.value, this.label);
+}
+
+enum CustomerAgeGroupKey {
+  under19('under19', '〜19歳'),
+  twenties('twenties', '20代'),
+  thirties('thirties', '30代'),
+  forties('forties', '40代'),
+  fifties('fifties', '50代'),
+  sixtyPlus('sixty_plus', '60歳〜');
+
+  final String value;
+  final String label;
+  const CustomerAgeGroupKey(this.value, this.label);
+}
+
 class _PaymentViewState extends State<PaymentView> {
   final List<PaymentEntry> _payments = [];
   final SentToApi _api = SentToApi();
   bool _isProcessing = false;
+  CustomerGenderKey? _customerGender;
+  CustomerAgeGroupKey? _customerAgeGroup;
 
   int get _paidAmount => _payments.fold(0, (sum, item) => sum + item.amount);
   int get _remainingAmount => widget.totalAmount - _paidAmount;
@@ -125,6 +152,8 @@ class _PaymentViewState extends State<PaymentView> {
         payments: _payments
             .map((p) => {'method': p.method.value, 'amount': p.amount})
             .toList(),
+        customerGender: _customerGender?.value,
+        customerAgeGroup: _customerAgeGroup?.value,
       );
 
       // レシート印刷処理
@@ -307,6 +336,7 @@ class _PaymentViewState extends State<PaymentView> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _buildCustomerSegmentSelector(),
               const SizedBox(height: 24),
               const Text(
                 '支払い方法を選択',
@@ -379,6 +409,54 @@ class _PaymentViewState extends State<PaymentView> {
       );
     }
     return content;
+  }
+
+  /// 客層キー選択UI（任意）。性別・年代ともタップで選択/解除でき、
+  /// 選択しなくても会計は確定できる。
+  Widget _buildCustomerSegmentSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          '客層キー（任意）',
+          style: TextStyle(fontSize: 14, color: Colors.grey),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: CustomerGenderKey.values.map((gender) {
+            final selected = _customerGender == gender;
+            return ChoiceChip(
+              label: Text(gender.label),
+              selected: selected,
+              onSelected: (_) {
+                setState(() {
+                  _customerGender = selected ? null : gender;
+                });
+              },
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: CustomerAgeGroupKey.values.map((ageGroup) {
+            final selected = _customerAgeGroup == ageGroup;
+            return ChoiceChip(
+              label: Text(ageGroup.label),
+              selected: selected,
+              onSelected: (_) {
+                setState(() {
+                  _customerAgeGroup = selected ? null : ageGroup;
+                });
+              },
+            );
+          }).toList(),
+        ),
+      ],
+    );
   }
 
   // 「ラベル: 金額」形式の1行を組み立てる共通ウィジェット

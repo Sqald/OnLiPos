@@ -24,6 +24,7 @@ class Api::V1::ProductsController < Api::V1::BaseController
         price: price,
         list_price: product.price,
         tax_rate: product.tax_rate,
+        sold_by_weight: product.sold_by_weight,
         category_id: product.product_category_id,
         category_name: product.product_category&.name
       }
@@ -81,6 +82,7 @@ class Api::V1::ProductsController < Api::V1::BaseController
         list_price: product.price,
         tax_rate: product.tax_rate,
         tax_type: product.tax_type_before_type_cast,
+        sold_by_weight: product.sold_by_weight,
         updated_at: product.updated_at,
         category_id: product.product_category_id,
         category_name: product.product_category&.name
