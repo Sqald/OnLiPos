@@ -1,5 +1,7 @@
 require "csv"
 
+# 商品マスタ。User（企業）に属し、店舗ごとの在庫（StoreStock）・価格（Price）を持つ。
+# CSVによる一括インポート/エクスポートにも対応する。
 class Product < ApplicationRecord
   belongs_to :user
   belongs_to :product_category, optional: true
@@ -18,6 +20,7 @@ class Product < ApplicationRecord
   # 税区分（0: 内税 = 現行既定, 1: 外税, 2: 非課税）
   enum :tax_type, { inclusive: 0, exclusive: 1, tax_free: 2 }, prefix: :tax
 
+  # status を日本語表示用の文字列に変換する
   def status_i18n
     status == "active" ? "有効" : "廃盤"
   end

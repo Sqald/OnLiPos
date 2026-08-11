@@ -1,3 +1,7 @@
+// バーコードスキャン方式の売上登録画面（会計のメイン画面）。
+// ハードウェアバーコードスキャナからのキー入力をバッファリングして商品を検索・
+// カートに追加し、店舗モード（標準/飲食店/小売店）ごとにテーブル注文・保留・
+// クライアント→ホスト転送といった機能を切り替える。
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -132,6 +136,8 @@ class _SaleScanViewState extends State<SaleScanView> {
 
   // ---- バーコードスキャン ------------------------------------------
 
+  // バーコードから商品またはセット商品を検索し、カートに追加/数量加算する。
+  // ローカルに見つからない場合はサーバー問い合わせを提案する。
   Future<void> _onBarcodeScanned(String barcode) async {
     if (barcode.isEmpty) return;
 
@@ -266,12 +272,14 @@ class _SaleScanViewState extends State<SaleScanView> {
     _focusNode.requestFocus();
   }
 
+  // カート内の合計点数・合計金額・合計消費税を再計算する
   void _calculateTotals() {
     _totalItems = _scannedItems.fold(0, (sum, item) => sum + item.quantity);
     _totalAmount = _scannedItems.fold(0, (sum, item) => sum + item.subtotal);
     _totalTax = _scannedItems.fold(0, (sum, item) => sum + item.taxAmount);
   }
 
+  // 明細行を長押し/タップした際に価格変更ダイアログを開き、上書き価格を反映する
   Future<void> _editItemPrice(int index) async {
     final item = _scannedItems[index];
     final result = await showDialog<({int price, String? reason})>(
@@ -334,6 +342,7 @@ class _SaleScanViewState extends State<SaleScanView> {
     );
   }
 
+  // カート内容を明細に変換し、決済画面へ遷移する。会計確定後はカート/テーブル注文をクリアする
   Future<void> _subtotal() async {
     if (_scannedItems.isEmpty) return;
 
@@ -399,6 +408,7 @@ class _SaleScanViewState extends State<SaleScanView> {
 
   // ---- 小売店モード：保留 ----------------------------------------
 
+  // カートが空なら保留呼び出しダイアログ、商品があれば現在のカートを保留にする
   void _holdOrRecall() {
     if (_scannedItems.isEmpty) {
       _showHoldRecallDialog();
@@ -407,6 +417,7 @@ class _SaleScanViewState extends State<SaleScanView> {
     }
   }
 
+  // 現在のカートをサーバー（失敗時はローカル）に保留として保存し、保留票を印刷する
   Future<void> _holdCurrentOrder() async {
     final details = _scannedItems.map((item) {
       return {

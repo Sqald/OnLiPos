@@ -1,3 +1,7 @@
+// PWA用 Service Worker。
+// 現状は未使用のサンプルコード（コメントアウト）のみで、実際の処理は行っていない。
+// Web Push通知を実装する場合は、以下のコメントを解除して利用する。
+//
 // Add a service worker for processing Web Push notifications:
 //
 // self.addEventListener("push", async (event) => {

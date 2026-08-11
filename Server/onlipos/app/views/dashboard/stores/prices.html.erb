@@ -1,3 +1,8 @@
+<%#
+  ダッシュボード: 店舗別価格設定画面
+  商品ごとに、この店舗だけで使う価格（基本価格の上書き）を設定する。
+  空欄のままなら商品の基本価格がそのまま適用される。
+%>
 <div class="dashboard-container">
   <%= render 'dashboard/shared/menu' %>
 
@@ -11,6 +16,7 @@
       空欄の場合は商品の基本価格が使われます。基本価格と同じ値を入力した場合も基本価格扱いになります。
     </p>
 
+    <%# 商品一覧 + 店舗別価格の入力欄をまとめて送信するフォーム %>
     <%= form_with url: update_prices_dashboard_store_path(@store), method: :patch, local: true do |f| %>
       <table class="data-table">
         <thead>
@@ -22,6 +28,7 @@
           </tr>
         </thead>
         <tbody>
+          <%# 商品ごとに、既存の価格上書き設定（@prices_by_product_id）があれば初期値として表示 %>
           <% @products.each do |product| %>
             <% override = @prices_by_product_id[product.id] %>
             <tr>

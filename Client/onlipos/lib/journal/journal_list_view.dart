@@ -1,3 +1,7 @@
+/// ジャーナル一覧画面。「ジャーナル閲覧」権限を持つ担当者コード＋パスワードで
+/// 認証したうえで、日付・端末・種別でフィルタしたジャーナル一覧を表示する。
+library;
+
 import 'package:flutter/material.dart';
 import 'package:onlipos/journal/journal_api.dart';
 import 'package:onlipos/journal/journal_detail_view.dart';
@@ -52,6 +56,7 @@ class _JournalListViewState extends State<JournalListView> {
     super.dispose();
   }
 
+  // 現在使用中のPOS端末情報をSecureStorageから取得する
   Future<void> _loadPosInfo() async {
     final pos = await JournalApi.currentPos();
     if (mounted) {
@@ -62,6 +67,7 @@ class _JournalListViewState extends State<JournalListView> {
     }
   }
 
+  // 担当者コード・パスワードで認証し、ジャーナル閲覧権限を確認する
   Future<void> _authenticate() async {
     final code = _codeCtrl.text.trim();
     final pin = _pinCtrl.text.trim();
@@ -99,6 +105,7 @@ class _JournalListViewState extends State<JournalListView> {
   String _dateStr(DateTime dt) =>
       '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
 
+  // 選択中の日付・端末・種別条件でジャーナル一覧を取得する
   Future<void> _loadEntries() async {
     final eid = _employeeId;
     if (eid == null) return;
@@ -128,6 +135,7 @@ class _JournalListViewState extends State<JournalListView> {
     }
   }
 
+  // 日付選択ダイアログを表示し、選択された日付で再検索する
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -157,6 +165,7 @@ class _JournalListViewState extends State<JournalListView> {
 
   // ── 認証画面 ──────────────────────────────────────────────────────────────
 
+  // 担当者コード・パスワード入力フォームを表示する
   Widget _buildAuth() {
     return Center(
       child: ConstrainedBox(
@@ -217,6 +226,7 @@ class _JournalListViewState extends State<JournalListView> {
 
   // ── メイン画面 ────────────────────────────────────────────────────────────
 
+  // フィルタバーと一覧を縦に並べる
   Widget _buildMain() {
     return Column(
       children: [
@@ -226,6 +236,7 @@ class _JournalListViewState extends State<JournalListView> {
     );
   }
 
+  // 端末表示・日付選択・種別チップからなるフィルタバーを組み立てる
   Widget _buildFilterBar() {
     return Container(
       color: Colors.grey[100],
@@ -280,6 +291,7 @@ class _JournalListViewState extends State<JournalListView> {
     );
   }
 
+  // 読み込み状態・エラー・空状態を考慮したジャーナル一覧を表示する
   Widget _buildList() {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
@@ -371,6 +383,7 @@ class _TypeIcon extends StatelessWidget {
 
 // ── ユーティリティ ─────────────────────────────────────────────────────────────
 
+// ジャーナル種別コードを日本語ラベルに変換する
 String _entryTypeLabel(String type) => switch (type) {
   'sale' => '売上',
   'refund' => '返品',
@@ -381,11 +394,13 @@ String _entryTypeLabel(String type) => switch (type) {
   _ => type,
 };
 
+// 金額を3桁区切りのカンマ付き文字列に整形する
 String _fmt(int n) => n.toString().replaceAllMapped(
   RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
   (m) => '${m[1]},',
 );
 
+// ISO8601文字列を"HH:mm"形式のローカル時刻表示に変換する
 String _fmtTime(String iso) {
   if (iso.isEmpty) return '';
   try {

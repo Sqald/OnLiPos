@@ -1,3 +1,6 @@
+// 会計データをサーバー（/api/v1/sales）へ送信するAPIクライアント。
+// 通信断・タイムアウト時はオフラインキュー（OfflineSaleRepository）に保存し、
+// ローカル採番したレシート番号を発行して後で再送する。
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -9,6 +12,7 @@ class SentToApi {
   static const _storage = FlutterSecureStorage();
   final OfflineSaleRepository _offlineRepo = OfflineSaleRepository();
 
+  /// 会計をサーバーに送信する。通信不可時はオフラインキューに保存してフォールバックする。
   Future<Map<String, dynamic>> sendSale({
     required int totalAmount,
     int subtotalExTax = 0,
@@ -127,6 +131,7 @@ class SentToApi {
     drainOfflineQueue().catchError((_) => 0);
   }
 
+  // ローカル採番したレシート番号を付与してオフラインキューに保存する
   Future<Map<String, dynamic>> _saveOffline(
     Map<String, dynamic> requestBody,
   ) async {
@@ -139,6 +144,7 @@ class SentToApi {
     return {'success': true, 'offline': true, 'receipt_number': receiptNumber};
   }
 
+  // 「ログイン名-店舗名-POS番号-連番」形式でオフライン用レシート番号を生成する
   Future<String> _generateLocalReceiptNumber() async {
     final posId = await _storage.read(key: 'ReceiptPosId') ?? '0';
     final userLoginName =

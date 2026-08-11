@@ -1,3 +1,8 @@
+/// ローカルSQLiteの商品/セット商品テーブルへアクセスするリポジトリ。
+/// 端末側での商品検索・カテゴリ一覧・セット商品展開など、
+/// 販売画面や在庫画面から共通で利用される読み取り処理をまとめる。
+library;
+
 import 'package:sqflite/sqflite.dart';
 import 'package:onlipos/product/database_service.dart';
 import 'package:onlipos/product/product.dart';
@@ -5,12 +10,14 @@ import 'package:onlipos/product/product.dart';
 class ProductRepository {
   Future<Database> get _db => DatabaseService.instance.database;
 
+  // 全商品を取得する
   Future<List<Product>> getAllProducts() async {
     final db = await _db;
     final List<Map<String, dynamic>> maps = await db.query('products');
     return maps.map((map) => Product.fromMap(map)).toList();
   }
 
+  // JAN/商品コードに完全一致する商品を1件取得する
   Future<Product?> findProductByCode(String code) async {
     final db = await _db;
     final List<Map<String, dynamic>> maps = await db.query(
@@ -25,6 +32,7 @@ class ProductRepository {
     return null;
   }
 
+  // 商品名の部分一致検索（最大50件）
   Future<List<Product>> searchByName(String query) async {
     if (query.isEmpty) return [];
     final db = await _db;
@@ -67,6 +75,7 @@ class ProductRepository {
         .toList();
   }
 
+  // コードに一致するセット商品を構成アイテムとあわせて1件取得する
   Future<ProductBundle?> findBundleByCode(String code) async {
     final db = await _db;
     final List<Map<String, dynamic>> rows = await db.query(

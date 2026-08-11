@@ -1,3 +1,7 @@
+/// レジ業務中に担当者コードを入力させ、店舗モードに応じて
+/// 卓番入力画面または売上（スキャン/一覧）画面へ遷移する画面。
+library;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:onlipos/login/login_api.dart';
@@ -25,6 +29,7 @@ class _OperatorInputViewState extends State<OperatorInputView> {
     super.dispose();
   }
 
+  // 担当者コードを検証し、店舗モードに応じて次画面(卓番入力 or 売上画面)へ遷移する
   Future<void> _login() async {
     final operatorCode = _controller.text;
     if (operatorCode.isEmpty) {
@@ -97,6 +102,7 @@ class _OperatorInputViewState extends State<OperatorInputView> {
     }
   }
 
+  // 担当者コード入力欄と確定ボタンを表示する
   @override
   Widget build(BuildContext context) {
     return Scaffold(

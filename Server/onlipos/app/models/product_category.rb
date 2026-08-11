@@ -1,3 +1,4 @@
+# 商品分類（User単位で管理し、表示順 display_order を持つ）
 class ProductCategory < ApplicationRecord
   belongs_to :user
   has_many :products, foreign_key: :product_category_id, dependent: :nullify

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# Devise の一般ユーザー向けログイン/ログアウトをカスタマイズするためのコントローラ。
+# 現状は Devise::SessionsController の標準動作をそのまま利用している（オーバーライドなし）。
 class Users::SessionsController < Devise::SessionsController
   # before_action :configure_sign_in_params, only: [:create]
 

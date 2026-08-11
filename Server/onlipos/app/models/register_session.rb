@@ -2,6 +2,7 @@
 # 売上・返品・実査・入出金はこのセッションに紐付き、現金照合の基準期間となる。
 # 精算（close）時に集計スナップショットを確定保存し、以後は変更しない。
 class RegisterSession < ApplicationRecord
+  # アソシエーション
   belongs_to :user
   belongs_to :store
   belongs_to :pos_token
@@ -15,6 +16,7 @@ class RegisterSession < ApplicationRecord
 
   enum :status, { open: 0, closed: 1 }
 
+  # バリデーション
   validates :business_date, presence: true
   validates :z_number, presence: true, numericality: { only_integer: true, greater_than: 0 },
                        uniqueness: { scope: :pos_token_id }

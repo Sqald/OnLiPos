@@ -1,3 +1,6 @@
+// LAN接続のESC/POSレシートプリンタへ、TCPソケット経由で各種帳票（会計レシート・
+// 返品レシート・保留票・途中回収レシート・正式領収書・点検/精算レポート）を印字する。
+// プリンタIP・店舗名などの設定値は FlutterSecureStorage から読み取る。
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:charset_converter/charset_converter.dart';
@@ -39,6 +42,8 @@ class ReceiptPrinter {
     }
   }
 
+  /// 通常の会計レシートを印字する。明細・税率別内訳・支払方法・釣銭・
+  /// QRコード（レシート番号）まで一括で組み立てて送信する。
   Future<void> printReceipt({
     required String receiptNumber,
     required int totalAmount,

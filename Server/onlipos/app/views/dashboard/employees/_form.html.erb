@@ -1,3 +1,5 @@
+<%# ダッシュボード: 従業員登録/編集フォーム(new/editの両画面から render される共通パーシャル)
+    従業員番号・氏名・PIN・所属店舗・操作権限を入力する %>
 <%= form_with(model: [:dashboard, employee], local: true, class: "auth-container dashboard-form-card") do |f| %>
   <% if employee.errors.any? %>
     <div id="error_explanation">
@@ -31,9 +33,10 @@
     <%= f.password_field :pin_confirmation, placeholder: "確認のため再入力" %>
   </div>
 
+  <%# 所属店舗の選択(全店舗一括選択チェックボックス + 個別選択) %>
   <div class="field">
     <label>所属店舗</label>
-    
+
     <div class="store-selection-box">
       <div class="store-selection-header">
         <label class="checkbox-label-bold">
@@ -53,6 +56,7 @@
     </div>
   </div>
 
+  <%# 操作権限の選択(Employee::PERMISSION_CATALOG の各項目をチェックボックスで表示) %>
   <div class="field">
     <label>操作権限</label>
     <p class="field-hint">チェックした操作のみ許可されます。</p>
@@ -78,6 +82,7 @@
   </div>
 <% end %>
 
+<%# 所属店舗チェックボックスの「全店舗選択」と個別選択を連動させるJavaScript %>
 <script>
   // Turbo Driveに対応するため turbo:load イベントを使用
   document.addEventListener('turbo:load', function() {

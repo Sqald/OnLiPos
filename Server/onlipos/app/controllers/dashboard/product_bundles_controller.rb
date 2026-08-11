@@ -1,15 +1,20 @@
+# セット商品（複数商品をまとめて1つの商品コードで販売する商品バンドル）の管理画面。
+# バンドル本体と、その構成品目（product_bundle_items）をまとめて登録・更新する。
 class Dashboard::ProductBundlesController < Dashboard::BaseController
   before_action :set_bundle, only: [ :edit, :update, :destroy ]
 
+  # セット商品一覧
   def index
     @bundles = current_user.product_bundles.includes(:product_bundle_items).order(:code)
   end
 
+  # 新規登録フォーム
   def new
     @bundle = current_user.product_bundles.build
     @products = current_user.products.active.order(:code)
   end
 
+  # セット商品本体と構成品目を同一トランザクションで登録する
   def create
     @bundle = current_user.product_bundles.build(bundle_params)
     ActiveRecord::Base.transaction do
@@ -22,10 +27,12 @@ class Dashboard::ProductBundlesController < Dashboard::BaseController
     render :new, status: :unprocessable_entity
   end
 
+  # 編集フォーム
   def edit
     @products = current_user.products.active.order(:code)
   end
 
+  # セット商品本体を更新し、構成品目は一旦削除してから作り直す
   def update
     if @bundle.update(bundle_params)
       ActiveRecord::Base.transaction do
@@ -43,6 +50,7 @@ class Dashboard::ProductBundlesController < Dashboard::BaseController
     render :edit, status: :unprocessable_entity
   end
 
+  # セット商品を削除する
   def destroy
     @bundle.destroy
     redirect_to dashboard_product_bundles_path, notice: "セット商品を削除しました。"
@@ -50,10 +58,12 @@ class Dashboard::ProductBundlesController < Dashboard::BaseController
 
   private
 
+  # 自ユーザー配下のセット商品をIDで取得する
   def set_bundle
     @bundle = current_user.product_bundles.find(params[:id])
   end
 
+  # セット商品本体フォームのStrong Parameters
   def bundle_params
     params.require(:product_bundle).permit(:code, :name, :price, :status)
   end

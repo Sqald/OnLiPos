@@ -1,3 +1,5 @@
+// 一覧選択方式の売上登録画面（バーコードスキャンではなく、商品/セット一覧から
+// タップして数量を増減させるUI）。商品タブとセット商品タブを切り替えて操作する。
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:onlipos/login/operator_input_view.dart';
@@ -10,6 +12,7 @@ import 'package:onlipos/sale/transfer_order_api.dart';
 
 // ─── データモデル ─────────────────────────────────────────────────
 
+/// 一覧表示用の単品商品1行分（選択数量・税額を保持）。
 class _ProductItem {
   final Product product;
   // null の場合は product.price を使用。値引き・賞味期限値変更などで上書きする
@@ -34,6 +37,7 @@ class _ProductItem {
   }
 }
 
+/// 一覧表示用のセット商品1行分（構成商品を事前展開した単価・税額を保持）。
 class _BundleItem {
   final ProductBundle bundle;
   int quantity = 0;
@@ -120,6 +124,7 @@ class _SaleListViewState extends State<SaleListView>
     super.dispose();
   }
 
+  // 商品・セット一覧をローカルDBから読み込み、セット商品は事前に価格・税額を計算する
   Future<void> _loadData() async {
     final products = await _repo.getAllProducts();
     final bundles = await _repo.getAllBundles();
@@ -160,6 +165,7 @@ class _SaleListViewState extends State<SaleListView>
     });
   }
 
+  // 検索文字列（商品名・コード）で表示リストを絞り込む
   void _applyFilter() {
     final q = _searchController.text.trim().toLowerCase();
     setState(() {
@@ -218,6 +224,7 @@ class _SaleListViewState extends State<SaleListView>
     });
   }
 
+  // 価格変更ダイアログで選んだ価格の商品を追加する（元価格と同額なら通常行に統合）
   Future<void> _addCustomPriceItem(Product product) async {
     final result = await showDialog<({int price, String? reason})>(
       context: context,
@@ -269,6 +276,7 @@ class _SaleListViewState extends State<SaleListView>
     );
   }
 
+  // 選択中の商品・セットから明細を組み立て、決済画面へ遷移する
   Future<void> _subtotal() async {
     final selectedProducts = _allProductItems
         .where((i) => i.quantity > 0)
@@ -654,6 +662,7 @@ class _SaleListViewState extends State<SaleListView>
     );
   }
 
+  // 数量の増減ボタンと金額表示をまとめた共通ウィジェット
   Widget _quantityControl({
     required int quantity,
     int? unitPrice,

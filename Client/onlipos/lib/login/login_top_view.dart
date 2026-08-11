@@ -1,3 +1,8 @@
+/// ログイン後の最初の画面。営業日・従業員コード・PINを入力して業務開始ログインを行い、
+/// 成功したらレジ開設画面(OpenView)へ遷移する。サーバー設定・マスタ同期画面への
+/// 導線もここに置く。
+library;
+
 import 'package:flutter/material.dart';
 import 'package:onlipos/login/login_api.dart';
 import 'package:onlipos/setup/setup_view.dart';
@@ -24,6 +29,7 @@ class _LoginTopViewState extends State<LoginTopView> {
   String? _employeeName;
   List<String> _permissions = [];
 
+  // 従業員コード・PIN・営業日でログインAPIを呼び出す
   Future<void> _handleLogin() async {
     setState(() {
       _isLoading = true;
@@ -62,6 +68,7 @@ class _LoginTopViewState extends State<LoginTopView> {
     }
   }
 
+  // ログイン成功後、レジ開設画面(OpenView)へ遷移する
   void _proceedToNextStep() {
     if (!mounted) return;
 
@@ -78,6 +85,7 @@ class _LoginTopViewState extends State<LoginTopView> {
     );
   }
 
+  // 営業日(開設日)の選択ダイアログを表示する
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -92,6 +100,7 @@ class _LoginTopViewState extends State<LoginTopView> {
     }
   }
 
+  // 営業日選択・コード/PIN入力欄・業務開始ボタンを含むログインカードを表示する
   @override
   Widget build(BuildContext context) {
     final dateStr =

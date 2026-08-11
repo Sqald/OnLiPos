@@ -12,6 +12,7 @@ import 'package:http/http.dart' as http;
 class CashLogApi {
   static const _storage = FlutterSecureStorage();
 
+  // レスポンスボディをJSONとしてパースし、失敗時はエラー用のMapを返す
   static Map<String, dynamic> _parseResponse(http.Response response) {
     try {
       return jsonDecode(response.body) as Map<String, dynamic>;
@@ -20,6 +21,7 @@ class CashLogApi {
     }
   }
 
+  // 金種別枚数と合計金額をレジ金チェック/精算共通のフォーマットでPOSTする共通処理
   Future<Map<String, dynamic>> _postCashLog({
     required String path,
     required int employeeId,

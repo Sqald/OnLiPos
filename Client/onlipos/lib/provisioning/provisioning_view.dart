@@ -1,3 +1,8 @@
+/// 端末プロビジョニング画面。ログイン済みトークンを使って端末設定(プリンタIP・
+/// POSロール・店舗情報など)を取得し、商品マスタ同期とオフライン会計送信を行う。
+/// 「マスタ同期」メニューやログイン後の初回同期から呼ばれる。
+library;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../product/master_sync_api.dart';
@@ -27,6 +32,7 @@ class _ProvisioningPageState extends State<ProvisioningPage> {
     _exec();
   }
 
+  // 端末設定の取得、商品マスタ同期、オフライン会計送信を順に実行する
   Future<void> _exec() async {
     try {
       const storage = FlutterSecureStorage();
@@ -153,6 +159,7 @@ class _ProvisioningPageState extends State<ProvisioningPage> {
     }
   }
 
+  // 完了画面のOKボタン押下時、呼び出し元のコールバックまたはログイン画面へ遷移する
   void _onOkPressed() {
     if (widget.onFinished != null) {
       widget.onFinished!();
@@ -164,6 +171,7 @@ class _ProvisioningPageState extends State<ProvisioningPage> {
     }
   }
 
+  // 同期完了後は結果サマリーを、進行中は進捗インジケーターを表示する
   @override
   Widget build(BuildContext context) {
     if (_isFinished) {

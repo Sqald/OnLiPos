@@ -1,3 +1,8 @@
+/// レジ金途中回収画面。
+/// 営業中にレジ内の現金の一部を回収した際に金額と理由を記録し、
+/// 回収レシートを印字する。
+library;
+
 import 'package:flutter/material.dart';
 
 import 'cash_log_api.dart';
@@ -30,11 +35,13 @@ class _CashPickupViewState extends State<CashPickupView> {
     super.dispose();
   }
 
+  // 金額を3桁区切りの文字列に整形する
   String _formatCurrency(int n) => n.toString().replaceAllMapped(
     RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
     (m) => '${m[1]},',
   );
 
+  /// 入力内容を確認ダイアログで確認した上で途中回収を登録し、成功したら回収レシートを印字する
   Future<void> _submit() async {
     final amount = int.tryParse(_amountController.text.replaceAll(',', ''));
     if (amount == null || amount <= 0) {
@@ -112,6 +119,7 @@ class _CashPickupViewState extends State<CashPickupView> {
     }
   }
 
+  // 回収金額入力・理由入力と実行ボタンをまとめた画面を構築する
   @override
   Widget build(BuildContext context) {
     return Scaffold(

@@ -1,6 +1,11 @@
+# POS端末（レジ本体）の認証・プロビジョニング・レジ開閉／点検／精算・レジ金入出金を扱うコントローラ。
+# login のみ POS トークン未取得の状態で呼ばれるため認証を除外し、それ以外のアクションは
+# BaseController の authenticate_pos_token で @current_pos がセットされている前提で動く。
 class Api::V1::PosDevicesController < Api::V1::BaseController
   before_action :authenticate_pos_token, except: [ :login ]
 
+  # POST /api/v1/pos_devices/login — POS端末そのもののログイン（ユーザー名・店舗名・POS名＋パスワード）。
+  # 成功したらトークンを再発行し、以後のAPI呼び出しはそのトークンで認証する。
   def login
     brute_key = "pos_login:#{login_params[:userName]}:#{login_params[:storeName]}:#{login_params[:posName]}"
     if pos_login_locked?(brute_key)
@@ -28,6 +33,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     end
   end
 
+  # POST /api/v1/pos_devices/top_user_login — 従業員コード＋PINでのログイン（POS端末利用開始時）
   def top_user_login
     # アクセス元のPOS端末が所属する店舗のオーナー配下の従業員から検索
     owner = @current_pos.store.user
@@ -87,6 +93,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     end
   end
 
+  # POST /api/v1/pos_devices/check_operator — 従業員コードのみで担当者情報を取得（PIN不要の簡易確認）
   def check_operator
     # アクセス元のPOS端末が所属する店舗のオーナー配下の従業員から検索
     owner = @current_pos.store.user
@@ -99,6 +106,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     end
   end
 
+  # POST /api/v1/pos_devices/provisioning — この端末向けのプロビジョニング設定を取得
   def provisioning
     # 現在のPOS端末に関連するプロビジョニングデータを取得
     # 優先順位: POS端末個別設定 > 店舗共通設定
@@ -118,6 +126,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     end
   end
 
+  # POST /api/v1/pos_devices/open — レジ開設（開始時の金種実査を記録し、新しいレジセッション(Z)を開く）
   def open
     # 従業員の特定
     owner = @current_pos.store.user
@@ -128,6 +137,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
       return render json: { success: false, message: I18n.t("api.v1.pos_devices.open.employee_not_found") }, status: :forbidden
     end
 
+    # 前回の精算が済んでいない（開いたままの）セッションがあれば開設不可
     if current_open_session
       return render json: {
         success: false,
@@ -135,6 +145,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
       }, status: :unprocessable_entity
     end
 
+    # 開設時の金種内訳から実査レコードを組み立てる
     cash_data = open_params[:cash_drawer] || {}
 
     cash_log = CashLog.new(
@@ -158,6 +169,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
       return render json: { success: false, message: cash_log.errors.full_messages.join(", ") }, status: :unprocessable_entity
     end
 
+    # 営業日はクライアント指定を優先し、不正な形式なら当日にフォールバックする
     business_date =
       begin
         open_params[:open_date].present? ? Date.parse(open_params[:open_date].to_s) : Date.current
@@ -166,6 +178,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
       end
 
     session = nil
+    # レジセッション作成・実査保存・ジャーナル記録をまとめて1トランザクションで行う
     ActiveRecord::Base.transaction do
       # Zカウンタの採番は pos_token 行ロックで直列化する（レシート連番と同方式）
       @current_pos.with_lock do
@@ -206,6 +219,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
 
   # レジ金チェック（営業中のレジ残高確認）
   def cash_check
+    # 基準情報（前回ログ・あるべきレジ金）を取得し、今回の実査ログを組み立てる
     previous_log, _opening_log, last_amount, expected_amount = cash_check_baseline
 
     cash_log = build_cash_log(is_start: false, is_end: false)
@@ -310,6 +324,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     cash_log = build_cash_log(is_start: false, is_end: true)
     return if performed?
 
+    # 実査結果と理論在高の過不足を確定する
     diff_amount = expected_amount ? cash_log.total_amount - expected_amount : nil
     cash_log.log_type = :close
     cash_log.register_session = session
@@ -317,6 +332,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     cash_log.diff_amount = diff_amount
 
     session_summary = nil
+    # 実査保存・セッションのclose・ジャーナル記録をまとめて1トランザクションで行う
     ActiveRecord::Base.transaction do
       cash_log.save!
 
@@ -378,6 +394,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
   # - z_number 指定なし: 現在の open セッションの点検レポート（営業中何度でも）
   # - z_number 指定あり: 精算済みセッションのスナップショット（Zレポート再印字）
   def register_report
+    # 権限チェック用に担当者を特定
     owner = @current_pos.store.user
     employee = owner.employees.find_by(id: params[:employee_id])
 
@@ -406,15 +423,18 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
 
   private
 
+  # ブルートフォース対策: 同一ユーザー/店舗/POS名の組み合わせで失敗回数が上限（10回）に達したか
   def pos_login_locked?(key)
     (Rails.cache.read("#{key}:count") || 0) >= 10
   end
 
+  # ログイン失敗回数をキャッシュに記録（1時間で自動失効）
   def increment_pos_login_failures(key)
     count = (Rails.cache.read("#{key}:count") || 0) + 1
     Rails.cache.write("#{key}:count", count, expires_in: 1.hour)
   end
 
+  # ログイン成功時に失敗カウンタをリセットする
   def reset_pos_login_failures(key)
     Rails.cache.delete("#{key}:count")
   end
@@ -448,6 +468,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     @current_open_session = @current_pos.register_sessions.open.first
   end
 
+  # レポート（X/Z）に共通するレジセッションのヘッダー情報
   def session_header(session)
     {
       id: session.id,
@@ -512,6 +533,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     value.present? ? value.to_i : nil
   end
 
+  # cash_pickup アクション用のストロングパラメータ
   def pickup_params
     params.permit(:employee_id, :amount, :reason)
   end

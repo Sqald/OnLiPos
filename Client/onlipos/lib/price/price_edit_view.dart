@@ -1,3 +1,8 @@
+/// 店舗価格設定画面。「edit_prices」権限を持つ担当者で認証したうえで、
+/// 商品ごとに定価を使うか店舗独自の売価を設定するかを編集する。
+/// 更新後はバックグラウンドで商品マスタの再同期も行う。
+library;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:onlipos/login/login_api.dart';
@@ -36,6 +41,7 @@ class _PriceEditViewState extends State<PriceEditView> {
 
   bool get _authenticated => _employeeId != null;
 
+  // 担当者コード・パスワードで認証し、店舗価格編集権限を確認する
   Future<void> _authenticate() async {
     final code = _codeController.text.trim();
     final pin = _pinController.text.trim();
@@ -67,6 +73,7 @@ class _PriceEditViewState extends State<PriceEditView> {
     }
   }
 
+  // 商品価格一覧を取得する。resetがtrueなら検索条件をリセットして先頭から取得する
   Future<void> _loadProducts({bool reset = false}) async {
     if (_listLoading) return;
     final query = _searchController.text.trim();
@@ -102,6 +109,7 @@ class _PriceEditViewState extends State<PriceEditView> {
     }
   }
 
+  // 価格編集ダイアログを開き、選択結果に応じて店舗価格を更新する
   Future<void> _editPrice(Map<String, dynamic> product) async {
     final choice = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -132,6 +140,7 @@ class _PriceEditViewState extends State<PriceEditView> {
     }
   }
 
+  // 価格更新後、端末の商品マスタをバックグラウンドで再同期する
   void _resyncInBackground() async {
     const storage = FlutterSecureStorage();
     final baseUrl = await storage.read(key: 'AccessUrl') ?? '';
@@ -164,6 +173,7 @@ class _PriceEditViewState extends State<PriceEditView> {
     );
   }
 
+  // 担当者コード・パスワード入力フォームを表示する
   Widget _buildAuthForm() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -211,6 +221,7 @@ class _PriceEditViewState extends State<PriceEditView> {
     );
   }
 
+  // 検索欄と商品価格一覧(無限スクロール読み込みつき)を表示する
   Widget _buildPriceList() {
     return Column(
       children: [
@@ -315,6 +326,7 @@ class _PriceEditViewState extends State<PriceEditView> {
   }
 }
 
+// 個別商品の価格を「定価を使う」/「店舗売価を設定」から選択して編集するダイアログ
 class _PriceEditDialog extends StatefulWidget {
   final Map<String, dynamic> product;
   const _PriceEditDialog({required this.product});
@@ -401,6 +413,7 @@ class _PriceEditDialogState extends State<_PriceEditDialog> {
     );
   }
 
+  // 入力内容を検証し、選択結果をダイアログの呼び出し元に返す
   void _save() {
     if (_mode == 'store') {
       final amount = int.tryParse(_amountController.text.trim());

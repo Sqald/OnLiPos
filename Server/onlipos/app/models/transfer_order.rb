@@ -1,3 +1,4 @@
+# 店舗間の商品移動オーダー
 class TransferOrder < ApplicationRecord
   belongs_to :store
 

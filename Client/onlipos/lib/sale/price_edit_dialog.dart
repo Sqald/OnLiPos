@@ -33,10 +33,12 @@ class _PriceEditDialogState extends State<PriceEditDialog> {
     super.dispose();
   }
 
+  // 定価/店舗売価ボタンから選択（値引き理由なし）
   void _select(int price) {
     Navigator.of(context).pop((price: price, reason: null as String?));
   }
 
+  // 手動入力した価格・理由を確定して呼び出し元に返す
   void _applyManual() {
     final p = int.tryParse(_priceController.text);
     if (p == null || p < 0) return;

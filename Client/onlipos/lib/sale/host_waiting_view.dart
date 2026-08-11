@@ -1,3 +1,5 @@
+// ホスト機の待ち受けモード画面（Widget定義）。
+// 5秒ごとに転送注文一覧をポーリングして表示し、受け取り操作を提供する。
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:onlipos/sale/transfer_order_api.dart';
@@ -47,6 +49,7 @@ class _HostWaitingViewState extends State<HostWaitingView> {
     super.dispose();
   }
 
+  // 転送注文一覧をサーバーから取得して画面を更新する
   Future<void> _loadTransfers() async {
     try {
       final list = await TransferOrderApi.getAllTransfers();
@@ -62,6 +65,7 @@ class _HostWaitingViewState extends State<HostWaitingView> {
     }
   }
 
+  // 確認ダイアログを表示後、転送注文を受け取り会計画面へ遷移する
   Future<void> _claimTransfer(TransferOrderEntry entry) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -133,6 +137,7 @@ class _HostWaitingViewState extends State<HostWaitingView> {
     }
   }
 
+  // 作成からの経過時間を「◯時間前」等の文字列に変換する
   String _elapsed(DateTime createdAt) {
     final diff = DateTime.now().difference(createdAt);
     if (diff.inHours > 0) return '${diff.inHours}時間前';
@@ -142,6 +147,7 @@ class _HostWaitingViewState extends State<HostWaitingView> {
 
   @override
   Widget build(BuildContext context) {
+    // AppBarに次回更新までの秒数と手動更新ボタンを表示
     return Scaffold(
       appBar: AppBar(
         title: const Text('待ち受けモード'),
@@ -186,6 +192,7 @@ class _HostWaitingViewState extends State<HostWaitingView> {
                 ],
               ),
             )
+          // 転送注文一覧をカード形式で表示
           : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: _transfers.length,

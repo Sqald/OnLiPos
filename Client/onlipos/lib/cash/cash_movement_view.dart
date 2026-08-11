@@ -1,3 +1,7 @@
+/// レジ入出金画面と、その種別を表すenum定義。
+/// 釣銭補充・雑入金・雑出金・途中回収を記録し、サーバー側の理論在高に反映させる。
+library;
+
 import 'package:flutter/material.dart';
 
 import 'cash_log_api.dart';
@@ -47,11 +51,13 @@ class _CashMovementViewState extends State<CashMovementView> {
     super.dispose();
   }
 
+  // 金額を3桁区切りの文字列に整形する
   String _formatCurrency(int n) => n.toString().replaceAllMapped(
     RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
     (m) => '${m[1]},',
   );
 
+  /// 入力内容を確認ダイアログで確認した上でレジ入出金を登録し、成功したらドロアを開放する
   Future<void> _submit() async {
     final amount = int.tryParse(_amountController.text.replaceAll(',', ''));
     if (amount == null || amount <= 0) {
@@ -130,6 +136,7 @@ class _CashMovementViewState extends State<CashMovementView> {
     }
   }
 
+  // 種別選択・金額入力・事由入力と実行ボタンをまとめた画面を構築する
   @override
   Widget build(BuildContext context) {
     return Scaffold(

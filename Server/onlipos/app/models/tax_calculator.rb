@@ -48,6 +48,7 @@ class TaxCalculator
 
   private
 
+  # 設定された端数処理方式で税額を丸める
   def round_tax(value)
     case @rounding_method
     when "round_half_up" then value.round

@@ -1,3 +1,7 @@
+<%#
+  ダッシュボード: 店舗一覧画面
+  登録済みの店舗を一覧表示し、価格設定・編集・削除への導線を提供する。
+%>
 <div class="dashboard-container">
   <%= render 'dashboard/shared/menu' %>
 
@@ -8,6 +12,7 @@
     </div>
 
     <div class="card card-table">
+      <%# 店舗が1件以上あれば一覧テーブル、なければ空メッセージを表示 %>
       <% if @stores.any? %>
         <table class="data-table">
           <thead>

@@ -1,8 +1,13 @@
+/// 初回セットアップ用のAPIクライアント。企業ID・店舗ID・端末ID・POSパスワードで
+/// POS端末をサーバーに認証させ、発行されたトークンや店舗情報をSecureStorageへ保存する。
+library;
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class SetupApi {
+  /// POS端末をサーバーへログインさせ、成功時は認証トークン・店舗情報を保存する
   Future<bool> posLogin({
     required String url,
     required String userLogin,

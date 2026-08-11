@@ -1,3 +1,5 @@
+<%# ダッシュボード: 商品登録/編集フォーム(new/editの両画面から render される共通パーシャル)
+    商品コード・名称・価格・税率・カテゴリ・ステータスを入力する %>
 <%= form_with(model: [:dashboard, product], local: true, class: "dashboard-form") do |f| %>
   <% if product.errors.any? %>
     <div id="error_explanation">

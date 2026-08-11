@@ -1,5 +1,6 @@
 require "csv"
 
+# 売上一覧の閲覧画面。検索・HTML表示のほか、CSV形式でのダウンロードにも対応する。
 class Dashboard::SalesController < Dashboard::BaseController
   # 売上一覧は検索条件（店舗・期間）を指定して検索したときのみデータを取得する。
   # 自ユーザー（current_user）の売上のみに厳格にスコープする。
@@ -33,6 +34,7 @@ class Dashboard::SalesController < Dashboard::BaseController
 
   private
 
+  # 検索条件（店舗・期間）から売上（Sale）のスコープを組み立てる
   def build_scope
     scope = Sale.where(user_id: current_user.id)
 
@@ -61,6 +63,7 @@ class Dashboard::SalesController < Dashboard::BaseController
     scope
   end
 
+  # 売上一覧のCSVを生成する。Excel等での文字化け防止のためUTF-8 BOMを先頭に付与する
   def generate_sales_csv(scope)
     payment_labels = { "cash" => "現金", "card" => "カード", "barcode" => "バーコード決済" }
     output = StringIO.new
@@ -89,6 +92,7 @@ class Dashboard::SalesController < Dashboard::BaseController
     output.string
   end
 
+  # 検索条件（店舗・期間）のいずれかが指定されたかを判定する
   def search_performed?
     params[:store_id].present? || params[:from].present? || params[:to].present?
   end

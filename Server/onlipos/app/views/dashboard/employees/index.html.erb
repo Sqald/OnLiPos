@@ -1,3 +1,5 @@
+<%# ダッシュボード: 従業員一覧画面
+    登録済み従業員の氏名・所属店舗・登録日を表示し、編集/削除への導線を提供する %>
 <div class="dashboard-container">
   <%= render 'dashboard/shared/menu' %>
 
@@ -22,6 +24,7 @@
             <% @employees.each do |employee| %>
               <tr>
                 <td><%= employee.name %></td>
+                <%# 全店舗所属フラグが立っていればバッジ表示、そうでなければ所属店舗名を列挙 %>
                 <td>
                   <% if employee.is_all_stores? %>
                     <span class="status-badge status-active">全店舗</span>

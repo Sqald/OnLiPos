@@ -1,18 +1,22 @@
+<%# ダッシュボード: トップページ(店舗一覧・POS端末一覧)
+    ログイン企業ID表示、店舗の一覧、店舗ごとのPOS端末一覧と稼働状況を表示する %>
 <div class="dashboard-container">
   <%= render 'dashboard/shared/menu' %>
-  
+
+  <%# POS端末ログイン時に入力する企業ID(=login_name)の案内カード %>
   <div class="card login-id-card">
     <h3 class="login-id-label">POS端末ログインID (企業ID)</h3>
     <p class="login-id-value"><%= current_user.login_name %></p>
     <p class="login-id-note">※ POS端末でログインする際は、このIDと各端末のID,パスワードを入力してください。</p>
   </div>
 
+  <%# 店舗一覧 %>
   <section class="dashboard-section">
     <div class="section-header">
       <h2>店舗一覧</h2>
       <%= link_to "店舗を追加", new_dashboard_store_path, class: "btn-signup" %>
     </div>
-    
+
     <div class="card card-table">
       <% if @stores.any? %>
         <table class="data-table">
@@ -43,6 +47,7 @@
     </div>
   </section>
 
+  <%# POS端末一覧(店舗ごとにグループ化して表示) %>
   <section class="dashboard-section">
     <div class="section-header">
       <h2>POS端末一覧</h2>
@@ -70,6 +75,7 @@
                     <tr>
                       <td><%= pos.name %></td>
                       <td><%= pos.ascii_name %></td>
+                      <%# 直近1時間以内に利用があれば「稼働中」とみなす %>
                       <td>
                         <% if pos.last_used_at && pos.last_used_at > 1.hour.ago %>
                           <span class="status-badge status-active">稼働中</span>
@@ -78,6 +84,7 @@
                         <% end %>
                       </td>
                       <td><%= pos.last_used_at ? pos.last_used_at.strftime('%Y/%m/%d %H:%M') : '-' %></td>
+                      <%# パスワード再設定・端末削除ボタン(いずれも確認ダイアログあり) %>
                       <td>
                         <%= button_to "PW再設定", dashboard_pos_device_update_password_path(pos), method: :patch, data: { turbo_confirm: "パスワードを再設定しますか？\n新しいパスワードが画面に表示されます。" }, class: "btn-sm btn-outline" %>
                         <%= button_to "削除", dashboard_pos_device_path(pos), method: :delete, data: { turbo_confirm: "「#{pos.name}」を削除しますか？\nこの端末は以後ログインできなくなります。この操作は取り消せません。" }, class: "btn-sm btn-danger-outline" %>

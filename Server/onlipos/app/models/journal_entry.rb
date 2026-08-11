@@ -1,3 +1,6 @@
+# 電子ジャーナル（レシート・レジ操作の改ざん防止付き記録）。
+# 端末(pos_token)単位の連番とハッシュチェーンを持ち、追記のみ・更新削除不可（readonly?）。
+# 売上・返品・レジ開設精算・取消・領収書発行などのイベントごとに create_from_* で生成される。
 class JournalEntry < ApplicationRecord
   belongs_to :user
   belongs_to :store

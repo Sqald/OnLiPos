@@ -1,3 +1,4 @@
+# 店舗別の商品価格（Product のデフォルト価格を店舗ごとに上書きする）
 class Price < ApplicationRecord
   belongs_to :store
   belongs_to :product

@@ -47,6 +47,7 @@ class _ReceiptIssueViewState extends State<ReceiptIssueView> {
     );
   }
 
+  // QRコードスキャン画面を開き、読み取ったレシート番号で検索する
   Future<void> _scanQr() async {
     final scanned = await Navigator.of(context).push<String>(
       MaterialPageRoute(builder: (context) => const QrScanReceiptView()),
@@ -57,6 +58,7 @@ class _ReceiptIssueViewState extends State<ReceiptIssueView> {
     }
   }
 
+  // レシート番号で対象の会計をサーバーから検索する
   Future<void> _search() async {
     final receiptNumber = _receiptNumberController.text.trim();
     if (receiptNumber.isEmpty) {
@@ -80,6 +82,7 @@ class _ReceiptIssueViewState extends State<ReceiptIssueView> {
     }
   }
 
+  // 領収書発行をサーバーに記録し、正式領収書を印字する
   Future<void> _issue() async {
     final sale = _sale;
     if (sale == null || _isIssuing) return;

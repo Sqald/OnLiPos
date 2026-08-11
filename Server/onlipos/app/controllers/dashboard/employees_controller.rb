@@ -1,15 +1,20 @@
+# 従業員（POSレジ操作者）の管理画面。従業員の登録・編集・削除と、
+# 店舗への紐付け・権限（PERMISSION_CATALOG）の設定を扱う。
 class Dashboard::EmployeesController < Dashboard::BaseController
   before_action :set_employee, only: [ :edit, :update, :destroy ]
   before_action :set_stores, only: [ :new, :create, :edit, :update ]
 
+  # 自ユーザー配下の従業員一覧
   def index
     @employees = current_user.employees
   end
 
+  # 新規登録フォーム
   def new
     @employee = current_user.employees.build
   end
 
+  # 従業員を登録し、権限（チェックボックス選択分）を同期する
   def create
     @employee = current_user.employees.build(employee_params)
     if @employee.save
@@ -20,9 +25,11 @@ class Dashboard::EmployeesController < Dashboard::BaseController
     end
   end
 
+  # 編集フォーム（before_actionでセット済みの@employeeを表示）
   def edit
   end
 
+  # 従業員情報を更新し、権限を同期する
   def update
     if @employee.update(employee_params)
       @employee.sync_permissions(permission_params)
@@ -32,6 +39,7 @@ class Dashboard::EmployeesController < Dashboard::BaseController
     end
   end
 
+  # 従業員を削除する
   def destroy
     @employee.destroy
     redirect_to dashboard_employees_path, notice: "従業員を削除しました。"
@@ -39,10 +47,12 @@ class Dashboard::EmployeesController < Dashboard::BaseController
 
   private
 
+  # 自ユーザー配下の従業員をIDで取得する（他ユーザーの従業員は対象外）
   def set_employee
     @employee = current_user.employees.find(params[:id])
   end
 
+  # フォームの店舗選択肢用に自ユーザーの店舗一覧をセットする
   def set_stores
     @stores = current_user.stores
   end

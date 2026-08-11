@@ -31,6 +31,7 @@ class Api::V1::CashMovementsController < Api::V1::BaseController
 
   # POST /api/v1/cash_movements
   def create
+    # 担当者の特定と店舗所属チェック
     owner = @current_pos.store.user
     employee = owner.employees.find_by(id: movement_params[:employee_id])
 
@@ -42,6 +43,7 @@ class Api::V1::CashMovementsController < Api::V1::BaseController
       return render json: { success: false, message: "レジ入出金の権限がありません" }, status: :forbidden
     end
 
+    # 入出金種別・金額のバリデーション
     kind = normalize_kind(movement_params[:kind])
     unless kind
       return render json: { success: false, message: "入出金種別が不正です" }, status: :unprocessable_entity
@@ -52,6 +54,7 @@ class Api::V1::CashMovementsController < Api::V1::BaseController
       return render json: { success: false, message: "金額は1円以上を指定してください" }, status: :unprocessable_entity
     end
 
+    # 入出金レコードを作成
     movement = CashMovement.new(
       store: @current_pos.store,
       pos_token: @current_pos,
@@ -64,6 +67,7 @@ class Api::V1::CashMovementsController < Api::V1::BaseController
       occurred_at: Time.current
     )
 
+    # 保存と電子ジャーナルへの記録を1トランザクションで行う
     ActiveRecord::Base.transaction do
       movement.save!
       JournalEntry.create_from_cash_movement!(movement)
@@ -88,6 +92,7 @@ class Api::V1::CashMovementsController < Api::V1::BaseController
     params.permit(:employee_id, :kind, :amount, :reason)
   end
 
+  # 現在このPOS端末が開いているレジセッション（無ければ nil）
   def current_open_session
     return @current_open_session if defined?(@current_open_session)
     @current_open_session = @current_pos.register_sessions.open.first

@@ -1,3 +1,8 @@
+/// 商品マスタのモデルクラス群。
+/// Product はローカルDB（sqflite）の products テーブルと1対1で対応し、
+/// ProductBundle / BundleItem はセット商品とその構成商品を表す。
+library;
+
 class Product {
   final int id;
   final String code;
@@ -25,6 +30,7 @@ class Product {
 
   bool get hasStorePrice => listPrice != price;
 
+  // sqfliteのクエリ結果（Map）からProductを復元する
   factory Product.fromMap(Map<String, dynamic> map) {
     final price = map['price'] as int;
     return Product(
@@ -40,6 +46,7 @@ class Product {
     );
   }
 
+  // sqfliteへ保存するためのMapに変換する
   Map<String, dynamic> toMap() {
     return {
       'id': id,

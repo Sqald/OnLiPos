@@ -1,3 +1,5 @@
+# 企業アカウント（OnLiPosの契約単位）。ダッシュボードにログインする管理者本体であり、
+# 店舗・商品・従業員・売上などほぼ全てのデータの起点となる。Devise で認証する。
 class User < ApplicationRecord
   devise :database_authenticatable, :registerable, :rememberable, :validatable
 

@@ -1,3 +1,7 @@
+<%#
+  パーシャル: 店舗の新規登録・編集共通フォーム
+  new.html.erb / edit.html.erb から store を渡して呼び出される。
+%>
 <%= form_with(model: [:dashboard, store], local: true, class: "dashboard-form") do |f| %>
   <% if store.errors.any? %>
     <div id="error_explanation">
@@ -17,6 +21,7 @@
 
   <div class="field">
     <%= f.label :ascii_name, "店舗ID (半角英数)" %>
+    <%# 新規登録時のみ入力可能。登録後は不変のためグレーアウトして表示 %>
     <% if store.new_record? %>
       <%= f.text_field :ascii_name, placeholder: "例: shibuya01" %>
       <p class="text-sm-muted">※ POS端末のログイン時に使用します。登録後は変更できません。</p>

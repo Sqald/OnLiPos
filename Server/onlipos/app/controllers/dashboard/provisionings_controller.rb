@@ -1,14 +1,20 @@
+# POS端末の初期プロビジョニングデータ（店舗情報・税率・ハードウェア設定等）を管理する画面。
+# ここで作成したデータをもとに、端末側の provisioning API で初期設定が行われる。
 class Dashboard::ProvisioningsController < Dashboard::BaseController
+  # プロビジョニング一覧
   def index
     @provisionings = Provisioning.where(user: current_user).order(created_at: :desc)
   end
 
+  # 新規作成フォーム
   def new
     @provisioning = Provisioning.new
     @stores = current_user.stores
     @pos_tokens = PosToken.where(store: @stores)
   end
 
+  # プロビジョニングデータを作成する。store_context（店舗情報・税率）と
+  # hardware_settings（プリンタIP等）をJSONとして組み立てて保存する。
   def create
     @provisioning = Provisioning.new(provisioning_params)
     @provisioning.user = current_user
@@ -45,6 +51,7 @@ class Dashboard::ProvisioningsController < Dashboard::BaseController
     end
   end
 
+  # プロビジョニングデータを削除する。自ユーザー配下のデータのみ対象。
   def destroy
     @provisioning = Provisioning.where(user: current_user).find_by(id: params[:id])
     if @provisioning
@@ -57,6 +64,7 @@ class Dashboard::ProvisioningsController < Dashboard::BaseController
 
   private
 
+  # プロビジョニングフォームのStrong Parameters
   def provisioning_params
     params.require(:provisioning).permit(:name, :store_id)
   end

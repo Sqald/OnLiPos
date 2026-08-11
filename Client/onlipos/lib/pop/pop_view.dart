@@ -1,3 +1,7 @@
+/// POP(値札)印刷画面。JANコードまたは商品名で商品を検索して印刷リストに追加し、
+/// 面付け数を選んでプレビュー表示または直接印刷する。
+library;
+
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import 'package:onlipos/pop/pop_pdf_builder.dart';
@@ -36,6 +40,7 @@ class _PopViewState extends State<PopView> {
     super.dispose();
   }
 
+  // JANコードで商品を検索し、見つかれば印刷リストに追加する
   Future<void> _searchByJan() async {
     final code = _janCtrl.text.trim();
     if (code.isEmpty) return;
@@ -56,6 +61,7 @@ class _PopViewState extends State<PopView> {
     }
   }
 
+  // 商品名の部分一致検索を行い、結果をドロップダウンに表示する
   Future<void> _searchByName(String query) async {
     if (query.isEmpty) {
       setState(() => _searchResults = []);
@@ -65,6 +71,7 @@ class _PopViewState extends State<PopView> {
     if (mounted) setState(() => _searchResults = results);
   }
 
+  // 商品を印刷リストに追加する(既存なら枚数をインクリメント)
   void _addProduct(Product p) {
     setState(() {
       final idx = _items.indexWhere((e) => e.product.id == p.id);
@@ -86,6 +93,7 @@ class _PopViewState extends State<PopView> {
     });
   }
 
+  // PDFプレビュー画面を表示する
   Future<void> _showPreview() async {
     if (_items.isEmpty) {
       ScaffoldMessenger.of(
@@ -110,6 +118,7 @@ class _PopViewState extends State<PopView> {
     );
   }
 
+  // プレビューを経由せず直接印刷する
   Future<void> _print() async {
     if (_items.isEmpty) {
       ScaffoldMessenger.of(
@@ -144,6 +153,7 @@ class _PopViewState extends State<PopView> {
     );
   }
 
+  // JANコード検索・商品名検索の入力欄と検索結果ドロップダウンをまとめたカード
   Widget _buildSearchSection() {
     return Card(
       margin: const EdgeInsets.all(8),
@@ -224,6 +234,7 @@ class _PopViewState extends State<PopView> {
     );
   }
 
+  // 印刷対象として追加した商品の一覧(枚数増減・削除操作つき)
   Widget _buildPrintList() {
     if (_items.isEmpty) {
       return const Center(
@@ -278,6 +289,7 @@ class _PopViewState extends State<PopView> {
     );
   }
 
+  // 面付け数の選択とプレビュー/印刷ボタンを配置する下部バー
   Widget _buildBottomBar() {
     return Container(
       color: Colors.black,

@@ -1,6 +1,9 @@
+# CSVファイルから商品データを非同期に一括インポートするジョブ。
+# 完了後は一時ファイルを削除し、多重実行防止用のロック(キャッシュキー)を解放する。
 class ProductImportJob < ApplicationJob
   queue_as :default
 
+  # 指定されたCSVファイルを読み込み、商品の登録/更新を行う。
   def perform(file_path, user_id, lock_key)
     user = User.find(user_id)
 

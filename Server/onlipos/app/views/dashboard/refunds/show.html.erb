@@ -1,12 +1,15 @@
 <div class="dashboard-container">
   <%= render 'dashboard/shared/menu' %>
 
+<%# ダッシュボード: 返品詳細画面
+    1件の返品の基本情報(日時・店舗・レシート番号・返金額)と返品明細行を表示する %>
   <div class="dashboard-content card">
     <div class="subtitle d-flex justify-content-between align-items-center">
       <h2>返品詳細</h2>
       <%= link_to "← 返品一覧に戻る", dashboard_refunds_path, class: "btn-sm btn-outline" %>
     </div>
 
+    <%# 返品の基本情報 %>
     <div class="mb-3">
       <table class="data-table">
         <tbody>
@@ -34,6 +37,7 @@
       </table>
     </div>
 
+    <%# 返品明細行(商品ごとの数量・単価・小計) %>
     <h3>返品明細</h3>
     <table class="data-table">
       <thead>

@@ -1,5 +1,8 @@
+// 小売店モード用：保留注文（HoldOrder）データモデルと、その一覧を保持する
+// アプリ内メモリストア（HoldOrderStore）を定義する。
 import 'sale_item.dart';
 
+/// 1件の保留注文（保留番号・担当者・明細・合計金額）を表す。
 class HoldOrder {
   final int holdNumber;
   final String operatorName;
@@ -56,6 +59,7 @@ class HoldOrderStore {
     return hold.items.map((e) => e.copy()).toList();
   }
 
+  /// 保留を取り出し（削除）、担当者情報等を含む HoldOrder 本体を返す。
   HoldOrder? recallHoldWithInfo(int number) => _holds.remove(number);
 
   void removeHold(int number) {

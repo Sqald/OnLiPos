@@ -1,3 +1,5 @@
+<%# ダッシュボード: 在庫入出庫履歴一覧画面
+    店舗・日付で絞り込んで在庫の入出庫履歴(数量変化・理由・関連売上)を検索・表示する %>
 <div class="dashboard-container">
   <%= render 'dashboard/shared/menu' %>
 
@@ -6,6 +8,7 @@
       <h2>在庫入出庫履歴</h2>
     </div>
 
+    <%# 検索条件フォーム(店舗・日付範囲) %>
     <div class="filters mb-3">
       <%= form_with url: dashboard_stock_movements_path, method: :get, local: true do |f| %>
         <div class="filter-row">
@@ -32,6 +35,7 @@
       <% end %>
     </div>
 
+    <%# 検索条件が未指定・該当なし・結果ありの3パターンで表示を切り替え %>
     <% if !params[:store_id].present? && !params[:from].present? && !params[:to].present? %>
       <div class="empty-message">
         <p>店舗または日時を指定して検索してください。</p>

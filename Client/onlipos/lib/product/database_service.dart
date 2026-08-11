@@ -15,12 +15,14 @@ class DatabaseService {
 
   Database? _db;
 
+  // 既に開いているDB接続があればそれを再利用し、なければ新規にオープンする
   Future<Database> get database async {
     if (_db != null && _db!.isOpen) return _db!;
     _db = await _open();
     return _db!;
   }
 
+  // プラットフォームごとに適切な保存先パスを決定してDBファイルを開く
   Future<Database> _open() async {
     String path;
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
@@ -40,6 +42,7 @@ class DatabaseService {
     );
   }
 
+  // DB新規作成時に商品・セット商品・オフライン売上キューの各テーブルを作成する
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
       CREATE TABLE products (
@@ -83,6 +86,7 @@ class DatabaseService {
     ''');
   }
 
+  // 旧バージョンからのマイグレーション。oldVersion未満の各分岐を順に適用して最新スキーマへ揃える
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await db.execute(

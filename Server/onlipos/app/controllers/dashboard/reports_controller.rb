@@ -1,8 +1,12 @@
 require "csv"
 
+# 各種売上レポート（日次/月次/商品別/支払方法別/税率別/担当者別）を集計して表示する画面。
+# HTML表示のほか、CSV形式でのダウンロードにも対応する。
 class Dashboard::ReportsController < Dashboard::BaseController
   helper_method :search_performed?
 
+  # 検索条件（店舗・期間）が指定された場合のみ各種集計を実行し、@daily_summary等の
+  # インスタンス変数にセットする。未指定時は空の集計結果を返す（負荷軽減）。
   def index
     @stores = current_user.stores.order(:name)
     @allowed_store_ids = @stores.pluck(:id)
@@ -125,6 +129,7 @@ class Dashboard::ReportsController < Dashboard::BaseController
 
   private
 
+  # 集計対象の売上（Sale）スコープを組み立てる。status指定でVOID分の抽出にも流用する。
   def build_scope(status: :completed)
     scope = Sale.where(user_id: current_user.id, status: Sale.statuses[status])
 
@@ -140,6 +145,7 @@ class Dashboard::ReportsController < Dashboard::BaseController
     scope
   end
 
+  # 集計対象の返金（Refund）スコープを組み立てる
   def build_refunds_scope
     scope = Refund.where(user_id: current_user.id)
 
@@ -155,6 +161,8 @@ class Dashboard::ReportsController < Dashboard::BaseController
     scope
   end
 
+  # 各集計結果（@daily_summary等）をセクションごとにまとめたCSVを生成する。
+  # Excel等での文字化け防止のためUTF-8 BOMを先頭に付与する。
   def generate_report_csv
     csv = CSV.generate(encoding: "UTF-8") do |csv|
       csv << [ "--- 日次売上 ---" ]
@@ -197,10 +205,12 @@ class Dashboard::ReportsController < Dashboard::BaseController
     "\xEF\xBB\xBF#{csv}"
   end
 
+  # 検索条件（店舗・期間）のいずれかが指定されたかを判定する
   def search_performed?
     params[:store_id].present? || params[:from].present? || params[:to].present?
   end
 
+  # 日付文字列をパースする。不正な形式の場合はnilを返す
   def parse_date(str)
     return nil if str.blank?
     Time.zone.parse(str)

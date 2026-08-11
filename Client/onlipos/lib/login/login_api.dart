@@ -1,9 +1,14 @@
+/// POS端末・従業員認証まわりのAPIクライアント。
+/// 業務開始ログイン、業務中の担当者PIN確認、担当者コード検証を提供する。
+library;
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class LoginApi {
+  // JSONレスポンスをパースし、失敗時はエラーメッセージ付きのMapを返す
   static Map<String, dynamic> _parseResponse(http.Response response) {
     try {
       return jsonDecode(response.body) as Map<String, dynamic>;
@@ -12,6 +17,7 @@ class LoginApi {
     }
   }
 
+  /// 業務開始時の従業員コード＋PINによるログイン。
   static Future<Map<String, dynamic>> userLogin({
     required String code,
     required String pin,

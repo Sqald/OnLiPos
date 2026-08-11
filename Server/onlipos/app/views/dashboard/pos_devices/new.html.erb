@@ -1,3 +1,5 @@
+<%# ダッシュボード: POS端末新規登録画面
+    店舗・プロビジョニング設定を紐付けて新しいPOS端末を登録する(パスワードは登録時に自動生成) %>
 <div class="auth-wrapper">
   <div class="auth-container">
     <h2>POS端末登録</h2>
@@ -37,6 +39,7 @@
         <span class="field-hint">端末を識別するIDを入力してください（※半角英数字）</span>
       </div>
 
+      <%# パスワードはサーバー側で自動生成されるため入力不可 %>
       <div class="field">
         <label>パスワード</label>
         <input type="text" value="登録時に自動生成されます" disabled class="form-input-disabled">

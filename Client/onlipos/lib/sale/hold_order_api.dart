@@ -1,3 +1,5 @@
+// 小売店モード用：サーバー側に保留注文を保存・取得・削除するAPIクライアント。
+// 保留一覧の取得、新規保留の作成、保留の呼び出し（削除）を提供する。
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';

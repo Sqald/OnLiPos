@@ -1,3 +1,4 @@
+<%# ダッシュボード: 商品カテゴリ登録/編集フォーム(new/editの両画面から render される共通パーシャル) %>
 <%= form_with(model: [:dashboard, category], local: true, class: "dashboard-form") do |f| %>
   <% if category.errors.any? %>
     <div id="error_explanation">

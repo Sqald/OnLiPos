@@ -1,3 +1,8 @@
+<%#
+  パーシャル: Devise 各画面共通のナビゲーションリンク集
+  現在の画面（コントローラー）や有効なDevise機能に応じて、
+  ログイン/新規登録/パスワード再設定などへのリンクを出し分けて表示する。
+%>
 <%- if controller_name != 'sessions' %>
   <%= link_to t('devise.shared.links.sign_in'), new_session_path(resource_name) %><br />
 <% end %>

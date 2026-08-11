@@ -1,3 +1,4 @@
+# Sale の支払い内訳（1回の会計を複数の支払い方法に分けた場合、複数行になる）
 class SalePayment < ApplicationRecord
   belongs_to :sale
 

@@ -1,3 +1,5 @@
+<%# ダッシュボード: 商品一覧画面
+    商品のCSV一括登録・検索絞り込み・一覧表示を提供する %>
 <div class="dashboard-container">
   <%= render 'dashboard/shared/menu' %>
 
@@ -9,6 +11,7 @@
       </div>
     </div>
 
+    <%# CSVファイルによる商品の一括登録・更新フォーム %>
     <div class="card my-4">
       <div class="card-body">
         <h3 class="card-title">CSVで一括登録・更新</h3>
@@ -30,6 +33,7 @@
       </div>
     </div>
 
+    <%# 商品名・コード検索、ステータス、カテゴリによる絞り込みフォーム %>
     <div class="filters mb-3">
       <%= form_with url: dashboard_products_path, method: :get, local: true do |f| %>
         <div class="filter-row">
@@ -58,6 +62,7 @@
       <% end %>
     </div>
 
+    <%# 商品一覧テーブル %>
     <table class="data-table">
       <thead>
         <tr>

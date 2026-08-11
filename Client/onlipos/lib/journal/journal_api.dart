@@ -1,3 +1,7 @@
+/// 電子ジャーナル(売上・返品・レジ操作の記録)をサーバーから取得するAPIクライアント。
+/// 接続先URLと認証トークンはSecureStorageから読み取る。
+library;
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -6,6 +10,7 @@ import 'package:http/http.dart' as http;
 class JournalApi {
   static const _storage = FlutterSecureStorage();
 
+  // SecureStorageから接続先URLを読み込み、末尾のスラッシュを除去して返す
   static Future<String?> _baseUrl() async {
     final url = await _storage.read(key: 'AccessUrl');
     if (url == null || url.isEmpty) return null;

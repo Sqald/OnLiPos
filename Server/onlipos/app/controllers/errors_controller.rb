@@ -1,6 +1,9 @@
+# HTTPエラー（4xx/5xx）用の共通エラーページを表示するコントローラ。
+# ルーティングの exceptions_app として使われる想定。
 class ErrorsController < ActionController::Base
   layout "error"
 
+  # 各HTTPステータスコードごとのタイトル・日本語説明・区分（クライアント/サーバー）を定義
   ERROR_DETAILS = {
     400 => { title: "Bad Request",                       ja: "リクエストの形式が正しくありません。",                                  category: :client },
     401 => { title: "Unauthorized",                      ja: "認証が必要です。ログインしてから再度お試しください。",                    category: :client },
@@ -44,6 +47,8 @@ class ErrorsController < ActionController::Base
     511 => { title: "Network Authentication Required",   ja: "ネットワークへのアクセスに認証が必要です。",                             category: :server }
   }.freeze
 
+  # 指定されたステータスコードのエラーページを表示する。
+  # 未定義のステータスコードが来た場合は 500 として扱う。
   def show
     status_param = params[:status].to_i
     @status_code = ERROR_DETAILS.key?(status_param) ? status_param : 500
@@ -51,6 +56,7 @@ class ErrorsController < ActionController::Base
     render "errors/show", formats: [ :html ], layout: "error", status: @status_code
   end
 
+  # 定義済みの全エラーコード一覧を、クライアントエラー/サーバーエラーに分けて表示する
   def index
     @client_errors = ERROR_DETAILS.select { |_, v| v[:category] == :client }
     @server_errors = ERROR_DETAILS.select { |_, v| v[:category] == :server }

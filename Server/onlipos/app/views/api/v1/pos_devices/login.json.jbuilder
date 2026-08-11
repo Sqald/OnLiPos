@@ -1,3 +1,5 @@
+# POS端末ログインAPIのレスポンス
+# 発行したPOSトークンと、レシート印字に必要な店舗・税設定情報をJSONで返す
 json.success true
 json.token @pos_token.token
 json.pos_id @pos_token.id

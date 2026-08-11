@@ -1,3 +1,8 @@
+<%#
+  ダッシュボード: 店舗在庫画面
+  JANコードで商品を検索し、店舗ごとの在庫数量の確認・更新、
+  店舗間の在庫移動を行う画面。
+%>
 <div class="dashboard-container">
   <%= render 'dashboard/shared/menu' %>
 
@@ -6,6 +11,7 @@
       <h2>店舗在庫</h2>
     </div>
 
+    <%# JANコード検索フォーム %>
     <div class="filters mb-3">
       <%= form_with url: dashboard_store_stocks_path, method: :get, local: true do |f| %>
         <div class="filter-row">
@@ -37,6 +43,7 @@
           <p>在庫情報は登録されていません。</p>
         </div>
       <% else %>
+        <%# 店舗別の在庫一覧テーブル。各行で在庫数量をインライン編集して更新できる %>
         <table class="data-table">
           <thead>
             <tr>
@@ -66,6 +73,7 @@
           </tbody>
         </table>
 
+        <%# 在庫を持つ店舗が2店舗以上ある場合のみ、店舗間の在庫移動フォームを表示 %>
         <% if @store_stocks.size >= 2 %>
           <h3 class="mt-4 mb-2">店舗間在庫移動</h3>
           <%= form_with url: transfer_dashboard_store_stocks_path, method: :post, local: true do |f| %>

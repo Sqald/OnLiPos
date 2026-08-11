@@ -1,3 +1,7 @@
+<%#
+  パーシャル: Devise フォーム共通のバリデーションエラー表示
+  resource にエラーがある場合のみ、エラー件数とメッセージ一覧を表示する。
+%>
 <% if resource.errors.any? %>
   <div id="error_explanation" data-turbo-cache="false">
     <h2>

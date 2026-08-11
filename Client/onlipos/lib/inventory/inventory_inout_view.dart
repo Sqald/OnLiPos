@@ -1,3 +1,8 @@
+/// 入出荷管理画面。
+/// 担当者を認証した上でJANコードと数量を明細として積み上げ、
+/// まとめてサーバーへ送信して店舗在庫を入庫/出庫する。
+library;
+
 import 'package:flutter/material.dart';
 import 'package:onlipos/inventory/inventory_api.dart';
 import 'package:onlipos/login/login_api.dart';
@@ -51,6 +56,7 @@ class _InventoryInOutViewState extends State<InventoryInOutView> {
     super.dispose();
   }
 
+  /// 担当者コードとパスワードでログイン用APIを呼び出し、入出荷登録の実行者として認証する
   Future<void> _authenticateEmployee() async {
     final code = _employeeCodeController.text.trim();
     final pin = _employeePinController.text.trim();
@@ -119,6 +125,7 @@ class _InventoryInOutViewState extends State<InventoryInOutView> {
     }
   }
 
+  /// JANコードから商品を検索し、入力された数量・入出庫区分とともに明細一覧へ追加する
   Future<void> _addItem() async {
     if (_employeeId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -168,6 +175,7 @@ class _InventoryInOutViewState extends State<InventoryInOutView> {
     });
   }
 
+  /// 積み上げた入出荷明細をまとめてサーバーへ送信し、成功したら明細をクリアする
   Future<void> _submit() async {
     if (_employeeId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -232,6 +240,7 @@ class _InventoryInOutViewState extends State<InventoryInOutView> {
     }
   }
 
+  // 担当者認証欄・JAN/数量入力欄・明細一覧・登録ボタンを1画面にまとめて構築する
   @override
   Widget build(BuildContext context) {
     return Scaffold(

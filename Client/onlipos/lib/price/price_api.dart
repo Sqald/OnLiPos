@@ -1,9 +1,13 @@
+/// 店舗独自価格(店舗売価)の取得・更新を行うAPIクライアント。
+library;
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class PriceApi {
+  // 認証トークン付きの共通HTTPヘッダーを組み立てる
   static Future<Map<String, String>> _headers() async {
     const storage = FlutterSecureStorage();
     final token = await storage.read(key: 'LoginToken') ?? '';
@@ -14,12 +18,14 @@ class PriceApi {
     };
   }
 
+  // SecureStorageから接続先URLを読み込み、末尾のスラッシュを除去して返す
   static Future<String> _baseUrl() async {
     const storage = FlutterSecureStorage();
     final url = await storage.read(key: 'AccessUrl') ?? '';
     return url.endsWith('/') ? url.substring(0, url.length - 1) : url;
   }
 
+  /// 店舗の商品価格一覧をページング取得する(検索クエリ・続き読み込み対応)
   static Future<Map<String, dynamic>> fetchStorePrices({
     required int employeeId,
     String query = '',
@@ -45,6 +51,7 @@ class PriceApi {
     }
   }
 
+  /// 指定商品の店舗売価を更新する(定価に戻す/固定金額を設定する)
   static Future<Map<String, dynamic>> updateStorePrice({
     required int employeeId,
     required int productId,

@@ -1,3 +1,5 @@
+<%# ダッシュボード: 売上詳細画面
+    1件の売上の基本情報・支払い内訳・明細行(値引き・返品状況を含む)を表示する %>
 <div class="dashboard-container">
   <%= render 'dashboard/shared/menu' %>
 
@@ -6,6 +8,7 @@
       <h2>売上詳細</h2>
     </div>
 
+    <%# 売上の基本情報(日時・店舗・レシート番号・金額・返品状態など) %>
     <div class="mb-3">
       <table class="data-table">
         <tbody>
@@ -56,6 +59,7 @@
           </tr>
           <% end %>
 
+          <%# 返品済みの場合、返品ごとに返品レシートと返金額へのリンクを表示 %>
           <% if @sale.refunds.exists? %>
           <tr>
             <th>返品状態</th>
@@ -72,6 +76,7 @@
       </table>
     </div>
 
+    <%# 支払い内訳(複数決済がある場合はsale_payments、無ければ単一のpayment_methodを表示) %>
     <h3>支払い内訳</h3>
     <table class="data-table mb-4">
       <thead>
@@ -97,6 +102,7 @@
       </tbody>
     </table>
 
+    <%# 売上明細行(値引きがある場合は元単価に取り消し線を付けて表示) %>
     <h3>明細</h3>
     <table class="data-table">
       <thead>

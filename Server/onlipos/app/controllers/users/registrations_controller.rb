@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+# Devise のユーザー登録（サインアップ・アカウント編集・退会）をカスタマイズするためのコントローラ。
+# 許可パラメータの追加設定は ApplicationController#configure_permitted_parameters で行っており、
+# 本ファイル自体は Devise::RegistrationsController の標準動作をそのまま利用している（オーバーライドなし）。
 class Users::RegistrationsController < Devise::RegistrationsController
   # before_action :configure_sign_up_params, only: [:create]
   # before_action :configure_account_update_params, only: [:update]

@@ -1,3 +1,6 @@
+/// レジ開設(釣銭準備金登録)APIクライアント。
+library;
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';

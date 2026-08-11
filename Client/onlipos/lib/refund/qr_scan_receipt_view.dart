@@ -24,6 +24,7 @@ class _QrScanReceiptViewState extends State<QrScanReceiptView> {
     super.dispose();
   }
 
+  // QRコードを検出したら最初の1件のみを読み取り値として画面を閉じる
   void _onDetect(BarcodeCapture capture) {
     if (_hasScanned) return;
     final List<Barcode> barcodes = capture.barcodes;

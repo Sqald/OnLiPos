@@ -1,7 +1,10 @@
+# 電子ジャーナル（売上・返品・レジ開閉・入出金等の全取引記録）の閲覧API。
+# view_journal 権限を持つ従業員のみ閲覧可能。POS端末・日付・種別で絞り込みできる。
 class Api::V1::JournalsController < Api::V1::BaseController
   include EmployeePermissionAuthorizable
 
   # GET /api/v1/journals?pos_id=&date=&type=&employee_id=
+  # 条件に合致するジャーナルエントリを新しい順に最大200件返す
   def index
     store    = @current_pos.store
     employee = resolve_employee!(store)
@@ -24,6 +27,7 @@ class Api::V1::JournalsController < Api::V1::BaseController
   end
 
   # GET /api/v1/journals/:id
+  # ジャーナルエントリ1件の詳細（payload含む）を返す
   def show
     store    = @current_pos.store
     employee = resolve_employee!(store)
@@ -38,6 +42,8 @@ class Api::V1::JournalsController < Api::V1::BaseController
 
   private
 
+  # employee_id から担当者を特定し、店舗権限（全店舗権限 or 所属店舗）を確認する。
+  # 不正な場合は 403 を描画する（呼び出し側は performed? で中断を検知）。
   def resolve_employee!(store)
     employee = store.user.employees.find_by(id: params[:employee_id])
     unless employee && (employee.is_all_stores || employee.stores.exists?(store.id))
@@ -47,6 +53,7 @@ class Api::V1::JournalsController < Api::V1::BaseController
     employee
   end
 
+  # pos_id / date / type パラメータでジャーナルエントリを絞り込む
   def filter_scope(scope)
     if params[:pos_id].present?
       pos = @current_pos.store.pos_tokens.find_by(id: params[:pos_id])
@@ -65,6 +72,7 @@ class Api::V1::JournalsController < Api::V1::BaseController
     scope
   end
 
+  # 一覧表示用のサマリー（一覧・詳細で共通のフィールドをまとめる）
   def entry_summary(e)
     {
       id:             e.id,
@@ -77,6 +85,7 @@ class Api::V1::JournalsController < Api::V1::BaseController
     }
   end
 
+  # 詳細表示用（サマリーに payload 全体を加えたもの）
   def entry_detail(e)
     entry_summary(e).merge(payload: e.payload)
   end

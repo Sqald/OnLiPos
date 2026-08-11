@@ -1,3 +1,7 @@
+/// 返品・返金処理用のAPIクライアント。レシート番号から対象の売上を検索し、
+/// 返品内容をサーバーへ登録する。
+library;
+
 import 'dart:convert';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -6,6 +10,7 @@ import 'package:http/http.dart' as http;
 class RefundApi {
   static const _storage = FlutterSecureStorage();
 
+  // 接続先URLと認証トークンをSecureStorageから読み込み"URL|トークン"形式で返す
   static Future<String?> _baseUrlAndToken() async {
     final baseUrl = await _storage.read(key: 'AccessUrl');
     final token = await _storage.read(key: 'LoginToken');
@@ -16,6 +21,7 @@ class RefundApi {
     return '$normalized|$token';
   }
 
+  // JSONレスポンスをパースし、失敗時はエラーメッセージ付きのMapを返す
   static Map<String, dynamic> _parseResponse(http.Response response) {
     try {
       return jsonDecode(response.body) as Map<String, dynamic>;

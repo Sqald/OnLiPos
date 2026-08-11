@@ -31,6 +31,7 @@ class _SettingsViewState extends State<SettingsView> {
     _loadSettings();
   }
 
+  // 端末情報(店舗名・プリンターIP)と未送信オフライン会計件数を読み込む
   Future<void> _loadSettings() async {
     final storeName = await _storage.read(key: 'StoreName');
     final printerIp = await _storage.read(key: 'PrinterIP');
@@ -44,6 +45,7 @@ class _SettingsViewState extends State<SettingsView> {
     });
   }
 
+  // 確認ダイアログを表示したうえで従業員セッションを終了し、ログイン画面へ戻る
   Future<void> _logout() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -73,6 +75,7 @@ class _SettingsViewState extends State<SettingsView> {
     );
   }
 
+  // プロビジョニング画面を開き、マスタ再同期を行う
   void _openProvisioning() {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -86,6 +89,7 @@ class _SettingsViewState extends State<SettingsView> {
     );
   }
 
+  // 端末情報カードと操作ボタン(マスタ再同期・ログアウト)を表示する
   @override
   Widget build(BuildContext context) {
     return Scaffold(

@@ -1,3 +1,8 @@
+/// 返品・返金処理画面。不正防止のため従業員2名の認証を必須とし、
+/// レシート番号(手入力またはQR読み取り)で対象の会計を検索、
+/// 商品ごとに返品数量を指定してサーバーへ登録・返品レシートを印字する。
+library;
+
 import 'package:flutter/material.dart';
 import 'package:onlipos/login/login_api.dart';
 import 'package:onlipos/refund/refund_api.dart';
@@ -56,6 +61,7 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
   bool get _twoAuthenticated =>
       _employeeIds[0] != null && _employeeIds[1] != null;
 
+  // index番目の担当者枠を担当者コード・PINで認証し、返品権限と重複認証を確認する
   Future<void> _authenticate(int index) async {
     final code = _codeControllers[index].text.trim();
     final pin = _pinControllers[index].text.trim();
@@ -115,6 +121,7 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
     }
   }
 
+  // QRスキャン画面を開き、読み取ったレシート番号を入力欄に反映する
   Future<void> _openQrScanner() async {
     final value = await Navigator.of(context).push<String>(
       MaterialPageRoute(builder: (_) => const QrScanReceiptView()),
@@ -124,6 +131,7 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
     }
   }
 
+  // レシート番号で対象の売上を検索する。返品済みの場合は処理を中断する
   Future<void> _loadSale() async {
     final receipt = _receiptNumberController.text.trim();
     if (receipt.isEmpty) {
@@ -175,6 +183,7 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
     }
   }
 
+  // 指定された返品数量から返金合計額を計算する
   int get _totalRefundAmount {
     if (_saleData == null || _saleData!['details'] == null) return 0;
     int total = 0;
@@ -190,6 +199,7 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
 
   bool get _hasReturnQuantity => _returnQuantities.values.any((q) => q > 0);
 
+  // 入力内容を検証したうえで返品をサーバーに登録し、返品レシートを印字する
   Future<void> _submitRefund() async {
     if (!_twoAuthenticated) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -302,6 +312,7 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
     }
   }
 
+  // 様々な型で来る値をintへ変換する(変換できなければfallbackを返す)
   int _parseInt(Object? value, {int fallback = 0}) {
     if (value == null) return fallback;
     if (value is int) return value;
@@ -310,6 +321,7 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
     return int.tryParse(s) ?? fallback;
   }
 
+  // 支払方法を数値コード(0:現金/1:カード/2:バーコード決済)に正規化する
   int _normalizePaymentCode(Object? value) {
     // まず数値として解釈
     final intCode = _parseInt(value, fallback: -1);
@@ -329,6 +341,7 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
     }
   }
 
+  // 支払方法コードを日本語ラベルに変換する
   String _paymentLabel(int methodCode) {
     switch (methodCode) {
       case 0:
@@ -342,6 +355,7 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
     }
   }
 
+  // 「1.従業員認証 → 2.レシート検索 → 3.返品数量入力」の3ステップを縦に並べる
   @override
   Widget build(BuildContext context) {
     return Scaffold(

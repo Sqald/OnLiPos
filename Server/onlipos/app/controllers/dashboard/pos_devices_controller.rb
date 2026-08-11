@@ -1,4 +1,7 @@
+# POS端末（pos_token）の管理画面。端末の新規登録・削除・パスワード再発行を扱う。
+# 端末はプロビジョニングデータと紐づけて登録される。
 class Dashboard::PosDevicesController < Dashboard::BaseController
+  # 新規登録フォーム
   def new
     @pos_token = PosToken.new
     @stores = current_user.stores
@@ -7,6 +10,7 @@ class Dashboard::PosDevicesController < Dashboard::BaseController
     @provisionings = current_user.provisionings.order(created_at: :desc)
   end
 
+  # POS端末を登録する。パスワードはランダム生成し、初回のみ画面に表示する。
   def create
     @store = current_user.stores.find_by(id: pos_token_params[:store_id])
 
@@ -35,6 +39,7 @@ class Dashboard::PosDevicesController < Dashboard::BaseController
     end
   end
 
+  # POS端末を削除する。自ユーザー配下の端末のみが対象。
   def destroy
     @pos_token = PosToken.joins(:store)
                          .where(stores: { user_id: current_user.id })
@@ -49,6 +54,7 @@ class Dashboard::PosDevicesController < Dashboard::BaseController
     redirect_to dashboard_root_path, alert: "削除に失敗しました。時間をおいて再試行してください。", status: :see_other
   end
 
+  # POS端末のパスワードを再発行する。新パスワードはランダム生成し、画面に一度だけ表示する。
   def update_password
     @pos_token = PosToken.joins(:store)
                          .where(stores: { user_id: current_user.id })
@@ -74,6 +80,7 @@ class Dashboard::PosDevicesController < Dashboard::BaseController
 
   private
 
+  # POS端末フォームのStrong Parameters
   def pos_token_params
     params.require(:pos_token).permit(:ascii_name, :name, :store_id, :provisioning_id)
   end

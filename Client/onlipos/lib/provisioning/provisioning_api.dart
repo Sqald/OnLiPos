@@ -1,8 +1,13 @@
+/// 端末プロビジョニングAPIクライアント。ハードウェア設定・店舗情報など
+/// サーバー側で管理する端末設定を取得する。
+library;
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ProvisioningApi {
+  /// サーバーから端末のプロビジョニングデータ(ハードウェア設定・店舗情報)を取得する
   static Future<Map<String, dynamic>> getProvisioning() async {
     const storage = FlutterSecureStorage();
     String? baseUrl = await storage.read(key: 'AccessUrl');

@@ -1,3 +1,5 @@
+<%# ダッシュボード: レジ金履歴一覧画面
+    店舗・POS端末・日付・種別(開設/チェック/精算)で絞り込んでレジ金の履歴を検索・表示する %>
 <div class="dashboard-container">
   <%= render 'dashboard/shared/menu' %>
 
@@ -6,6 +8,7 @@
       <h2>レジ金履歴</h2>
     </div>
 
+    <%# 検索条件フォーム(店舗・POS端末・日付範囲・種別) %>
     <div class="filters mb-3">
       <%= form_with url: dashboard_cash_logs_path, method: :get, local: true do |f| %>
         <div class="filter-row">
@@ -51,6 +54,7 @@
       <% end %>
     </div>
 
+    <%# 検索条件が未指定・該当なし・結果ありの3パターンで表示を切り替え %>
     <% if !params[:store_id].present? && !params[:pos_token_id].present? && !params[:from].present? && !params[:to].present? && !params[:kind].present? %>
       <div class="empty-message">
         <p>店舗・端末・日付・種別のいずれかを指定して検索してください。</p>
@@ -78,6 +82,7 @@
               <td><%= log.pos_token.store.name %></td>
               <td><%= log.pos_token.name %></td>
               <td><%= log.employee.name %></td>
+              <%# レジ金ログの種別を日本語ラベルに変換 %>
               <td>
                 <% if log.is_start? %>
                   開設

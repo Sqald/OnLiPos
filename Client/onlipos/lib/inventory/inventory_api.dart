@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 class InventoryApi {
   static const _storage = FlutterSecureStorage();
 
+  /// 入出荷明細（movements）をまとめてサーバーへ送信し、店舗在庫を更新する
   Future<Map<String, dynamic>> moveStocks({
     required int employeeId,
     required List<Map<String, dynamic>> movements,

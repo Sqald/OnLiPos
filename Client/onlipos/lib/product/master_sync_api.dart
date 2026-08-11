@@ -1,9 +1,15 @@
+/// サーバーから商品マスタ（商品・セット商品）を取得し、
+/// ローカルSQLiteへ全件同期するサービス。
+library;
+
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:sqflite/sqflite.dart';
 import 'package:onlipos/product/database_service.dart';
 
+/// 商品マスタ同期サービス本体。1回の同期でローカルDBを一度リセットし、
+/// ページングされたAPIレスポンスを繰り返し取得してDBへ反映する。
 class ProductSyncService {
   final String baseUrl;
   final String authToken;

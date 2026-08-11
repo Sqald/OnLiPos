@@ -1,3 +1,6 @@
+// 決済画面。支払い方法（現金・カード・バーコード・電子マネー）を複数組み合わせて
+// 入力し、残金が0になったら会計をサーバーに送信、レシート印刷まで行う。
+// 現金払いがある場合はお預かり金入力（CashTenderView）を経由する。
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -57,6 +60,7 @@ class _PaymentViewState extends State<PaymentView> {
   int get _paidAmount => _payments.fold(0, (sum, item) => sum + item.amount);
   int get _remainingAmount => widget.totalAmount - _paidAmount;
 
+  // 選択した支払い方法の金額入力ダイアログを開き、残金を上限として支払いを追加する
   void _addPayment(PaymentMethodType method) {
     if (_remainingAmount <= 0) return;
 
@@ -81,6 +85,8 @@ class _PaymentViewState extends State<PaymentView> {
     });
   }
 
+  /// 会計を確定する。現金払いがあればお預かり金入力を挟み、
+  /// サーバーへ送信後にレシートを印刷する。
   Future<void> _processPayment() async {
     if (_remainingAmount != 0) return;
 
@@ -219,6 +225,7 @@ class _PaymentViewState extends State<PaymentView> {
     );
   }
 
+  // 左側：これまでに追加された支払い内訳の一覧
   Widget _buildPaymentList() {
     return Container(
       color: Colors.grey[100],
@@ -274,6 +281,7 @@ class _PaymentViewState extends State<PaymentView> {
     );
   }
 
+  // 右側：合計・支払済・残金の表示と支払い方法ボタン、会計確定ボタン
   Widget _buildPaymentControls(BoxConstraints? constraints) {
     Widget content = Padding(
       padding: const EdgeInsets.all(24.0),
@@ -373,6 +381,7 @@ class _PaymentViewState extends State<PaymentView> {
     return content;
   }
 
+  // 「ラベル: 金額」形式の1行を組み立てる共通ウィジェット
   Widget _buildSummaryRow(
     String label,
     int amount, {

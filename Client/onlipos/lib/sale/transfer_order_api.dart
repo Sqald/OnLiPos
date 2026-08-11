@@ -1,3 +1,5 @@
+// ホスト/クライアントモード用：クライアント機からホスト機へ会計を転送する
+// サーバー上の転送注文 API ラッパー。転送の作成・一覧取得・受け取り（削除）を提供する。
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';

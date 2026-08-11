@@ -1,3 +1,4 @@
+# Refund の明細行。返品対象の元明細（saledetail）と数量・金額を保持する
 class RefundDetail < ApplicationRecord
   belongs_to :refund
   belongs_to :saledetail

@@ -1,3 +1,7 @@
+/// レジ開設画面。業務開始ログイン直後に表示され、金種別の釣銭準備金枚数を入力して
+/// 開設処理を行う。開設完了後はメインメニューへ遷移する。
+library;
+
 import 'package:flutter/material.dart';
 import 'open_api.dart';
 import '../menu/menu_top_view.dart';
@@ -54,6 +58,7 @@ class _OpenViewState extends State<OpenView> {
     super.dispose();
   }
 
+  // 各金種の入力枚数から釣銭準備金の合計金額を再計算する
   void _calculateTotal() {
     int total = 0;
     _controllers.forEach((denomination, controller) {
@@ -68,6 +73,7 @@ class _OpenViewState extends State<OpenView> {
     }
   }
 
+  // 入力された金種枚数でレジ開設APIを呼び出し、成功時はメインメニューへ遷移する
   Future<void> _handleOpenStore() async {
     setState(() {
       _isLoading = true;
@@ -115,6 +121,7 @@ class _OpenViewState extends State<OpenView> {
     }
   }
 
+  // 金額を3桁区切りのカンマ付き文字列に整形する
   String _formatCurrency(int number) {
     return number.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
@@ -122,6 +129,7 @@ class _OpenViewState extends State<OpenView> {
     );
   }
 
+  // 左側に開設情報・合計金額・開設ボタン、右側に金種別の枚数入力フォームを配置する
   @override
   Widget build(BuildContext context) {
     final dateStr =

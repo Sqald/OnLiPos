@@ -1,3 +1,4 @@
+# 従業員（Employee）の権限チェックを各コントローラに提供する Concern
 module EmployeePermissionAuthorizable
   extend ActiveSupport::Concern
 

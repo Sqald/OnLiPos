@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+# 返品・返金APIを扱うコントローラ。
+# 元の売上（レシート番号で特定）に対し、明細単位で部分返品できる。
+# 不正防止のため従業員2名以上の認証（refund権限）を必須とする。
 class Api::V1::RefundsController < Api::V1::BaseController
   # レシート番号で売上を検索（返品対象の会計を表示する用）。自店舗の売上のみ。
   def sale_by_receipt
@@ -62,6 +65,7 @@ class Api::V1::RefundsController < Api::V1::BaseController
     employee_ids = Array(params[:employee_ids]).map(&:to_i).uniq
     details_param = params[:details]
 
+    # 入力チェック: レシート番号必須
     if receipt_number.blank?
       render json: { success: false, message: "レシート番号を指定してください" }, status: :bad_request
       return
@@ -72,6 +76,7 @@ class Api::V1::RefundsController < Api::V1::BaseController
       return
     end
 
+    # 認証された従業員が実在し、店舗権限・返品権限を持つか確認
     owner = @current_pos.store.user
     employees = owner.employees.where(id: employee_ids)
     employees = employees.select { |e| e.is_all_stores || e.stores.exists?(@current_pos.store_id) }
@@ -87,6 +92,7 @@ class Api::V1::RefundsController < Api::V1::BaseController
       return
     end
 
+    # 対象の売上を特定（自店舗のもののみ）
     sale = Sale.where(store_id: @current_pos.store_id, user_id: @current_pos.store.user_id)
                .includes(saledetails: :product)
                .find_by(receipt_number: receipt_number)
@@ -121,6 +127,7 @@ class Api::V1::RefundsController < Api::V1::BaseController
       return
     end
 
+    # 返品明細の妥当性確認・返金額計算・返品レコード作成・在庫戻しを1トランザクションで行う
     refund = nil
     error_message = nil
     ActiveRecord::Base.transaction do

@@ -1,3 +1,9 @@
+/// レジ金チェック画面。
+/// 営業中に金種別枚数を入力してレジ内現金の合計を算出し、
+/// サーバーが計算した想定レジ金（expected_amount）と比較して差異を確認する。
+/// 登録後は点検（X）レポートを印字する。
+library;
+
 import 'package:flutter/material.dart';
 
 import 'cash_log_api.dart';
@@ -29,6 +35,7 @@ class _CashCheckViewState extends State<CashCheckView> {
   bool _isLoading = false;
   final CashLogApi _api = CashLogApi();
 
+  // 金種ごとの入力欄を初期化し、コンテキスト読込とドロア開放を行う
   @override
   void initState() {
     super.initState();
@@ -51,6 +58,7 @@ class _CashCheckViewState extends State<CashCheckView> {
     super.dispose();
   }
 
+  /// 各金種の枚数入力から合計金額を再計算する
   void _calculateTotal() {
     var total = 0;
     _controllers.forEach((denomination, controller) {
@@ -67,6 +75,7 @@ class _CashCheckViewState extends State<CashCheckView> {
     });
   }
 
+  /// 前回のレジ金チェック結果と当日の想定レジ金をサーバーから取得する
   Future<void> _loadContext() async {
     final result = await _api.fetchCashCheckContext();
 
@@ -92,6 +101,7 @@ class _CashCheckViewState extends State<CashCheckView> {
     });
   }
 
+  /// 入力された金種枚数からレジ金チェックを登録し、成功したら点検レポートを印字する
   Future<void> _submit() async {
     if (_isLoading) return;
 
@@ -152,6 +162,7 @@ class _CashCheckViewState extends State<CashCheckView> {
     }
   }
 
+  // 金額を3桁区切りの文字列に整形する
   String _formatCurrency(int number) {
     return number.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
@@ -159,6 +170,7 @@ class _CashCheckViewState extends State<CashCheckView> {
     );
   }
 
+  // 金種別の枚数入力欄一覧を組み立てる
   Widget _buildDenominationInputs() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -210,6 +222,7 @@ class _CashCheckViewState extends State<CashCheckView> {
     );
   }
 
+  // 担当者名・合計金額・前回チェックとの差異をまとめて表示するサマリー部
   Widget _buildSummarySection({bool compact = false}) {
     return Container(
       color: Colors.grey[100],
@@ -282,6 +295,7 @@ class _CashCheckViewState extends State<CashCheckView> {
     );
   }
 
+  // 画面幅に応じてスマホ向け縦レイアウトとタブレット/デスクトップ向け横レイアウトを切り替える
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -432,6 +446,7 @@ class _CashCheckViewState extends State<CashCheckView> {
     );
   }
 
+  // ラベルと金額を1行で表示する（差異があるときは強調色にする）
   Widget _buildResultRow(String label, int amount, {bool highlight = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2.0),

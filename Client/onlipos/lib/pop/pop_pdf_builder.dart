@@ -1,3 +1,7 @@
+/// POP(値札)印刷用のPDFを組み立てるビルダー。1ページあたりの面付け数(1/2/4/8/16)に
+/// 応じてグリッドを敷き、各セルに商品名・税込/税抜価格・バーコードを描画する。
+library;
+
 import 'dart:typed_data';
 import 'package:barcode/barcode.dart' as bc;
 import 'package:pdf/pdf.dart';
@@ -5,6 +9,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:onlipos/product/product.dart';
 
+/// POP印刷リストの1エントリ(商品と印刷枚数)
 class PopItem {
   final Product product;
   int count;
@@ -29,6 +34,7 @@ class PopPdfBuilder {
     return (total / perPage).ceil();
   }
 
+  /// 商品リストと面付け数からPOP用PDFを生成する
   static Future<Uint8List> build(List<PopItem> items, int perPage) async {
     final cfg = _kGrid[perPage]!;
 
@@ -84,6 +90,7 @@ class PopPdfBuilder {
     return doc.save();
   }
 
+  // 1商品分のPOPセル(商品名・価格・バーコード・説明文)を描画する
   static pw.Widget _buildCell(
     Product p,
     double cellW,
@@ -194,6 +201,7 @@ class PopPdfBuilder {
     return (10 - (sum % 10)) % 10 == int.parse(code[12]);
   }
 
+  // 金額を3桁区切りのカンマ付き文字列に整形する
   static String _fmt(int n) => n.toString().replaceAllMapped(
     RegExp(r'(\d)(?=(\d{3})+$)'),
     (m) => '${m[1]},',

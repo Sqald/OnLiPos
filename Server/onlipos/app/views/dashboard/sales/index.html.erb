@@ -1,3 +1,5 @@
+<%# ダッシュボード: 売上一覧画面
+    店舗・期間で絞り込んで売上履歴を検索・表示し、CSVダウンロードや詳細画面への導線を提供する %>
 <div class="dashboard-container">
   <%= render 'dashboard/shared/menu' %>
 
@@ -11,6 +13,7 @@
       <% end %>
     </div>
 
+    <%# 検索条件フォーム(店舗・期間) %>
     <div class="filters mb-3">
       <%= form_with url: dashboard_sales_path, method: :get, local: true do |f| %>
         <div class="filter-row">
@@ -37,6 +40,7 @@
       <% end %>
     </div>
 
+    <%# 検索条件が未指定・該当なし・結果ありの3パターンで表示を切り替え %>
     <% if !params[:store_id].present? && !params[:from].present? && !params[:to].present? %>
       <div class="empty-message">
         <p>店舗または期間を指定して検索してください。</p>
@@ -67,6 +71,7 @@
               <td><%= sale.pos_token&.ascii_name || "-" %></td>
               <td><%= sale.employee ? "#{sale.employee.name}(#{sale.employee.code})" : "-" %></td>
               <td><%= link_to sale.receipt_number, dashboard_sale_detail_path(sale), class: "link" %></td>
+              <%# 複数決済がある場合は内訳を列挙、無ければ単一の支払方法を表示 %>
               <td>
                 <% if sale.sale_payments.any? %>
                   <ul class="list-unstyled mb-0">

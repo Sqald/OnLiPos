@@ -1,3 +1,8 @@
+<%#
+  HTTPエラーコード一覧画面
+  4xx/5xxの各エラーコードを一覧表示し、クリックすると
+  errors#show（各エラーページのプレビュー）へ遷移する。
+%>
 <% content_for :title, "HTTPエラーコード一覧 | OnLiPos" %>
 
 <div class="dashboard-container">
@@ -8,6 +13,7 @@
     各エラーをクリックするとエラーページのプレビューが表示されます。
   </p>
 
+  <%# 4xx系（クライアント起因）エラーの一覧 %>
   <div class="errors-list-section">
     <div class="section-header">
       <h2>クライアントエラー</h2>
@@ -26,6 +32,7 @@
     </div>
   </div>
 
+  <%# 5xx系（サーバー起因）エラーの一覧 %>
   <div class="errors-list-section">
     <div class="section-header">
       <h2>サーバーエラー</h2>

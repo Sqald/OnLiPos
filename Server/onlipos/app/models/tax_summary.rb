@@ -5,6 +5,7 @@ class TaxSummary
   Row = Struct.new(:tax_rate, :sales_amount, :sales_tax, :refund_amount, :refund_tax,
                    :net_amount, :net_tax, keyword_init: true)
 
+  # 売上・返品それぞれの税率別内訳を集計し、両者をマージした Row の配列を返す
   # sales_scope: 集計対象の Sale リレーション（status 等はフィルタ済みであること）
   # refunds_scope: 控除する Refund リレーション
   def self.build(sales_scope, refunds_scope)

@@ -1,3 +1,5 @@
+# 小売店モード用の「保留」注文API。
+# レジ精算前のカート内容を店舗内で共有保存し、後で別のPOS端末からでも呼び出せるようにする。
 class Api::V1::HoldOrdersController < Api::V1::BaseController
   # GET /api/v1/hold_orders
   # この店舗の保留一覧を返す

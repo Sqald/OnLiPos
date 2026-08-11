@@ -1,4 +1,7 @@
+# 商品マスタをPOS端末へ提供するAPI。
+# lookup はバーコード等での単品照会、sync は差分同期によるカタログ全体の取り込みに使う。
 class Api::V1::ProductsController < Api::V1::BaseController
+  # GET /api/v1/products/lookup?code=... — 商品コード（JAN等）1件の照会
   def lookup
     code = params[:code].to_s.strip
     return render json: { success: false, message: "code is required" }, status: :bad_request if code.blank?
@@ -27,6 +30,9 @@ class Api::V1::ProductsController < Api::V1::BaseController
     }, status: :ok
   end
 
+  # POST /api/v1/products/sync — 商品・セット商品カタログの差分同期。
+  # last_updated_at/last_id を「しおり」としたカーソルページングで、
+  # 更新のあった商品を updated_at 昇順に最大1000件ずつ返す（has_more で継続要否を通知）。
   def sync
     limit = 1000
 
@@ -114,6 +120,7 @@ class Api::V1::ProductsController < Api::V1::BaseController
 
   private
 
+  # sync アクション用のストロングパラメータ（ページングの「しおり」）
   def sync_params
     params.permit(:last_updated_at, :last_id)
   end

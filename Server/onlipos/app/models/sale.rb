@@ -1,5 +1,7 @@
 # /home/sqald/github/OnLiPos/Server/onlipos/app/models/sale.rb
 
+# 売上（会計1件）。明細は saledetails、支払い内訳は sale_payments、税率別内訳は
+# sale_tax_breakdowns に持つ。確定後の取消はレコード削除ではなく status を voided にして記録する。
 class Sale < ApplicationRecord
   belongs_to :user
   belongs_to :store
@@ -39,6 +41,7 @@ class Sale < ApplicationRecord
     self.business_date ||= sold_at.in_time_zone.to_date
   end
 
+  # レシート番号を採番する（POS端末経由なら連番方式、手動登録なら日時+ランダム方式）
   def set_receipt_number
     return if receipt_number.present?
 

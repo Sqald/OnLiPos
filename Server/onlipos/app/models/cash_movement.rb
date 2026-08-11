@@ -2,14 +2,17 @@
 # 金種実査（cash_logs）とは別に「現金の移動」という事実を記録し、
 # 理論在高 = 釣銭準備金 + 現金売上 − 現金返金 + 入金 − 出金 の照合に使う。
 class CashMovement < ApplicationRecord
+  # アソシエーション
   belongs_to :store
   belongs_to :pos_token
   belongs_to :register_session, optional: true
   belongs_to :employee
 
+  # 入出金の種別・方向
   enum :kind, { pickup: 0, replenishment: 1, misc_in: 2, misc_out: 3 }
   enum :direction, { inbound: 0, outbound: 1 }
 
+  # バリデーション
   validates :amount, presence: true, numericality: { only_integer: true, greater_than: 0 }
   validates :occurred_at, presence: true
   validate :direction_matches_kind
@@ -28,6 +31,7 @@ class CashMovement < ApplicationRecord
 
   private
 
+  # direction が kind に対応する方向と一致しているかを検証する
   def direction_matches_kind
     return if kind.blank? || direction.blank?
     expected = KIND_DIRECTIONS[kind]

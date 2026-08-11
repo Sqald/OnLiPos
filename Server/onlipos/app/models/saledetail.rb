@@ -1,3 +1,5 @@
+# Sale の明細行（商品1品目ごとの数量・単価・税情報）。
+# 命名は Rails の規約に沿わない不規則名（sale_details ではなく saledetails）である点に注意。
 class Saledetail < ApplicationRecord
   belongs_to :sale
   belongs_to :product

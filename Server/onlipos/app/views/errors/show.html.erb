@@ -1,3 +1,8 @@
+<%#
+  個別HTTPエラーページ
+  @status_code / @error_info を元に、該当ステータスコードの説明を表示する。
+  実際のエラー発生時、または /errors 一覧からのプレビューで表示される。
+%>
 <% is_server = @error_info[:category] == :server %>
 <% content_for :title, "#{@status_code} #{@error_info[:title]} | OnLiPos" %>
 

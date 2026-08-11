@@ -1,3 +1,4 @@
+# レジ金（現金実査）履歴の閲覧画面。開設・点検・途中回収・精算の各ログを検索・一覧表示する。
 class Dashboard::CashLogsController < Dashboard::BaseController
   # レジ金履歴は検索条件（店舗・端末・日付・種別）を指定して検索したときのみデータを取得する。
   # 自ユーザー配下の店舗・POS端末のログのみに厳格にスコープする。
@@ -53,6 +54,7 @@ class Dashboard::CashLogsController < Dashboard::BaseController
 
   private
 
+  # 検索条件（店舗・端末・期間・種別）のいずれかが指定されたかを判定する
   def search_performed?
     params[:store_id].present? ||
       params[:pos_token_id].present? ||

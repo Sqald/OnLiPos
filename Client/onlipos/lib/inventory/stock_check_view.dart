@@ -1,3 +1,7 @@
+/// 在庫確認画面。
+/// 店舗在庫の一覧をサーバーから取得し、商品名/JANコードで絞り込んで表示する。
+library;
+
 import 'package:flutter/material.dart';
 import 'package:onlipos/inventory/stock_check_api.dart';
 
@@ -15,6 +19,7 @@ class _StockCheckViewState extends State<StockCheckView> {
   String _searchQuery = '';
   final _searchController = TextEditingController();
 
+  // 画面表示直後に在庫一覧を読み込む
   @override
   void initState() {
     super.initState();
@@ -27,6 +32,7 @@ class _StockCheckViewState extends State<StockCheckView> {
     super.dispose();
   }
 
+  /// サーバーから在庫一覧を取得して画面状態を更新する
   Future<void> _loadStocks() async {
     setState(() {
       _isLoading = true;
@@ -50,6 +56,7 @@ class _StockCheckViewState extends State<StockCheckView> {
     }
   }
 
+  // 検索クエリで商品名/JANコードを絞り込んだ在庫一覧を返す
   List<Map<String, dynamic>> get _filtered {
     if (_searchQuery.isEmpty) return _stocks;
     final q = _searchQuery.toLowerCase();
@@ -60,6 +67,7 @@ class _StockCheckViewState extends State<StockCheckView> {
     }).toList();
   }
 
+  // 検索バーと件数表示、在庫リスト本体をまとめた画面を構築する
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -105,6 +113,7 @@ class _StockCheckViewState extends State<StockCheckView> {
     );
   }
 
+  // 読込中/エラー/空データ/一覧表示の各状態に応じた本体ウィジェットを返す
   Widget _buildBody() {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());

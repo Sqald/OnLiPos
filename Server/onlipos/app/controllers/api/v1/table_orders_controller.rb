@@ -1,3 +1,4 @@
+# 飲食店モード用API。テーブルごとの注文（カート内容）を店舗内のPOS端末間で共有する。
 class Api::V1::TableOrdersController < Api::V1::BaseController
   # GET /api/v1/table_orders
   # アクティブな（アイテムがある）テーブル一覧を返す
@@ -43,6 +44,7 @@ class Api::V1::TableOrdersController < Api::V1::BaseController
 
   private
 
+  # upsert アクション用のストロングパラメータ（未使用: upsert では params[:items] を直接使用）
   def upsert_params
     params.permit(items: [ {} ])
   end

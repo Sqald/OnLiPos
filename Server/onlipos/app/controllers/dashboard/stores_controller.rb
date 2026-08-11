@@ -1,14 +1,18 @@
+# 店舗の管理画面。店舗の登録・編集・削除に加え、店舗別価格（デフォルト価格からの上書き）の設定を扱う。
 class Dashboard::StoresController < Dashboard::BaseController
   before_action :set_store, only: [ :edit, :update, :destroy, :prices, :update_prices ]
 
+  # 自ユーザー配下の店舗一覧
   def index
     @stores = current_user.stores.order(created_at: :desc)
   end
 
+  # 新規登録フォーム
   def new
     @store = Store.new
   end
 
+  # 店舗を登録する
   def create
     @store = current_user.stores.build(store_params)
 
@@ -19,9 +23,11 @@ class Dashboard::StoresController < Dashboard::BaseController
     end
   end
 
+  # 編集フォーム
   def edit
   end
 
+  # 店舗情報を更新する
   def update
     if @store.update(store_params)
       redirect_to dashboard_stores_path, notice: "店舗情報を更新しました。"
@@ -30,6 +36,7 @@ class Dashboard::StoresController < Dashboard::BaseController
     end
   end
 
+  # 店舗を削除する
   def destroy
     @store.destroy
     redirect_to dashboard_stores_path, notice: "店舗を削除しました。", status: :see_other
@@ -78,10 +85,12 @@ class Dashboard::StoresController < Dashboard::BaseController
 
   private
 
+  # 自ユーザー配下の店舗をIDで取得する
   def set_store
     @store = current_user.stores.find(params[:id])
   end
 
+  # 店舗フォームのStrong Parameters
   def store_params
     params.require(:store).permit(:ascii_name, :name, :address, :phone_number, :description)
   end

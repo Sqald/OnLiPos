@@ -1,3 +1,5 @@
+# 店舗別価格（本部の定価とは別に店舗ごとに上書きできる価格）の閲覧・更新API。
+# edit_prices 権限を持つ従業員のみ利用可能。
 class Api::V1::StorePricesController < Api::V1::BaseController
   PAGE_LIMIT = 50
 
@@ -91,6 +93,8 @@ class Api::V1::StorePricesController < Api::V1::BaseController
 
   private
 
+  # employee_id から担当者を特定し、店舗権限（全店舗権限 or 所属店舗）を確認する。
+  # 不正な場合は 403 を描画して nil を返す。
   def resolve_employee(store)
     employee = store.user.employees.find_by(id: params[:employee_id])
     unless employee && (employee.is_all_stores || employee.stores.exists?(store.id))

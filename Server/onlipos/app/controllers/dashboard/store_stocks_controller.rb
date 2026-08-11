@@ -1,3 +1,5 @@
+# 店舗在庫の照会・調整画面。JANコードで在庫を検索し、店舗間の在庫移動や
+# 数量の手動調整を行う。変更内容は StockMovement に監査ログとして記録される。
 class Dashboard::StoreStocksController < Dashboard::BaseController
   before_action :set_store_stock, only: [ :update ]
 
@@ -25,6 +27,7 @@ class Dashboard::StoreStocksController < Dashboard::BaseController
       return
     end
 
+    # 移動元は減算・移動先は加算し、それぞれ行ロックの上でStockMovementに記録する
     ActiveRecord::Base.transaction do
       from_stock = StoreStock.find_or_create_by!(store: from_store, product: product)
       from_stock.with_lock do
@@ -103,6 +106,7 @@ class Dashboard::StoreStocksController < Dashboard::BaseController
 
   private
 
+  # 自ユーザー配下の店舗在庫をIDで取得する
   def set_store_stock
     @store_stock = StoreStock
       .joins(:store)

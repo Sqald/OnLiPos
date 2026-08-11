@@ -1,3 +1,5 @@
+# ホスト・クライアントモード用API。クライアント機のカート内容をホスト機へ転送し、
+# ホスト機がそれを取得（destroy）して会計処理を引き継ぐ。
 class Api::V1::TransferOrdersController < Api::V1::BaseController
   # GET /api/v1/transfer_orders
   # ホスト待ち受け用：店舗内の未処理転送注文一覧（アイテム詳細なし）
@@ -69,6 +71,7 @@ class Api::V1::TransferOrdersController < Api::V1::BaseController
 
   private
 
+  # create アクション用のストロングパラメータ（items は個別に許可キーでフィルタする）
   def transfer_params
     params.require(:transfer_order).permit(:operator_name, :operator_id, :total_amount, :table_number)
   end

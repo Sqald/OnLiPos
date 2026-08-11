@@ -1,5 +1,10 @@
+// 会計中のカートに積まれた1商品分のデータモデル（ScannedItem）を定義する。
+// セット商品展開・手動値引きに対応する。
+library;
+
 import 'package:onlipos/product/product.dart';
 
+/// スキャン／選択した商品1件分（数量・値引きなどを含む）。
 class ScannedItem {
   final Product product;
   // セット商品から展開された場合のセットコード
@@ -22,6 +27,7 @@ class ScannedItem {
 
   int get price => overridePrice ?? product.price;
 
+  // カート内で独立に扱えるようディープコピーを作成する
   ScannedItem copy() => ScannedItem(
     product: product,
     bundleCode: bundleCode,
@@ -31,6 +37,7 @@ class ScannedItem {
     discountReason: discountReason,
   );
 
+  // 小計（単価 × 数量）
   int get subtotal => price * quantity;
 
   // 消費税額（税込価格から逆算）

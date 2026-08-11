@@ -1,4 +1,7 @@
+# 売上（会計）に関するAPI。会計の登録（create）に加え、日次一覧、期間集計、
+# 取消（void）、領収書発行の記録を扱う。
 class Api::V1::SalesController < Api::V1::BaseController
+  # GET /api/v1/sales?date=YYYY-MM-DD — 指定日（省略時は当日）の自店舗の売上一覧
   def index
     date = params[:date].present? ? Date.parse(params[:date]) : Date.current
     store = @current_pos.store
@@ -99,6 +102,9 @@ class Api::V1::SalesController < Api::V1::BaseController
     render json: { success: false, message: "日付の形式が不正です" }, status: :bad_request
   end
 
+  # POST /api/v1/sales — 会計（売上）を登録する。
+  # Sale作成 → 明細保存 → 小計割引適用 → 支払い保存 → 税率別内訳確定、の順で処理し、
+  # 失敗時はロールバックしてエラーを返す。
   def create
     # BaseControllerのauthenticate_pos_tokenでセットされた @current_pos を使用
     payments = payment_params_array
@@ -312,6 +318,8 @@ class Api::V1::SalesController < Api::V1::BaseController
 
   private
 
+  # employee_id から担当者を特定し、店舗権限（全店舗権限 or 所属店舗）を確認する。
+  # 不正な場合は 403 を描画して nil を返す。
   def resolve_employee(store)
     employee = store.user.employees.find_by(id: params[:employee_id])
     unless employee && (employee.is_all_stores || employee.stores.exists?(store.id))
@@ -322,6 +330,7 @@ class Api::V1::SalesController < Api::V1::BaseController
     employee
   end
 
+  # create アクション用のストロングパラメータ
   def sale_params
     # receipt_number / sold_at はオフライン同期時にクライアントから送られてくる場合がある
     params.require(:sale).permit(:total_amount, :payment_method, :receipt_number, :subtotal_ex_tax, :tax_amount, :sold_at,
@@ -403,6 +412,8 @@ class Api::V1::SalesController < Api::V1::BaseController
     end
   end
 
+  # 送信された明細（詳細）配列を Sale に紐づけて保存する。
+  # セット商品コード付きは save_bundle_detail に委譲し、それ以外は通常商品として処理する。
   def save_sale_details
     details = params[:details]
     return unless details.is_a?(Array)
@@ -641,6 +652,7 @@ class Api::V1::SalesController < Api::V1::BaseController
     end
   end
 
+  # 店舗在庫を数量分だけ減らし、監査証跡として在庫変動履歴を残す
   def deduct_stock(store, product, quantity, employee = nil)
     return if store.nil? || quantity <= 0
 

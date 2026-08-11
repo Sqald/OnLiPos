@@ -1,4 +1,6 @@
+# 店舗。User（企業）に属し、POS端末・在庫・売上など店舗単位のデータの起点となる。
 class Store < ApplicationRecord
+  # アソシエーション
   belongs_to :user
   has_many :pos_tokens, dependent: :destroy
   has_many :prices, dependent: :destroy
@@ -16,13 +18,16 @@ class Store < ApplicationRecord
 
   delegate :products, to: :user
 
+  # バリデーション
   validates :name, presence: true, uniqueness: true
   validates :ascii_name, presence: true, length: { in: 3..16 }, format: { with: /\A[a-zA-Z0-9]+\z/ }, uniqueness: { scope: :user_id, case_sensitive: false }
 
+  # コールバック
   after_create :assign_employees_marked_as_all_stores
 
   private
 
+  # 「全店舗対応」フラグ(is_all_stores)を持つ従業員を、新規作成された店舗にも自動で割り当てる
   def assign_employees_marked_as_all_stores
     Employee.joins(:stores).where(stores: { user_id: user_id }).where(is_all_stores: true).distinct.each do |employee|
       employee.stores << self unless employee.stores.exists?(id)

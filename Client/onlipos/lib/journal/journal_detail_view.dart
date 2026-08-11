@@ -1,3 +1,7 @@
+/// ジャーナル明細画面。一覧から選択された1件のジャーナル(売上・返品・
+/// レジ操作など)の詳細を表示し、売上/返品については再印字も行う。
+library;
+
 import 'package:flutter/material.dart';
 import 'package:onlipos/journal/journal_api.dart';
 import 'package:onlipos/sale/escpos/lan_recipt_api.dart';
@@ -28,6 +32,7 @@ class _JournalDetailViewState extends State<JournalDetailView> {
     _load();
   }
 
+  // ジャーナル詳細をサーバーから取得する
   Future<void> _load() async {
     final result = await JournalApi.fetchDetail(
       employeeId: widget.employeeId,
@@ -47,6 +52,7 @@ class _JournalDetailViewState extends State<JournalDetailView> {
     }
   }
 
+  // ジャーナル種別(売上/返品)に応じてレシートを再印字する
   Future<void> _reprint() async {
     final entry = _entry;
     if (entry == null) return;
@@ -78,6 +84,7 @@ class _JournalDetailViewState extends State<JournalDetailView> {
     }
   }
 
+  // 売上ジャーナルのpayloadから明細・支払方法を復元しレシートを印字する
   Future<void> _reprintSale(Map<String, dynamic> payload) async {
     final details = (payload['details'] as List? ?? []).map((d) {
       final m = d as Map<String, dynamic>;
@@ -108,6 +115,7 @@ class _JournalDetailViewState extends State<JournalDetailView> {
     );
   }
 
+  // 返品ジャーナルのpayloadから明細を復元し返品レシートを印字する
   Future<void> _reprintRefund(Map<String, dynamic> payload) async {
     final details = (payload['details'] as List? ?? []).map((d) {
       final m = d as Map<String, dynamic>;
@@ -128,6 +136,7 @@ class _JournalDetailViewState extends State<JournalDetailView> {
     );
   }
 
+  // 再印字ボタンを表示してよい種別(売上・返品)かどうか
   bool get _canReprint {
     final t = _entry?['entry_type'] as String?;
     return t == 'sale' || t == 'refund';
@@ -162,6 +171,7 @@ class _JournalDetailViewState extends State<JournalDetailView> {
     );
   }
 
+  // 読み込み状態・エラー・種別ごとの表示内容を組み立てる
   Widget _buildBody() {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
@@ -563,6 +573,7 @@ class _AmountRow extends StatelessWidget {
 
 // ── ユーティリティ ────────────────────────────────────────────────────────────
 
+// ジャーナル種別コードを日本語ラベルに変換する
 String _entryTypeLabel(String type) => switch (type) {
   'sale' => '売上',
   'refund' => '返品',
@@ -573,11 +584,13 @@ String _entryTypeLabel(String type) => switch (type) {
   _ => type,
 };
 
+// 金額を3桁区切りのカンマ付き文字列に整形する
 String _fmt(int n) => n.toString().replaceAllMapped(
   RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
   (m) => '${m[1]},',
 );
 
+// ISO8601文字列を"YYYY-MM-DD HH:mm"形式のローカル時刻表示に変換する
 String _fmtTime(String iso) {
   if (iso.isEmpty) return '';
   try {

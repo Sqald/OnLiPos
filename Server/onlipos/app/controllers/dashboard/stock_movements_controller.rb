@@ -1,4 +1,6 @@
+# 在庫移動履歴（入出庫・移動）の閲覧画面。
 class Dashboard::StockMovementsController < Dashboard::BaseController
+  # 検索条件（店舗・期間）を指定して検索したときのみデータを取得する
   def index
     @stores = current_user.stores.order(:name)
     @allowed_store_ids = current_user.stores.pluck(:id)
@@ -37,6 +39,7 @@ class Dashboard::StockMovementsController < Dashboard::BaseController
 
   private
 
+  # 検索条件（店舗・期間）のいずれかが指定されたかを判定する
   def search_performed?
     params[:store_id].present? || params[:from].present? || params[:to].present?
   end

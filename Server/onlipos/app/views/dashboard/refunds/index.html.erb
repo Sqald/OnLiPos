@@ -1,11 +1,14 @@
 <div class="dashboard-container">
   <%= render 'dashboard/shared/menu' %>
 
+<%# ダッシュボード: 返品一覧画面
+    店舗・期間で絞り込んで返品履歴を検索・表示する %>
   <div class="dashboard-content card">
     <div class="subtitle d-flex justify-content-between align-items-center">
       <h2>返品一覧</h2>
     </div>
 
+    <%# 検索条件フォーム(店舗・期間) %>
     <div class="filters mb-3">
       <%= form_with url: dashboard_refunds_path, method: :get, local: true do |f| %>
         <div class="filter-row">
@@ -32,6 +35,7 @@
       <% end %>
     </div>
 
+    <%# 検索条件が未指定・該当なし・結果ありの3パターンで表示を切り替え %>
     <% if !params[:store_id].present? && !params[:from].present? && !params[:to].present? %>
       <div class="empty-message">
         <p>店舗または期間を指定して検索してください。</p>

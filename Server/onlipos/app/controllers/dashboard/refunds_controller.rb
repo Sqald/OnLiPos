@@ -1,4 +1,7 @@
+# 返金（返品）履歴の閲覧画面。
 class Dashboard::RefundsController < Dashboard::BaseController
+  # 返金一覧は検索条件（店舗・期間）を指定して検索したときのみデータを取得する。
+  # 自ユーザーの売上に紐づく返金のみに厳格にスコープする。
   def index
     @stores = current_user.stores.order(:name)
     @allowed_store_ids = @stores.pluck(:id)
@@ -33,6 +36,7 @@ class Dashboard::RefundsController < Dashboard::BaseController
       .per(50)
   end
 
+  # 返金の詳細（元の売上明細・返金明細）を表示する
   def show
     @refund = Refund
       .joins(:sale)
@@ -43,6 +47,7 @@ class Dashboard::RefundsController < Dashboard::BaseController
 
   private
 
+  # 検索条件（店舗・期間）のいずれかが指定されたかを判定する
   def search_performed?
     params[:store_id].present? || params[:from].present? || params[:to].present?
   end

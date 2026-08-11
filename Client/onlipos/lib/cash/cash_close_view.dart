@@ -1,3 +1,9 @@
+/// レジ精算（締め）画面。
+/// 営業終了時に金種別枚数を入力してレジ内現金の合計を算出し、
+/// サーバーへ精算を登録して精算（Z）レポートを印字する。
+/// 精算完了後はログアウトまたはアプリ終了を選択させる。
+library;
+
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -34,6 +40,7 @@ class _CashCloseViewState extends State<CashCloseView> {
   bool _isLoading = false;
   final CashLogApi _api = CashLogApi();
 
+  // 金種ごとの入力欄を初期化し、コンテキスト読込とドロア開放を行う
   @override
   void initState() {
     super.initState();
@@ -56,6 +63,7 @@ class _CashCloseViewState extends State<CashCloseView> {
     super.dispose();
   }
 
+  /// 各金種の枚数入力から合計金額を再計算する
   void _calculateTotal() {
     var total = 0;
     _controllers.forEach((denomination, controller) {
@@ -72,6 +80,7 @@ class _CashCloseViewState extends State<CashCloseView> {
     });
   }
 
+  /// 前回のレジ金チェック結果と当日の想定レジ金をサーバーから取得する
   Future<void> _loadContext() async {
     final result = await _api.fetchCashCheckContext();
 
@@ -97,6 +106,7 @@ class _CashCloseViewState extends State<CashCloseView> {
     });
   }
 
+  /// 入力された金種枚数でレジを精算し、成功したら精算（Z）レポートを印字して完了ダイアログを表示する
   Future<void> _submit() async {
     if (_isLoading) return;
 
@@ -160,6 +170,7 @@ class _CashCloseViewState extends State<CashCloseView> {
     }
   }
 
+  // 精算完了後にログアウトまたはアプリ終了を選ばせるダイアログを表示する
   void _showClosingDialog() {
     showDialog<void>(
       context: context,
@@ -198,6 +209,7 @@ class _CashCloseViewState extends State<CashCloseView> {
     );
   }
 
+  // 金額を3桁区切りの文字列に整形する
   String _formatCurrency(int number) {
     return number.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
@@ -205,6 +217,7 @@ class _CashCloseViewState extends State<CashCloseView> {
     );
   }
 
+  // ラベルと金額を1行で表示する（差異があるときは強調色にする）
   Widget _buildResultRow(String label, int amount, {bool highlight = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2.0),
@@ -224,6 +237,7 @@ class _CashCloseViewState extends State<CashCloseView> {
     );
   }
 
+  // 金種別の枚数入力欄一覧を組み立てる
   Widget _buildDenominationInputs() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -275,6 +289,7 @@ class _CashCloseViewState extends State<CashCloseView> {
     );
   }
 
+  // 担当者名・締め合計金額・精算前状況をまとめて表示するサマリー部
   Widget _buildSummarySection({bool compact = false}) {
     return Container(
       color: Colors.grey[100],
@@ -347,6 +362,7 @@ class _CashCloseViewState extends State<CashCloseView> {
     );
   }
 
+  // 画面幅に応じてスマホ向け縦レイアウトとタブレット/デスクトップ向け横レイアウトを切り替える
   @override
   Widget build(BuildContext context) {
     return Scaffold(

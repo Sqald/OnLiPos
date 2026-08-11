@@ -1,3 +1,5 @@
+// 店舗売上閲覧画面。「店舗売上閲覧」権限を持つ担当者コード＋パスワードで
+// 認証した後、今日/今月/期間指定の売上サマリーを表示する。
 import 'package:flutter/material.dart';
 import 'package:onlipos/login/login_api.dart';
 import 'package:onlipos/sale/store_sales_api.dart';
@@ -56,6 +58,7 @@ class _StoreSalesViewState extends State<StoreSalesView> {
     };
   }
 
+  // 担当者コード＋パスワードで認証し、成功したら売上サマリーを読み込む
   Future<void> _authenticate() async {
     final code = _codeController.text.trim();
     final pin = _pinController.text.trim();
@@ -88,6 +91,7 @@ class _StoreSalesViewState extends State<StoreSalesView> {
     }
   }
 
+  // 現在選択中の期間で売上サマリーAPIを呼び出し、結果を画面に反映する
   Future<void> _loadSummary() async {
     final eid = _employeeId;
     if (eid == null) return;

@@ -1,3 +1,8 @@
+/// 初回セットアップ画面。ログイントークンが存在しない状態で起動され、
+/// 接続先URL・企業ID・店舗ID・端末ID・POSパスワードを入力してPOS端末認証を行う。
+/// 成功したらプロビジョニング画面へ遷移し、端末設定・商品マスタを取得する。
+library;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'setup_api.dart';
@@ -31,6 +36,7 @@ class _SetupPageState extends State<SetupPage> {
     super.dispose();
   }
 
+  // 接続先URL等の入力フォームと「セットアップ」ボタンを持つ初回セットアップ画面を構築する
   @override
   Widget build(BuildContext context) {
     Widget firstLogin = Scaffold(
@@ -104,6 +110,8 @@ class _SetupPageState extends State<SetupPage> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
+                    // 入力必須項目が揃っていればPOSログインを試み、
+                    // 成功時はプロビジョニング画面へ遷移する
                     onPressed: _isLoading
                         ? null
                         : () async {

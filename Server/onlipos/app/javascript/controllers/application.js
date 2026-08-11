@@ -1,3 +1,4 @@
+// Stimulusアプリケーションのインスタンスを生成し、他のコントローラファイルから利用できるようexportする。
 import { Application } from "@hotwired/stimulus"
 
 const application = Application.start()

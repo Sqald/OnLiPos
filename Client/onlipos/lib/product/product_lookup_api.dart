@@ -1,3 +1,8 @@
+/// ローカルDBに未同期の商品をサーバーへ直接問い合わせるAPIクライアント。
+/// スキャンしたJAN/商品コードがローカルキャッシュに見つからない場合の
+/// フォールバック用に利用する。
+library;
+
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;

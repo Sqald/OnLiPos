@@ -1,3 +1,8 @@
+/// ログイン後のトップメニュー画面。売上登録・レジ関連・在庫・返品・設定など
+/// 各業務画面への入口をタイル状に並べる。POSの役割(ホスト/クライアント)や
+/// 担当者の権限に応じて表示するタイルを出し分ける。
+library;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:onlipos/cash/cash_check_view.dart';
@@ -41,6 +46,7 @@ class _MenuTopViewState extends State<MenuTopView> {
     _loadPosRole();
   }
 
+  // この端末のPOS役割(ホスト/クライアント/standard)をSecureStorageから読み込む
   Future<void> _loadPosRole() async {
     const storage = FlutterSecureStorage();
     final role = await storage.read(key: 'PosRole') ?? 'standard';
@@ -53,6 +59,8 @@ class _MenuTopViewState extends State<MenuTopView> {
   bool get _canCashPickup => widget.permissions.contains('cash_pickup');
   bool get _canViewJournal => widget.permissions.contains('view_journal');
 
+  // メニュー画面全体を構築する。AppBarにPOS役割バッジと担当者名を表示し、
+  // bodyには権限・役割に応じたタイルのグリッドを並べる
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -386,6 +394,7 @@ class _MenuTopViewState extends State<MenuTopView> {
   }
 }
 
+// メニューグリッド上の1タイル(アイコン＋タイトル＋タップ時の遷移)を表すウィジェット
 class _MenuTile extends StatelessWidget {
   final String title;
   final IconData icon;

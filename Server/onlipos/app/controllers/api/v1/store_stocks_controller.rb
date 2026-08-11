@@ -1,4 +1,6 @@
+# 店舗在庫の閲覧・入出荷登録API。
 class Api::V1::StoreStocksController < Api::V1::BaseController
+  # GET /api/v1/store_stocks — 自店舗の在庫一覧（商品名順）
   def index
     store = @current_pos.store
 
@@ -50,6 +52,7 @@ class Api::V1::StoreStocksController < Api::V1::BaseController
 
     results = []
 
+    # 全件を1トランザクションで処理し、不正なデータが1件でもあれば全体をロールバックする
     ActiveRecord::Base.transaction do
       movements.each do |movement|
         jan_code = movement[:jan_code].presence || movement["jan_code"].presence

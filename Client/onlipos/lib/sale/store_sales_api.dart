@@ -1,3 +1,5 @@
+// 店舗売上サマリー（/api/v1/sales/summary）を取得するAPIクライアント。
+// 店舗売上閲覧画面（StoreSalesView）から期間指定で呼び出される。
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -6,6 +8,7 @@ import 'package:http/http.dart' as http;
 class StoreSalesApi {
   static const _storage = FlutterSecureStorage();
 
+  /// 指定期間（[from]〜[to]、YYYY-MM-DD）の売上サマリーを取得する。
   static Future<Map<String, dynamic>> fetchSummary({
     required int employeeId,
     required String from,

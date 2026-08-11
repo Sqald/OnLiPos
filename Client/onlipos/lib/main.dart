@@ -1,3 +1,9 @@
+/// アプリのエントリポイント。
+/// 起動直後は空の`runApp`でUIを先に表示し、その後バックグラウンドで
+/// ログイントークンの有無を確認して初回セットアップ画面かログイン画面かを振り分ける。
+/// デスクトップ環境ではウィンドウの全画面化、モバイル環境では横画面固定も行う。
+library;
+
 import 'package:flutter/material.dart';
 import 'package:onlipos/login/login_top_view.dart';
 import 'package:onlipos/setup/setup_view.dart';
@@ -29,6 +35,8 @@ void main() {
   runApp(const MyApp());
 }
 
+/// アプリのルートウィジェット。初期表示先(セットアップ/ログイン)が決まるまでは
+/// ローディング表示を出し、非同期で初期化を行う。
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -39,6 +47,7 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   Widget? initialView;
 
+  // Widget構築後に非同期初期化処理を開始する
   @override
   void initState() {
     super.initState();
@@ -93,6 +102,7 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
+  // 初期画面が確定するまではローディング表示、確定後は該当画面をhomeに設定する
   @override
   Widget build(BuildContext context) {
     return MaterialApp(

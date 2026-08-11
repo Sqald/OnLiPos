@@ -1,3 +1,8 @@
+<%#
+  Devise: アカウント情報編集画面
+  ログイン中ユーザーが氏名・メールアドレス・パスワード等を変更する。
+  パスワード変更やメールアドレス変更には現在のパスワード入力が必要。
+%>
 <div class="auth-wrapper">
   <div class="auth-container">
     <h2><%= t('.title') %></h2>
@@ -5,6 +10,7 @@
     <%= form_for(resource, as: resource_name, url: registration_path(resource_name), html: { method: :put }) do |f| %>
       <%= render "devise/shared/error_messages", resource: resource %>
 
+      <%# アカウント種別（個人/法人）の選択 %>
       <div class="field">
         <%= f.label :user_type %><br />
         <%= f.radio_button :user_type, "individual" %>
@@ -34,6 +40,7 @@
         <%= f.email_field :email, autofocus: true, autocomplete: "email" %>
       </div>
 
+      <%# パスワードを変更しない場合は空欄のままでよい %>
       <div class="field">
         <%= f.label :password %>
         <span class="field-hint"><%= t('.leave_blank') %></span>
@@ -61,6 +68,7 @@
 
     <div class="divider"></div>
 
+    <%# 退会（アカウント削除）用のフォーム %>
     <div class="danger-zone">
       <h3><%= t('.cancel_title') %></h3>
       <p><%= t('.cancel_text') %></p>

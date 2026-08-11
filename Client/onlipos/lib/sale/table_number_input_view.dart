@@ -40,6 +40,7 @@ class _TableNumberInputViewState extends State<TableNumberInputView> {
     super.dispose();
   }
 
+  // 注文中テーブル一覧をサーバー（失敗時はローカルストア）から取得する
   Future<void> _loadActiveTables() async {
     List<String> tables = [];
     try {
@@ -57,6 +58,7 @@ class _TableNumberInputViewState extends State<TableNumberInputView> {
     }
   }
 
+  // 入力/選択された卓番でSaleScanView（飲食店モード）に遷移する
   void _openTable(String tableNumber) {
     final trimmed = tableNumber.trim();
     if (trimmed.isEmpty) return;
