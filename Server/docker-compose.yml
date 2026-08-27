@@ -1,4 +1,21 @@
 services:
+  # rails/worker が同時に起動して db:prepare (CREATE DATABASE) を競合実行すると
+  # PG::UniqueViolation でクラッシュすることがあるため、DB準備はここで一度だけ行う
+  db-prepare:
+    build:
+      context: ./onlipos/
+    entrypoint: [ "bin/rails" ]
+    command: [ "db:prepare" ]
+    environment:
+      DB_USER: ${DB_USER}
+      DB_NAME: ${DB_NAME}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+    secrets:
+      - db_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   rails:
     build:
       context: ./onlipos/
@@ -12,8 +29,8 @@ services:
     secrets:
       - db_password
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-prepare:
+        condition: service_completed_successfully
 
   postgres:
     container_name: postgres
@@ -81,8 +98,8 @@ services:
     secrets:
       - db_password
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-prepare:
+        condition: service_completed_successfully
     command: bin/jobs
 
 volumes:

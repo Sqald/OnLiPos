@@ -1,4 +1,7 @@
 Rails.application.routes.draw do
+  # ヘルスチェック用（config.silence_healthcheck_path / ssl_options の除外設定が /up を前提にしている）
+  get "up" => "rails/health#show", as: :rails_health_check
+
   devise_for :users, skip: [ :confirmations, :unlocks, :passwords, :omniauth_callbacks ]
   root to: redirect("/dashboard")
 
