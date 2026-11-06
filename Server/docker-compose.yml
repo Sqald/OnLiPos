@@ -31,6 +31,7 @@ services:
     depends_on:
       db-prepare:
         condition: service_completed_successfully
+    restart: unless-stopped
 
   postgres:
     container_name: postgres
@@ -49,6 +50,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    restart: unless-stopped
 
   nginx:
     build:
@@ -64,6 +66,7 @@ services:
     depends_on:
       - postgres
       - rails
+    restart: unless-stopped
 
   backup:
     image: postgres:${POSTGRES_DOCKER_VERSION}
@@ -101,6 +104,7 @@ services:
       db-prepare:
         condition: service_completed_successfully
     command: bin/jobs
+    restart: unless-stopped
 
 volumes:
   postgres:
