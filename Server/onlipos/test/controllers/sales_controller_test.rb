@@ -113,7 +113,7 @@ class SalesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0, sale.saledetails.first.discount_amount
   end
 
-  test "支払い合計が sale total と一致しない場合は 500 エラー" do
+  test "支払い合計が sale total と一致しない場合は 422 エラー" do
     post "/api/v1/sales",
          params: {
            sale: { total_amount: 1100 },
@@ -123,7 +123,8 @@ class SalesControllerTest < ActionDispatch::IntegrationTest
          headers: { "Authorization" => "Bearer #{@pos_token.token}" },
          as: :json
 
-    assert_response :internal_server_error
+    # 入力不正はクライアント起因のため 422 で返す（以前はサーバーエラー扱いの 500 だった）
+    assert_response :unprocessable_entity
   end
 
   test "discount_reason を送ると saledetail に保存される" do
