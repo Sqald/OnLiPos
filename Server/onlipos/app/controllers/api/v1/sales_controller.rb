@@ -462,7 +462,8 @@ class Api::V1::SalesController < Api::V1::BaseController
   # サーバー側で採番する。他端末・他社のレシート番号を先取りして採番を妨害されるのを防ぐ。
   def client_receipt_number
     value = sale_params[:receipt_number].to_s
-    value if value.match?(/-#{@current_pos.id}-\d{8}\z/)
+    match = value.match(/-(\d+)-\d{8}\z/)
+    value if match && match[1].to_i == @current_pos.id
   end
 
   # 送信された明細（詳細）配列を Sale に紐づけて保存する。
