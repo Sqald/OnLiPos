@@ -36,6 +36,49 @@ class _SetupPageState extends State<SetupPage> {
     super.dispose();
   }
 
+  // 接続先URLを検証する。http/https 以外は拒否し、暗号化されない http の場合は
+  // POSパスワードと端末認証トークンが平文で送信される旨を確認してから続行する
+  Future<bool> _confirmAccessUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null ||
+        !uri.hasAuthority ||
+        (uri.scheme != 'https' && uri.scheme != 'http')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ログイン先URLは http:// または https:// で始まる形式で入力してください。'),
+        ),
+      );
+      return false;
+    }
+    if (uri.scheme == 'https' ||
+        uri.host == 'localhost' ||
+        uri.host == '127.0.0.1') {
+      return true;
+    }
+
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('暗号化されていない接続'),
+        content: const Text(
+          'http:// の接続先では、POSパスワードや端末認証トークンが暗号化されずに送信されます。\n'
+          '社内LANなど信頼できるネットワークでのみ使用してください。続行しますか？',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('続行'),
+          ),
+        ],
+      ),
+    );
+    return proceed == true;
+  }
+
   // 接続先URL等の入力フォームと「セットアップ」ボタンを持つ初回セットアップ画面を構築する
   @override
   Widget build(BuildContext context) {
@@ -120,6 +163,11 @@ class _SetupPageState extends State<SetupPage> {
                                 _storeAsciiNameController.text.isNotEmpty &&
                                 _posTokenAsciiNameController.text.isNotEmpty &&
                                 _posTokenPasswordController.text.isNotEmpty) {
+                              if (!await _confirmAccessUrl(
+                                _accessUrlController.text.trim(),
+                              )) {
+                                return;
+                              }
                               setState(() {
                                 _isLoading = true;
                               });

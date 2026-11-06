@@ -5,6 +5,7 @@ library;
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:onlipos/api/pos_api_client.dart';
 
 class SetupApi {
   /// POS端末をサーバーへログインさせ、成功時は認証トークン・店舗情報を保存する
@@ -15,22 +16,24 @@ class SetupApi {
     required String posName,
     required String posPassword,
   }) async {
-    final baseUrl = url.endsWith('/') ? url.substring(0, url.length - 1) : url;
-    final response = await http.post(
-      Uri.parse('$baseUrl/api/v1/pos_devices/login'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: jsonEncode({
-        "pos": {
-          "userName": userLogin,
-          "storeName": storeName,
-          "posName": posName,
-          "password": posPassword,
-        },
-      }),
-    );
+    final baseUrl = PosApiClient.normalizeBaseUrl(url.trim());
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/v1/pos_devices/login'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: jsonEncode({
+            "pos": {
+              "userName": userLogin,
+              "storeName": storeName,
+              "posName": posName,
+              "password": posPassword,
+            },
+          }),
+        )
+        .timeout(PosApiClient.defaultTimeout);
 
     final Map<String, dynamic> body;
     try {
@@ -42,7 +45,7 @@ class SetupApi {
     if (body['success'] == true) {
       const storage = FlutterSecureStorage();
       await storage.write(key: 'LoginToken', value: body['token']);
-      await storage.write(key: 'AccessUrl', value: url);
+      await storage.write(key: 'AccessUrl', value: baseUrl);
       if (body['pos_id'] != null) {
         await storage.write(
           key: 'ReceiptPosId',

@@ -4,13 +4,25 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
+import 'package:onlipos/api/pos_api_client.dart';
 import 'package:onlipos/sale/offline_sale_repository.dart';
 
 class SentToApi {
   static const _storage = FlutterSecureStorage();
   final OfflineSaleRepository _offlineRepo = OfflineSaleRepository();
+
+  static const _noCredentialsMessage = '認証情報が見つかりません。ログインしてください。';
+
+  // 接続情報が未設定の場合は「ログインしてください」の案内付きで例外にする
+  static Future<http.Response> _post(String path, Object body) async {
+    try {
+      return await PosApiClient.send('POST', path, body: body);
+    } on PosApiConfigException {
+      throw Exception(_noCredentialsMessage);
+    }
+  }
 
   /// 会計をサーバーに送信する。通信不可時はオフラインキューに保存してフォールバックする。
   Future<Map<String, dynamic>> sendSale({
@@ -24,19 +36,6 @@ class SentToApi {
     String? customerGender,
     String? customerAgeGroup,
   }) async {
-    String? baseUrl = await _storage.read(key: 'AccessUrl');
-    String? token = await _storage.read(key: 'LoginToken');
-
-    if (baseUrl == null || token == null) {
-      throw Exception('認証情報が見つかりません。ログインしてください。');
-    }
-
-    if (baseUrl.endsWith('/')) {
-      baseUrl = baseUrl.substring(0, baseUrl.length - 1);
-    }
-
-    final uri = Uri.parse('$baseUrl/api/v1/sales');
-
     final Map<String, dynamic> requestBody = {
       'sale': {
         'total_amount': totalAmount,
@@ -56,17 +55,7 @@ class SentToApi {
     };
 
     try {
-      final response = await http
-          .post(
-            uri,
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: jsonEncode(requestBody),
-          )
-          .timeout(const Duration(seconds: 15));
+      final response = await _post('/api/v1/sales', requestBody);
 
       if (response.statusCode == 201) {
         final responseData = jsonDecode(response.body);
@@ -101,32 +90,11 @@ class SentToApi {
     String? addressee,
     String? purpose,
   }) async {
-    String? baseUrl = await _storage.read(key: 'AccessUrl');
-    String? token = await _storage.read(key: 'LoginToken');
-
-    if (baseUrl == null || token == null) {
-      throw Exception('認証情報が見つかりません。ログインしてください。');
-    }
-    if (baseUrl.endsWith('/')) {
-      baseUrl = baseUrl.substring(0, baseUrl.length - 1);
-    }
-
-    final response = await http
-        .post(
-          Uri.parse('$baseUrl/api/v1/sales/$saleId/issue_receipt'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: jsonEncode({
-            'employee_id': employeeId,
-            if (addressee != null && addressee.isNotEmpty)
-              'addressee': addressee,
-            if (purpose != null && purpose.isNotEmpty) 'purpose': purpose,
-          }),
-        )
-        .timeout(const Duration(seconds: 15));
+    final response = await _post('/api/v1/sales/$saleId/issue_receipt', {
+      'employee_id': employeeId,
+      if (addressee != null && addressee.isNotEmpty) 'addressee': addressee,
+      if (purpose != null && purpose.isNotEmpty) 'purpose': purpose,
+    });
 
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
@@ -174,14 +142,6 @@ class SentToApi {
     final pending = await _offlineRepo.getPending();
     if (pending.isEmpty) return 0;
 
-    String? baseUrl = await _storage.read(key: 'AccessUrl');
-    String? token = await _storage.read(key: 'LoginToken');
-    if (baseUrl == null || token == null) return 0;
-
-    if (baseUrl.endsWith('/')) {
-      baseUrl = baseUrl.substring(0, baseUrl.length - 1);
-    }
-
     int sent = 0;
     for (final row in pending) {
       final id = row['id'] as int;
@@ -189,17 +149,11 @@ class SentToApi {
           jsonDecode(row['payload'] as String) as Map<String, dynamic>;
 
       try {
-        final response = await http
-            .post(
-              Uri.parse('$baseUrl/api/v1/sales'),
-              headers: {
-                'Authorization': 'Bearer $token',
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-              },
-              body: jsonEncode(payload),
-            )
-            .timeout(const Duration(seconds: 15));
+        final response = await PosApiClient.send(
+          'POST',
+          '/api/v1/sales',
+          body: payload,
+        );
 
         if (response.statusCode == 201) {
           final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -219,7 +173,9 @@ class SentToApi {
         }
         // 401/403 はトークン期限切れの可能性があるためキューに残す
         // 5xx はキューに残し次回再試行
-        // 5xx はキューに残し次回再試行
+      } on PosApiConfigException {
+        // 未セットアップ（接続先・トークンなし）の場合は送信しようがないので中断
+        break;
       } on SocketException {
         break;
       } on TimeoutException {

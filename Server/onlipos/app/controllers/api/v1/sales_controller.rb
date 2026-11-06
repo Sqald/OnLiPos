@@ -34,7 +34,7 @@ class Api::V1::SalesController < Api::V1::BaseController
   # GET /api/v1/sales/summary?from=YYYY-MM-DD&to=YYYY-MM-DD&employee_id=...
   def summary
     store    = @current_pos.store
-    employee = resolve_employee(store)
+    employee = require_store_employee!(params[:employee_id])
     return unless employee
 
     authorize_employee!(employee, "view_sales")
@@ -190,7 +190,7 @@ class Api::V1::SalesController < Api::V1::BaseController
 
     owner = @current_pos.store.user
     employees = owner.employees.where(id: employee_ids)
-    employees = employees.select { |e| e.is_all_stores || e.stores.exists?(@current_pos.store_id) }
+    employees = employees.select { |e| e.can_access_store?(@current_pos.store) }
     if employees.size < 2
       return render json: { success: false, message: "認証された従業員が不足しているか、店舗権限がありません" }, status: :forbidden
     end
@@ -334,30 +334,12 @@ class Api::V1::SalesController < Api::V1::BaseController
 
   private
 
-  # employee_id から担当者を特定し、店舗権限（全店舗権限 or 所属店舗）を確認する。
-  # 不正な場合は 403 を描画して nil を返す。
-  def resolve_employee(store)
-    employee = store.user.employees.find_by(id: params[:employee_id])
-    unless employee && (employee.is_all_stores || employee.stores.exists?(store.id))
-      render json: { success: false, message: "担当者が見つからないか、店舗の権限がありません" },
-             status: :forbidden
-      return nil
-    end
-    employee
-  end
-
   # create アクション用のストロングパラメータ
   def sale_params
     # receipt_number / sold_at はオフライン同期時にクライアントから送られてくる場合がある
     params.require(:sale).permit(:total_amount, :payment_method, :receipt_number, :subtotal_ex_tax, :tax_amount, :sold_at,
                                  :order_discount_type, :order_discount_value, :order_discount_reason,
                                  :customer_gender, :customer_age_group)
-  end
-
-  # 現在開いているレジセッション（なければ nil = レガシー動作）
-  def current_register_session
-    return @current_register_session if defined?(@current_register_session)
-    @current_register_session = @current_pos.register_sessions.open.first
   end
 
   # クライアントが送信した販売時刻（オフライン会計用）。不正な形式は無視する
@@ -407,7 +389,7 @@ class Api::V1::SalesController < Api::V1::BaseController
       total_amount = sale_params[:total_amount].to_i
 
       if total_from_payments != total_amount
-        raise ActiveRecord::Rollback, "Total of payments (#{total_from_payments}) does not match sale total (#{total_amount})"
+        raise ArgumentError, "Total of payments (#{total_from_payments}) does not match sale total (#{total_amount})"
       end
 
       main_method =
@@ -420,15 +402,23 @@ class Api::V1::SalesController < Api::V1::BaseController
       Sale.new(
         total_amount: total_amount,
         payment_method: main_method,
-        receipt_number: sale_params[:receipt_number],
+        receipt_number: client_receipt_number,
         subtotal_ex_tax: sale_params[:subtotal_ex_tax].to_i,
         tax_amount: sale_params[:tax_amount].to_i,
         customer_gender: sale_params[:customer_gender].presence,
         customer_age_group: sale_params[:customer_age_group].presence
       )
     else
-      Sale.new(sale_params)
+      Sale.new(sale_params.merge(receipt_number: client_receipt_number))
     end
+  end
+
+  # オフライン会計でクライアントが採番したレシート番号。
+  # 自端末の連番形式（末尾が "-{POS端末ID}-{8桁連番}"）のものだけ採用し、それ以外は破棄して
+  # サーバー側で採番する。他端末・他社のレシート番号を先取りして採番を妨害されるのを防ぐ。
+  def client_receipt_number
+    value = sale_params[:receipt_number].to_s
+    value if value.match?(/-#{@current_pos.id}-\d{8}\z/)
   end
 
   # 送信された明細（詳細）配列を Sale に紐づけて保存する。
@@ -472,6 +462,7 @@ class Api::V1::SalesController < Api::V1::BaseController
       end
 
       quantity = attrs[:quantity].to_i
+      raise ArgumentError, "明細の数量は1以上を指定してください: #{product.name}" if quantity <= 0
       subtotal = attrs[:subtotal].present? ? attrs[:subtotal].to_i : unit_price * quantity
       tax_amount = line_tax_amount(subtotal, tax_rate, tax_type)
 

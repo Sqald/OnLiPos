@@ -4,7 +4,7 @@
 class Api::V1::CashMovementsController < Api::V1::BaseController
   # GET /api/v1/cash_movements — 現在のセッション（なければ当日）の入出金一覧
   def index
-    session = current_open_session
+    session = current_register_session
     scope =
       if session
         session.cash_movements
@@ -32,12 +32,8 @@ class Api::V1::CashMovementsController < Api::V1::BaseController
   # POST /api/v1/cash_movements
   def create
     # 担当者の特定と店舗所属チェック
-    owner = @current_pos.store.user
-    employee = owner.employees.find_by(id: movement_params[:employee_id])
-
-    unless employee && (employee.is_all_stores || employee.stores.exists?(@current_pos.store.id))
-      return render json: { success: false, message: "担当者が見つかりません" }, status: :forbidden
-    end
+    employee = require_store_employee!(movement_params[:employee_id], message: "担当者が見つかりません")
+    return unless employee
 
     unless employee.permitted?("cash_pickup")
       return render json: { success: false, message: "レジ入出金の権限がありません" }, status: :forbidden
@@ -58,7 +54,7 @@ class Api::V1::CashMovementsController < Api::V1::BaseController
     movement = CashMovement.new(
       store: @current_pos.store,
       pos_token: @current_pos,
-      register_session: current_open_session,
+      register_session: current_register_session,
       employee: employee,
       kind: kind,
       direction: CashMovement.direction_for(kind),
@@ -90,12 +86,6 @@ class Api::V1::CashMovementsController < Api::V1::BaseController
 
   def movement_params
     params.permit(:employee_id, :kind, :amount, :reason)
-  end
-
-  # 現在このPOS端末が開いているレジセッション（無ければ nil）
-  def current_open_session
-    return @current_open_session if defined?(@current_open_session)
-    @current_open_session = @current_pos.register_sessions.open.first
   end
 
   # kind は enum 名（"replenishment" 等）と数値コードの両方を受け付ける

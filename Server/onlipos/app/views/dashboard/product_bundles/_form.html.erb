@@ -93,16 +93,15 @@
     const tr = document.createElement('tr');
     tr.className = 'bundle-item-row';
 
-    let options = '<option value="">-- 商品を選択 --</option>';
-    products.forEach(p => {
-      options += `<option value="${p.id}">${p.label}</option>`;
-    });
-
     tr.innerHTML = `
-      <td><select name="items[][product_id]" class="form-control">${options}</select></td>
+      <td><select name="items[][product_id]" class="form-control"></select></td>
       <td><input type="number" name="items[][quantity]" value="1" min="1" class="form-control" style="text-align:right" /></td>
       <td><button type="button" class="btn-sm btn-danger" onclick="this.closest('tr').remove()">削除</button></td>
     `;
+    // 商品名はユーザー入力値のため innerHTML に埋め込まず、DOM API で安全に設定する（XSS対策）
+    const select = tr.querySelector('select');
+    select.add(new Option('-- 商品を選択 --', ''));
+    products.forEach(p => select.add(new Option(p.label, p.id)));
     tbody.appendChild(tr);
   });
 </script>

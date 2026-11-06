@@ -56,6 +56,23 @@ class ProductCategoryTest < ActiveSupport::TestCase
     assert_includes cat.products, product
   end
 
+  test "他ユーザーのカテゴリは商品に紐付けできない" do
+    other_user = User.create!(
+      login_name: "othercat2",
+      email: "other2@example.com",
+      password: "Password1!",
+      password_confirmation: "Password1!",
+      first_name: "三郎",
+      last_name: "他社",
+      user_type: :individual,
+      confirmed_at: Time.current
+    )
+    others_cat = other_user.product_categories.create!(name: "他社カテゴリ")
+    product = @user.products.build(code: "X001", name: "商品X", price: 100, tax_rate: 10, product_category_id: others_cat.id)
+    assert_not product.valid?
+    assert product.errors[:product_category_id].any?
+  end
+
   test "カテゴリを削除すると商品の category_id が NULL になる" do
     cat = @user.product_categories.create!(name: "削除テスト")
     product = @user.products.create!(code: "D001", name: "商品D", price: 100, tax_rate: 10, product_category: cat)

@@ -79,7 +79,7 @@ class Api::V1::RefundsController < Api::V1::BaseController
     # 認証された従業員が実在し、店舗権限・返品権限を持つか確認
     owner = @current_pos.store.user
     employees = owner.employees.where(id: employee_ids)
-    employees = employees.select { |e| e.is_all_stores || e.stores.exists?(@current_pos.store_id) }
+    employees = employees.select { |e| e.can_access_store?(@current_pos.store) }
     if employees.size < 2
       render json: { success: false, message: "認証された従業員が不足しているか、店舗権限がありません" }, status: :forbidden
       return
@@ -163,7 +163,7 @@ class Api::V1::RefundsController < Api::V1::BaseController
       end
       breakdowns = calculator.breakdowns(breakdown_lines)
 
-      session = @current_pos.register_sessions.open.first
+      session = current_register_session
       refund = Refund.create!(
         sale: sale,
         store: sale.store,

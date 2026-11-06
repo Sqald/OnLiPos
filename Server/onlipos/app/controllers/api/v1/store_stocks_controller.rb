@@ -1,5 +1,9 @@
 # 店舗在庫の閲覧・入出荷登録API。
 class Api::V1::StoreStocksController < Api::V1::BaseController
+  # 入出荷データの不備。トランザクション全体をロールバックしてクライアントへ理由を返す
+  # （ActiveRecord::Rollback は transaction 内で握りつぶされ成功扱いになってしまうため使わない）
+  class InvalidMovement < StandardError; end
+
   # GET /api/v1/store_stocks — 自店舗の在庫一覧（商品名順）
   def index
     store = @current_pos.store
@@ -35,53 +39,39 @@ class Api::V1::StoreStocksController < Api::V1::BaseController
   # }
   def move
     movements = params[:movements]
-    employee_id = params[:employee_id]
 
     if movements.blank? || !movements.is_a?(Array)
       render json: { success: false, message: "movements が不正です" }, status: :bad_request
       return
     end
 
-    owner = @current_pos.store.user
-    employee = owner.employees.find_by(id: employee_id)
+    employee = require_store_employee!(params[:employee_id])
+    return unless employee
 
-    unless employee && (employee.is_all_stores || employee.stores.exists?(@current_pos.store.id))
-      render json: { success: false, message: "担当者が見つからないか、店舗の権限がありません" }, status: :forbidden
-      return
-    end
-
+    store = @current_pos.store
     results = []
 
     # 全件を1トランザクションで処理し、不正なデータが1件でもあれば全体をロールバックする
     ActiveRecord::Base.transaction do
       movements.each do |movement|
-        jan_code = movement[:jan_code].presence || movement["jan_code"].presence
-        quantity = (movement[:quantity] || movement["quantity"]).to_i
-        direction = movement[:direction].presence || movement["direction"].presence
+        raise InvalidMovement, "不正な入出荷データです" unless movement.is_a?(ActionController::Parameters)
+
+        jan_code = movement[:jan_code].presence
+        quantity = movement[:quantity].to_i
+        direction = movement[:direction].presence
 
         if jan_code.blank? || quantity <= 0 || !%w[in out].include?(direction)
-          raise ActiveRecord::Rollback, "不正な入出荷データです"
+          raise InvalidMovement, "不正な入出荷データです"
         end
 
-        product = owner.products.find_by(code: jan_code)
-        unless product
-          raise ActiveRecord::Rollback, "JANコードに該当する商品が存在しません: #{jan_code}"
-        end
+        product = store.user.products.find_by(code: jan_code)
+        raise InvalidMovement, "JANコードに該当する商品が存在しません: #{jan_code}" unless product
 
-        store = @current_pos.store
+        change_value = direction == "in" ? quantity : -quantity
         store_stock = StoreStock.find_or_create_by!(store: store, product: product)
 
         store_stock.with_lock do
-          new_quantity =
-            if direction == "in"
-              store_stock.quantity + quantity
-            else
-              store_stock.quantity - quantity
-            end
-
-          change_value = direction == "in" ? quantity : -quantity
-
-          store_stock.update!(quantity: new_quantity)
+          store_stock.update!(quantity: store_stock.quantity + change_value)
 
           StockMovement.create!(
             store: store,
@@ -108,7 +98,9 @@ class Api::V1::StoreStocksController < Api::V1::BaseController
       success: true,
       movements: results
     }, status: :ok
-  rescue => e
+  rescue InvalidMovement => e
     render json: { success: false, message: e.message }, status: :unprocessable_entity
+  rescue ActiveRecord::RecordInvalid => e
+    render json: { success: false, message: e.record.errors.full_messages.join(", ") }, status: :unprocessable_entity
   end
 end

@@ -1,34 +1,24 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:onlipos/api/pos_api_client.dart';
 import 'sale_item.dart';
 
 /// 飲食店モード用：サーバー上のテーブル注文 API ラッパー。
 /// 同一店舗内の全 POS で注文データを共有する。
 class TableOrderApi {
-  static const _storage = FlutterSecureStorage();
+  /// 店舗内共有データの操作は短めのタイムアウトで打ち切る
+  static const _timeout = Duration(seconds: 5);
 
-  static Future<Map<String, String>> _headers() async {
-    final token = await _storage.read(key: 'LoginToken') ?? '';
-    return {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Authorization': 'Bearer $token',
-    };
-  }
-
-  static Future<String> _baseUrl() async {
-    final raw = await _storage.read(key: 'AccessUrl') ?? '';
-    return raw.endsWith('/') ? raw.substring(0, raw.length - 1) : raw;
-  }
+  // テーブル番号は入力値のため、パスに埋め込む際はエンコードして別パスへの混入を防ぐ
+  static String _tablePath(String tableNumber) =>
+      '/api/v1/table_orders/${Uri.encodeComponent(tableNumber)}';
 
   /// アクティブ（アイテムがある）テーブル番号の一覧を取得する。
   static Future<List<String>> getActiveTables() async {
-    final base = await _baseUrl();
-    final headers = await _headers();
-    final response = await http
-        .get(Uri.parse('$base/api/v1/table_orders'), headers: headers)
-        .timeout(const Duration(seconds: 5));
+    final response = await PosApiClient.send(
+      'GET',
+      '/api/v1/table_orders',
+      timeout: _timeout,
+    );
     if (response.statusCode == 200) {
       final List list = jsonDecode(response.body) as List;
       return list.map((e) => e['table_number'].toString()).toList();
@@ -38,14 +28,11 @@ class TableOrderApi {
 
   /// 指定テーブルの ScannedItem 一覧を取得する。存在しなければ空リスト。
   static Future<List<ScannedItem>> getItems(String tableNumber) async {
-    final base = await _baseUrl();
-    final headers = await _headers();
-    final response = await http
-        .get(
-          Uri.parse('$base/api/v1/table_orders/$tableNumber'),
-          headers: headers,
-        )
-        .timeout(const Duration(seconds: 5));
+    final response = await PosApiClient.send(
+      'GET',
+      _tablePath(tableNumber),
+      timeout: _timeout,
+    );
     if (response.statusCode == 200) {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       final List rawItems = (body['items'] as List?) ?? [];
@@ -61,26 +48,20 @@ class TableOrderApi {
     String tableNumber,
     List<ScannedItem> items,
   ) async {
-    final base = await _baseUrl();
-    final headers = await _headers();
-    await http
-        .put(
-          Uri.parse('$base/api/v1/table_orders/$tableNumber'),
-          headers: headers,
-          body: jsonEncode({'items': items.map((e) => e.toJson()).toList()}),
-        )
-        .timeout(const Duration(seconds: 5));
+    await PosApiClient.send(
+      'PUT',
+      _tablePath(tableNumber),
+      body: {'items': items.map((e) => e.toJson()).toList()},
+      timeout: _timeout,
+    );
   }
 
   /// 指定テーブルのデータを削除する（会計完了・全消去時）。
   static Future<void> clearTable(String tableNumber) async {
-    final base = await _baseUrl();
-    final headers = await _headers();
-    await http
-        .delete(
-          Uri.parse('$base/api/v1/table_orders/$tableNumber'),
-          headers: headers,
-        )
-        .timeout(const Duration(seconds: 5));
+    await PosApiClient.send(
+      'DELETE',
+      _tablePath(tableNumber),
+      timeout: _timeout,
+    );
   }
 }

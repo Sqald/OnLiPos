@@ -1,8 +1,7 @@
 // ホスト/クライアントモード用：クライアント機からホスト機へ会計を転送する
 // サーバー上の転送注文 API ラッパー。転送の作成・一覧取得・受け取り（削除）を提供する。
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:onlipos/api/pos_api_client.dart';
 import 'package:onlipos/sale/sale_item.dart';
 
 /// ホスト/クライアントモード用の転送注文（一覧表示向け、アイテムなし）
@@ -58,29 +57,16 @@ class ClaimedTransferOrder {
 }
 
 class TransferOrderApi {
-  static const _storage = FlutterSecureStorage();
-
-  static Future<Map<String, String>> _headers() async {
-    final token = await _storage.read(key: 'LoginToken');
-    return {
-      'Authorization': 'Bearer $token',
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-  }
-
-  static Future<String> _baseUrl() async {
-    final url = await _storage.read(key: 'AccessUrl') ?? '';
-    return url.endsWith('/') ? url.substring(0, url.length - 1) : url;
-  }
+  /// 店舗内共有データの操作は短めのタイムアウトで打ち切る
+  static const _timeout = Duration(seconds: 5);
 
   /// 未処理の転送注文一覧を取得（ホスト待ち受け用）
   static Future<List<TransferOrderEntry>> getAllTransfers() async {
-    final url = await _baseUrl();
-    final headers = await _headers();
-    final response = await http
-        .get(Uri.parse('$url/api/v1/transfer_orders'), headers: headers)
-        .timeout(const Duration(seconds: 5));
+    final response = await PosApiClient.send(
+      'GET',
+      '/api/v1/transfer_orders',
+      timeout: _timeout,
+    );
     if (response.statusCode != 200) {
       throw Exception('HTTP ${response.statusCode}');
     }
@@ -99,24 +85,20 @@ class TransferOrderApi {
     required List<ScannedItem> items,
     String? tableNumber,
   }) async {
-    final url = await _baseUrl();
-    final headers = await _headers();
-    final body = jsonEncode({
-      'transfer_order': {
-        'operator_name': operatorName,
-        'operator_id': operatorId,
-        'total_amount': totalAmount,
-        'table_number': tableNumber,
-        'items': items.map((e) => e.toJson()).toList(),
+    final response = await PosApiClient.send(
+      'POST',
+      '/api/v1/transfer_orders',
+      body: {
+        'transfer_order': {
+          'operator_name': operatorName,
+          'operator_id': operatorId,
+          'total_amount': totalAmount,
+          'table_number': tableNumber,
+          'items': items.map((e) => e.toJson()).toList(),
+        },
       },
-    });
-    final response = await http
-        .post(
-          Uri.parse('$url/api/v1/transfer_orders'),
-          headers: headers,
-          body: body,
-        )
-        .timeout(const Duration(seconds: 5));
+      timeout: _timeout,
+    );
     if (response.statusCode != 201) {
       throw Exception('HTTP ${response.statusCode}');
     }
@@ -126,11 +108,11 @@ class TransferOrderApi {
 
   /// ホスト機が転送注文を受け取る（サーバー上から削除され、アイテムが返却される）
   static Future<ClaimedTransferOrder> claimTransfer(int id) async {
-    final url = await _baseUrl();
-    final headers = await _headers();
-    final response = await http
-        .delete(Uri.parse('$url/api/v1/transfer_orders/$id'), headers: headers)
-        .timeout(const Duration(seconds: 5));
+    final response = await PosApiClient.send(
+      'DELETE',
+      '/api/v1/transfer_orders/$id',
+      timeout: _timeout,
+    );
     if (response.statusCode != 200) {
       throw Exception('HTTP ${response.statusCode}');
     }

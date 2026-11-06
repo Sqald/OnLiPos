@@ -62,9 +62,12 @@ class Dashboard::EmployeesController < Dashboard::BaseController
     # 空文字の場合は nil に変換（PINなし従業員として登録）
     p[:pin] = nil if p[:pin].blank?
     p[:pin_confirmation] = nil if p[:pin_confirmation].blank?
-    # 全店舗フラグがONの場合、現在のユーザーの全店舗を紐付ける
+    # 全店舗フラグがONの場合は現在のユーザーの全店舗を紐付ける。
+    # それ以外は自ユーザーの店舗IDのみに絞り、他ユーザーの店舗へ紐付けられないようにする
     if p[:is_all_stores] == "1"
       p[:store_ids] = current_user.stores.ids
+    elsif p.key?(:store_ids)
+      p[:store_ids] = current_user.stores.where(id: p[:store_ids]).ids
     end
     p
   end

@@ -19,7 +19,7 @@ class Store < ApplicationRecord
   delegate :products, to: :user
 
   # バリデーション
-  validates :name, presence: true, uniqueness: true
+  validates :name, presence: true, uniqueness: { scope: :user_id }
   validates :ascii_name, presence: true, length: { in: 3..16 }, format: { with: /\A[a-zA-Z0-9]+\z/ }, uniqueness: { scope: :user_id, case_sensitive: false }
 
   # コールバック

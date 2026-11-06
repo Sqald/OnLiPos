@@ -33,6 +33,11 @@ class Employee < ApplicationRecord
     employee_permissions.exists?(permission: key.to_s)
   end
 
+  # 指定店舗を操作できるか（全店舗権限、または所属店舗であること）
+  def can_access_store?(store)
+    is_all_stores || stores.exists?(store.id)
+  end
+
   # 付与済み権限キーの一覧を返す
   def permission_keys
     employee_permissions.pluck(:permission)

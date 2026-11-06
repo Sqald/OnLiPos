@@ -4,7 +4,7 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:onlipos/api/pos_api_client.dart';
 import 'package:onlipos/login/login_api.dart';
 import 'package:onlipos/price/price_api.dart';
 import 'package:onlipos/product/master_sync_api.dart';
@@ -142,16 +142,11 @@ class _PriceEditViewState extends State<PriceEditView> {
 
   // 価格更新後、端末の商品マスタをバックグラウンドで再同期する
   void _resyncInBackground() async {
-    const storage = FlutterSecureStorage();
-    final baseUrl = await storage.read(key: 'AccessUrl') ?? '';
-    final token = await storage.read(key: 'LoginToken') ?? '';
-    final normalizedUrl = baseUrl.endsWith('/')
-        ? baseUrl.substring(0, baseUrl.length - 1)
-        : baseUrl;
     try {
+      final creds = await PosApiClient.credentials();
       await ProductSyncService(
-        baseUrl: normalizedUrl,
-        authToken: token,
+        baseUrl: creds.baseUrl,
+        authToken: creds.token,
       ).syncProducts();
     } catch (e) {
       debugPrint('Product sync error after price update: $e');

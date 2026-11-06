@@ -6,7 +6,7 @@ class Api::V1::StorePricesController < Api::V1::BaseController
   # GET /api/v1/store_prices?employee_id=&q=&last_id=
   def index
     store    = @current_pos.store
-    employee = resolve_employee(store)
+    employee = require_store_employee!(params[:employee_id])
     return unless employee
 
     authorize_employee!(employee, "edit_prices")
@@ -51,7 +51,7 @@ class Api::V1::StorePricesController < Api::V1::BaseController
   # body: { employee_id, product_id, mode: "list"|"store", amount? }
   def update
     store    = @current_pos.store
-    employee = resolve_employee(store)
+    employee = require_store_employee!(params[:employee_id])
     return unless employee
 
     authorize_employee!(employee, "edit_prices")
@@ -89,19 +89,5 @@ class Api::V1::StorePricesController < Api::V1::BaseController
       render json: { success: false, message: "mode は list または store を指定してください" },
              status: :bad_request
     end
-  end
-
-  private
-
-  # employee_id から担当者を特定し、店舗権限（全店舗権限 or 所属店舗）を確認する。
-  # 不正な場合は 403 を描画して nil を返す。
-  def resolve_employee(store)
-    employee = store.user.employees.find_by(id: params[:employee_id])
-    unless employee && (employee.is_all_stores || employee.stores.exists?(store.id))
-      render json: { success: false, message: "担当者が見つからないか、店舗の権限がありません" },
-             status: :forbidden
-      return nil
-    end
-    employee
   end
 end

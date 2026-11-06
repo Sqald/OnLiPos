@@ -2,58 +2,24 @@
 /// 業務開始ログイン、業務中の担当者PIN確認、担当者コード検証を提供する。
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:http/http.dart' as http;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+import 'package:onlipos/api/pos_api_client.dart';
 
 class LoginApi {
-  // JSONレスポンスをパースし、失敗時はエラーメッセージ付きのMapを返す
-  static Map<String, dynamic> _parseResponse(http.Response response) {
-    try {
-      return jsonDecode(response.body) as Map<String, dynamic>;
-    } catch (_) {
-      return {'success': false, 'message': 'サーバーエラー: ${response.statusCode}'};
-    }
-  }
-
   /// 業務開始時の従業員コード＋PINによるログイン。
   static Future<Map<String, dynamic>> userLogin({
     required String code,
     required String pin,
     required String openDate,
-  }) async {
-    const storage = FlutterSecureStorage();
-    String? baseUrl = await storage.read(key: 'AccessUrl');
-    String? token = await storage.read(key: 'LoginToken');
-
-    if (baseUrl == null) {
-      return {'success': false, 'message': '接続先URLが設定されていません'};
-    }
-
-    if (token == null) {
-      return {'success': false, 'message': '端末認証トークンが見つかりません'};
-    }
-
-    final normalizedUrl = baseUrl.endsWith('/')
-        ? baseUrl.substring(0, baseUrl.length - 1)
-        : baseUrl;
-    final url = Uri.parse('$normalizedUrl/api/v1/pos_devices/top_user_login');
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode({'code': code, 'pin': pin, 'open_date': openDate}),
-      );
-      return _parseResponse(response);
-    } catch (e) {
-      return {'success': false, 'message': '通信エラーが発生しました'};
-    }
+  }) {
+    return PosApiClient.request(
+      'POST',
+      '/api/v1/pos_devices/top_user_login',
+      body: {'code': code, 'pin': pin, 'open_date': openDate},
+    );
   }
 
   /// 業務中の担当者PIN認証（返品・在庫入出庫等の中間承認用）。
@@ -61,65 +27,22 @@ class LoginApi {
   static Future<Map<String, dynamic>> verifyEmployee({
     required String code,
     required String pin,
-  }) async {
-    const storage = FlutterSecureStorage();
-    String? baseUrl = await storage.read(key: 'AccessUrl');
-    String? token = await storage.read(key: 'LoginToken');
-
-    if (baseUrl == null) {
-      return {'success': false, 'message': '接続先URLが設定されていません'};
-    }
-    if (token == null) {
-      return {'success': false, 'message': '端末認証トークンが見つかりません'};
-    }
-
-    final normalizedUrl = baseUrl.endsWith('/')
-        ? baseUrl.substring(0, baseUrl.length - 1)
-        : baseUrl;
-    final url = Uri.parse('$normalizedUrl/api/v1/pos_devices/verify_employee');
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode({'code': code, 'pin': pin}),
-      );
-      return _parseResponse(response);
-    } on SocketException {
-      return {'success': false, 'message': 'ネットワークに接続できません'};
-    } catch (e) {
-      return {'success': false, 'message': '通信エラーが発生しました'};
-    }
+  }) {
+    return PosApiClient.request(
+      'POST',
+      '/api/v1/pos_devices/verify_employee',
+      body: {'code': code, 'pin': pin},
+    );
   }
 
   /// 担当者コードを確認し、名前・ID・権限リストを返す。オフライン時は適切なエラーを返す。
   static Future<({String name, int id, List<String> permissions})>
   validateOperator(String code) async {
-    const storage = FlutterSecureStorage();
-    String? baseUrl = await storage.read(key: 'AccessUrl');
-    String? token = await storage.read(key: 'LoginToken');
-
-    if (baseUrl == null) throw Exception('接続先URLが設定されていません');
-    if (token == null) throw Exception('端末認証トークンが見つかりません');
-
-    final normalizedUrl = baseUrl.endsWith('/')
-        ? baseUrl.substring(0, baseUrl.length - 1)
-        : baseUrl;
-    final url = Uri.parse('$normalizedUrl/api/v1/pos_devices/check_operator');
-
     try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode({'code': code}),
+      final response = await PosApiClient.send(
+        'POST',
+        '/api/v1/pos_devices/check_operator',
+        body: {'code': code},
       );
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -139,6 +62,8 @@ class LoginApi {
       }
     } on SocketException {
       throw Exception('ネットワークに接続できません。接続を確認してください。');
+    } on TimeoutException {
+      throw Exception(PosApiClient.timeoutMessage);
     } on FormatException {
       throw Exception('サーバーから無効なレスポンスが返されました');
     } catch (e) {

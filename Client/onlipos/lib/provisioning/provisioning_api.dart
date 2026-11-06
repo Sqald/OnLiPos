@@ -3,37 +3,17 @@
 library;
 
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+import 'package:onlipos/api/pos_api_client.dart';
 
 class ProvisioningApi {
   /// サーバーから端末のプロビジョニングデータ(ハードウェア設定・店舗情報)を取得する
   static Future<Map<String, dynamic>> getProvisioning() async {
-    const storage = FlutterSecureStorage();
-    String? baseUrl = await storage.read(key: 'AccessUrl');
-    String? token = await storage.read(key: 'LoginToken');
-
-    if (baseUrl == null) {
-      throw Exception('接続先URLが設定されていません');
-    }
-    if (token == null) {
-      throw Exception('端末認証トークンが見つかりません');
-    }
-
-    final normalizedUrl = baseUrl.endsWith('/')
-        ? baseUrl.substring(0, baseUrl.length - 1)
-        : baseUrl;
-    final url = Uri.parse('$normalizedUrl/api/v1/pos_devices/provisioning');
-
     try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode({}),
+      final response = await PosApiClient.send(
+        'POST',
+        '/api/v1/pos_devices/provisioning',
+        body: const <String, dynamic>{},
       );
 
       if (response.statusCode == 200) {

@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:sqflite/sqflite.dart';
+import 'package:onlipos/api/pos_api_client.dart';
 import 'package:onlipos/product/database_service.dart';
 
 /// 商品マスタ同期サービス本体。1回の同期でローカルDBを一度リセットし、
@@ -14,7 +15,11 @@ class ProductSyncService {
   final String baseUrl;
   final String authToken;
 
-  ProductSyncService({required this.baseUrl, required this.authToken});
+  ProductSyncService({required String baseUrl, required this.authToken})
+    : baseUrl = PosApiClient.normalizeBaseUrl(baseUrl);
+
+  /// 1ページ（最大1000件）の取得待ち上限。応答がないまま起動処理が止まるのを防ぐ
+  static const _pageTimeout = Duration(seconds: 60);
 
   /// 商品マスタの同期を実行する
   /// [onProgress] コールバックで現在の処理件数を通知します
@@ -37,18 +42,20 @@ class ProductSyncService {
         // 2. APIリクエストの構築
         final uri = Uri.parse('$baseUrl/api/v1/products/sync');
 
-        final response = await http.post(
-          uri,
-          headers: {
-            'Authorization': 'Bearer $authToken',
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: json.encode({
-            if (lastUpdatedAt.isNotEmpty) 'last_updated_at': lastUpdatedAt,
-            'last_id': lastId,
-          }),
-        );
+        final response = await http
+            .post(
+              uri,
+              headers: {
+                'Authorization': 'Bearer $authToken',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: json.encode({
+                if (lastUpdatedAt.isNotEmpty) 'last_updated_at': lastUpdatedAt,
+                'last_id': lastId,
+              }),
+            )
+            .timeout(_pageTimeout);
 
         if (response.statusCode != 200) {
           throw Exception('API Error: ${response.statusCode} ${response.body}');

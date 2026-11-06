@@ -1,75 +1,31 @@
-import 'dart:convert';
-
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:http/http.dart' as http;
+import 'package:onlipos/api/pos_api_client.dart';
 
 /// レジ金に関するAPIクライアント。
 ///
-/// - 端末認証トークンと接続先URLはすべて `FlutterSecureStorage` から取得し、
+/// - 端末認証トークンと接続先URLは PosApiClient が `FlutterSecureStorage` から取得し、
 ///   画面やログには表示しないことで漏えいリスクを抑えます。
 /// - サーバー側でPOSトークンの検証と店舗スコープの制御を行う前提で、
 ///   クライアントは必要最小限の情報（担当者ID・金種枚数・合計金額）のみ送信します。
 class CashLogApi {
-  static const _storage = FlutterSecureStorage();
-
-  // レスポンスボディをJSONとしてパースし、失敗時はエラー用のMapを返す
-  static Map<String, dynamic> _parseResponse(http.Response response) {
-    try {
-      return jsonDecode(response.body) as Map<String, dynamic>;
-    } catch (_) {
-      return {'success': false, 'message': 'サーバーエラー: ${response.statusCode}'};
-    }
-  }
-
   // 金種別枚数と合計金額をレジ金チェック/精算共通のフォーマットでPOSTする共通処理
   Future<Map<String, dynamic>> _postCashLog({
     required String path,
     required int employeeId,
     required Map<int, int> cashDrawer,
     required int totalAmount,
-  }) async {
-    final baseUrl = await _storage.read(key: 'AccessUrl');
-    final token = await _storage.read(key: 'LoginToken');
-
-    if (baseUrl == null || baseUrl.isEmpty) {
-      return {'success': false, 'message': '接続先URLが設定されていません'};
-    }
-    if (token == null || token.isEmpty) {
-      return {'success': false, 'message': '端末認証トークンが見つかりません'};
-    }
-
-    // URLはユーザー入力値をそのまま使わず、末尾のスラッシュを正規化するのみとし、
-    // それ以外の文字列操作は行わないことで想定外のパスを生成しないようにします。
-    final normalizedUrl = baseUrl.endsWith('/')
-        ? baseUrl.substring(0, baseUrl.length - 1)
-        : baseUrl;
-    final url = Uri.parse('$normalizedUrl$path');
-
-    // JSONのキーは文字列である必要があるため、金種キーのみ文字列化します。
-    final cashDrawerJson = cashDrawer.map((key, value) {
-      return MapEntry(key.toString(), value);
-    });
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode({
-          'employee_id': employeeId,
-          'total_amount': totalAmount,
-          'cash_drawer': cashDrawerJson,
-        }),
-      );
-      return _parseResponse(response);
-    } catch (e) {
-      // 例外メッセージはユーザー向けに簡略化して返し、ネットワーク詳細やスタックトレースを
-      // そのまま表示しないことで情報漏えいを防ぎます。
-      return {'success': false, 'message': '通信エラーが発生しました: $e'};
-    }
+  }) {
+    return PosApiClient.request(
+      'POST',
+      path,
+      body: {
+        'employee_id': employeeId,
+        'total_amount': totalAmount,
+        // JSONのキーは文字列である必要があるため、金種キーのみ文字列化します。
+        'cash_drawer': cashDrawer.map(
+          (key, value) => MapEntry(key.toString(), value),
+        ),
+      },
+    );
   }
 
   /// レジ金チェック（営業中の残高確認）を登録する。
@@ -91,42 +47,16 @@ class CashLogApi {
     required int employeeId,
     required int amount,
     String? reason,
-  }) async {
-    final baseUrl = await _storage.read(key: 'AccessUrl');
-    final token = await _storage.read(key: 'LoginToken');
-
-    if (baseUrl == null || baseUrl.isEmpty) {
-      return {'success': false, 'message': '接続先URLが設定されていません'};
-    }
-    if (token == null || token.isEmpty) {
-      return {'success': false, 'message': '端末認証トークンが見つかりません'};
-    }
-
-    final normalizedUrl = baseUrl.endsWith('/')
-        ? baseUrl.substring(0, baseUrl.length - 1)
-        : baseUrl;
-    final url = Uri.parse('$normalizedUrl/api/v1/pos_devices/cash_pickup');
-
-    try {
-      final body = <String, dynamic>{
+  }) {
+    return PosApiClient.request(
+      'POST',
+      '/api/v1/pos_devices/cash_pickup',
+      body: {
         'employee_id': employeeId,
         'amount': amount,
-      };
-      if (reason != null && reason.isNotEmpty) body['reason'] = reason;
-
-      final response = await http.post(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode(body),
-      );
-      return _parseResponse(response);
-    } catch (e) {
-      return {'success': false, 'message': '通信エラーが発生しました: $e'};
-    }
+        if (reason != null && reason.isNotEmpty) 'reason': reason,
+      },
+    );
   }
 
   /// レジ精算（営業終了時の残高確定）を登録する。
@@ -150,43 +80,17 @@ class CashLogApi {
     required String kind,
     required int amount,
     String? reason,
-  }) async {
-    final baseUrl = await _storage.read(key: 'AccessUrl');
-    final token = await _storage.read(key: 'LoginToken');
-
-    if (baseUrl == null || baseUrl.isEmpty) {
-      return {'success': false, 'message': '接続先URLが設定されていません'};
-    }
-    if (token == null || token.isEmpty) {
-      return {'success': false, 'message': '端末認証トークンが見つかりません'};
-    }
-
-    final normalizedUrl = baseUrl.endsWith('/')
-        ? baseUrl.substring(0, baseUrl.length - 1)
-        : baseUrl;
-    final url = Uri.parse('$normalizedUrl/api/v1/cash_movements');
-
-    try {
-      final body = <String, dynamic>{
+  }) {
+    return PosApiClient.request(
+      'POST',
+      '/api/v1/cash_movements',
+      body: {
         'employee_id': employeeId,
         'kind': kind,
         'amount': amount,
-      };
-      if (reason != null && reason.isNotEmpty) body['reason'] = reason;
-
-      final response = await http.post(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode(body),
-      );
-      return _parseResponse(response);
-    } catch (e) {
-      return {'success': false, 'message': '通信エラーが発生しました: $e'};
-    }
+        if (reason != null && reason.isNotEmpty) 'reason': reason,
+      },
+    );
   }
 
   /// 点検（X）/ 精算（Z）レポートの集計データを取得する。
@@ -195,73 +99,24 @@ class CashLogApi {
   Future<Map<String, dynamic>> fetchRegisterReport({
     required int employeeId,
     int? zNumber,
-  }) async {
-    final baseUrl = await _storage.read(key: 'AccessUrl');
-    final token = await _storage.read(key: 'LoginToken');
-
-    if (baseUrl == null || baseUrl.isEmpty) {
-      return {'success': false, 'message': '接続先URLが設定されていません'};
-    }
-    if (token == null || token.isEmpty) {
-      return {'success': false, 'message': '端末認証トークンが見つかりません'};
-    }
-
-    final normalizedUrl = baseUrl.endsWith('/')
-        ? baseUrl.substring(0, baseUrl.length - 1)
-        : baseUrl;
-    final query = zNumber != null
-        ? '?employee_id=$employeeId&z_number=$zNumber'
-        : '?employee_id=$employeeId';
-    final url = Uri.parse(
-      '$normalizedUrl/api/v1/pos_devices/register_report$query',
+  }) {
+    return PosApiClient.request(
+      'GET',
+      '/api/v1/pos_devices/register_report',
+      query: {
+        'employee_id': employeeId.toString(),
+        if (zNumber != null) 'z_number': zNumber.toString(),
+      },
     );
-
-    try {
-      final response = await http.get(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      );
-      return _parseResponse(response);
-    } catch (e) {
-      return {'success': false, 'message': '通信エラーが発生しました: $e'};
-    }
   }
 
   /// レジ金チェック画面用のコンテキストを取得する。
   /// 当日の開始レジ金および現時点までの現金売上から算出した
   /// expected_amount（あるべきレジ金）を返す。
-  Future<Map<String, dynamic>> fetchCashCheckContext() async {
-    final baseUrl = await _storage.read(key: 'AccessUrl');
-    final token = await _storage.read(key: 'LoginToken');
-
-    if (baseUrl == null || baseUrl.isEmpty) {
-      return {'success': false, 'message': '接続先URLが設定されていません'};
-    }
-    if (token == null || token.isEmpty) {
-      return {'success': false, 'message': '端末認証トークンが見つかりません'};
-    }
-
-    final normalizedUrl = baseUrl.endsWith('/')
-        ? baseUrl.substring(0, baseUrl.length - 1)
-        : baseUrl;
-    final url = Uri.parse(
-      '$normalizedUrl/api/v1/pos_devices/cash_check_context',
+  Future<Map<String, dynamic>> fetchCashCheckContext() {
+    return PosApiClient.request(
+      'GET',
+      '/api/v1/pos_devices/cash_check_context',
     );
-
-    try {
-      final response = await http.get(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      );
-      return _parseResponse(response);
-    } catch (e) {
-      return {'success': false, 'message': '通信エラーが発生しました: $e'};
-    }
   }
 }

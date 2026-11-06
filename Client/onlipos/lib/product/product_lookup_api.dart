@@ -4,26 +4,18 @@
 library;
 
 import 'dart:convert';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:http/http.dart' as http;
+
+import 'package:onlipos/api/pos_api_client.dart';
 import 'package:onlipos/product/product.dart';
 
 class ProductLookupApi {
-  static const _storage = FlutterSecureStorage();
-
   /// サーバにコードで商品を問い合わせる。
   /// 見つからない場合は null を返す。通信エラー時は例外を投げる。
   static Future<Product?> lookupByCode(String code) async {
-    final baseUrl = await _storage.read(key: 'AccessUrl') ?? '';
-    final token = await _storage.read(key: 'LoginToken') ?? '';
-
-    final uri = Uri.parse(
-      '$baseUrl/api/v1/products/lookup',
-    ).replace(queryParameters: {'code': code});
-
-    final response = await http.get(
-      uri,
-      headers: {'Authorization': 'Bearer $token', 'Accept': 'application/json'},
+    final response = await PosApiClient.send(
+      'GET',
+      '/api/v1/products/lookup',
+      query: {'code': code},
     );
 
     if (response.statusCode == 404) return null;

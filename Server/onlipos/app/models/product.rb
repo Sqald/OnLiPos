@@ -14,6 +14,7 @@ class Product < ApplicationRecord
   validates :name, presence: true
   validates :price, numericality: { greater_than_or_equal_to: 0 }
   validates :tax_rate, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validate :product_category_must_belong_to_same_user
 
   enum :status, { active: 0, discontinued: 1 }
 
@@ -59,5 +60,14 @@ class Product < ApplicationRecord
   # CSVで許可する属性のリスト
   def self.updatable_attributes
     [ "code", "name", "price", "description", "status", "tax_rate", "sold_by_weight" ]
+  end
+
+  private
+
+  # 他ユーザーのカテゴリを指定できないようにする（カテゴリ名の漏えい防止）
+  def product_category_must_belong_to_same_user
+    return if product_category.nil? || product_category.user_id == user_id
+
+    errors.add(:product_category_id, "は自分のカテゴリのみ指定できます")
   end
 end

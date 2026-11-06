@@ -14,7 +14,8 @@ class Api::V1::BaseController < Api::BaseController
   # 無効な場合は 401 を返してリクエストを打ち切る。
   def authenticate_pos_token
     token = pos_token_from_request
-    @current_pos = PosToken.find_by(token: token)
+    # トークン未指定のまま find_by(token: nil) で照合しないよう、空なら即 401 にする
+    @current_pos = PosToken.find_by(token: token) if token.present?
 
     if @current_pos
       # 直近利用時刻の更新は10分に1回程度に間引く（毎リクエストのUPDATEを避ける）
@@ -24,6 +25,12 @@ class Api::V1::BaseController < Api::BaseController
     else
       render json: { success: false, message: "Unauthorized" }, status: :unauthorized
     end
+  end
+
+  # このPOS端末で現在開いているレジセッション（なければ nil = レガシー動作）
+  def current_register_session
+    return @current_register_session if defined?(@current_register_session)
+    @current_register_session = @current_pos.register_sessions.open.first
   end
 
   def auth_params

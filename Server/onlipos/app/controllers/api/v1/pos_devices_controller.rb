@@ -54,7 +54,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
       employee.unlock_access! # ロック情報をリセット
 
       # 全店舗権限があるか、または現在の店舗に所属しているか確認
-      if employee.is_all_stores || employee.stores.exists?(@current_pos.store.id)
+      if employee.can_access_store?(@current_pos.store)
         render json: { success: true, employee_id: employee.id, employee_name: employee.name, permissions: employee.permission_keys }
       else
         render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.not_authorized_for_store") }, status: :forbidden
@@ -82,7 +82,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
 
     if employee.authenticate_pin(user_login_params[:pin])
       employee.unlock_access!
-      if employee.is_all_stores || employee.stores.exists?(@current_pos.store.id)
+      if employee.can_access_store?(@current_pos.store)
         render json: { success: true, employee_id: employee.id, employee_name: employee.name, permissions: employee.permission_keys }
       else
         render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.not_authorized_for_store", default: "店舗権限がありません") }, status: :forbidden
@@ -129,16 +129,13 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
   # POST /api/v1/pos_devices/open — レジ開設（開始時の金種実査を記録し、新しいレジセッション(Z)を開く）
   def open
     # 従業員の特定
-    owner = @current_pos.store.user
-    employee = owner.employees.find_by(id: open_params[:employee_id])
-
-    # 全店舗権限があるか、または現在の店舗に所属しているか確認
-    unless employee && (employee.is_all_stores || employee.stores.exists?(@current_pos.store.id))
+    employee = find_store_employee(open_params[:employee_id])
+    unless employee
       return render json: { success: false, message: I18n.t("api.v1.pos_devices.open.employee_not_found") }, status: :forbidden
     end
 
     # 前回の精算が済んでいない（開いたままの）セッションがあれば開設不可
-    if current_open_session
+    if current_register_session
       return render json: {
         success: false,
         message: "前回のレジ精算が完了していません。先に精算（レジ締め）を実行してください"
@@ -184,7 +181,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
       @current_pos.with_lock do
         z_number = (@current_pos.register_sessions.maximum(:z_number) || 0) + 1
         session = @current_pos.register_sessions.create!(
-          user: owner,
+          user: @current_pos.store.user,
           store: @current_pos.store,
           business_date: business_date,
           z_number: z_number,
@@ -231,7 +228,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
 
     # 実査時点の理論在高と過不足を確定保存する（後から検証できるようにする）
     cash_log.log_type = :check
-    cash_log.register_session = current_open_session
+    cash_log.register_session = current_register_session
     cash_log.expected_amount = expected_amount
     cash_log.diff_amount = diff_amount
 
@@ -262,10 +259,8 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
 
   # レジ金途中回収。cash_pickup 権限を持つ従業員のみ実行可。
   def cash_pickup
-    owner = @current_pos.store.user
-    employee = owner.employees.find_by(id: pickup_params[:employee_id])
-
-    unless employee && (employee.is_all_stores || employee.stores.exists?(@current_pos.store.id))
+    employee = find_store_employee(pickup_params[:employee_id])
+    unless employee
       return render json: { success: false, message: "担当者が見つかりません" }, status: :forbidden
     end
 
@@ -286,7 +281,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
       is_end: false,
       is_pickup: true,
       log_type: :pickup,
-      register_session: current_open_session,
+      register_session: current_register_session,
       pickup_amount: amount,
       pickup_reason: pickup_params[:reason],
       yen_10000: 0, yen_5000: 0, yen_1000: 0, yen_500: 0, yen_100: 0,
@@ -319,7 +314,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
   # レジ精算（営業終了時のレジ残高確定）
   # セッションが開いている場合はスナップショットを確定保存して close する（Z締め）。
   def close_register
-    session = current_open_session
+    session = current_register_session
     previous_log, _opening_log, last_amount, expected_amount = cash_check_baseline
     cash_log = build_cash_log(is_start: false, is_end: true)
     return if performed?
@@ -395,10 +390,8 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
   # - z_number 指定あり: 精算済みセッションのスナップショット（Zレポート再印字）
   def register_report
     # 権限チェック用に担当者を特定
-    owner = @current_pos.store.user
-    employee = owner.employees.find_by(id: params[:employee_id])
-
-    unless employee && (employee.is_all_stores || employee.stores.exists?(@current_pos.store.id))
+    employee = find_store_employee(params[:employee_id])
+    unless employee
       return render json: { success: false, message: I18n.t("api.v1.pos_devices.open.employee_not_found") }, status: :forbidden
     end
 
@@ -413,7 +406,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
       end
       render json: z_report_json(session), status: :ok
     else
-      session = current_open_session
+      session = current_register_session
       unless session
         return render json: { success: false, message: "レジが開設されていません" }, status: :unprocessable_entity
       end
@@ -460,12 +453,6 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
       :next_opening_float,
       cash_drawer: [ :"10000", :"5000", :"1000", :"500", :"100", :"50", :"10", :"5", :"1" ]
     )
-  end
-
-  # 現在開いているレジセッション（なければ nil = レガシー動作）
-  def current_open_session
-    return @current_open_session if defined?(@current_open_session)
-    @current_open_session = @current_pos.register_sessions.open.first
   end
 
   # レポート（X/Z）に共通するレジセッションのヘッダー情報
@@ -544,10 +531,8 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
   # - 合計金額はサーバー側で再計算し、クライアントからの total_amount をそのまま信用しないことで、
   #   改ざんされた値での記録を防ぎます。
   def build_cash_log(is_start:, is_end:)
-    owner = @current_pos.store.user
-    employee = owner.employees.find_by(id: cash_log_params[:employee_id])
-
-    unless employee && (employee.is_all_stores || employee.stores.exists?(@current_pos.store.id))
+    employee = find_store_employee(cash_log_params[:employee_id])
+    unless employee
       render json: { success: false, message: I18n.t("api.v1.pos_devices.open.employee_not_found") }, status: :forbidden
       return
     end
@@ -592,7 +577,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
   # - レジセッションが開いている場合はセッション基準（釣銭準備金 + セッション中の現金増減）。
   # - セッションがない場合（レガシー期間・旧クライアント）は従来の created_at 期間推測で計算する。
   def cash_check_baseline
-    return session_baseline(current_open_session) if current_open_session
+    return session_baseline(current_register_session) if current_register_session
 
     today_logs = @current_pos.cash_logs.where(open_date: Date.current).order(:created_at)
     # 「開始レジ金」は明示的に is_start を使う（チェック/精算が先に保存されても壊れないようにする）

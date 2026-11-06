@@ -1,14 +1,12 @@
 # 電子ジャーナル（売上・返品・レジ開閉・入出金等の全取引記録）の閲覧API。
 # view_journal 権限を持つ従業員のみ閲覧可能。POS端末・日付・種別で絞り込みできる。
 class Api::V1::JournalsController < Api::V1::BaseController
-  include EmployeePermissionAuthorizable
-
   # GET /api/v1/journals?pos_id=&date=&type=&employee_id=
   # 条件に合致するジャーナルエントリを新しい順に最大200件返す
   def index
     store    = @current_pos.store
-    employee = resolve_employee!(store)
-    return if performed?
+    employee = require_store_employee!(params[:employee_id])
+    return unless employee
 
     authorize_employee!(employee, "view_journal")
     return if performed?
@@ -30,8 +28,8 @@ class Api::V1::JournalsController < Api::V1::BaseController
   # ジャーナルエントリ1件の詳細（payload含む）を返す
   def show
     store    = @current_pos.store
-    employee = resolve_employee!(store)
-    return if performed?
+    employee = require_store_employee!(params[:employee_id])
+    return unless employee
 
     authorize_employee!(employee, "view_journal")
     return if performed?
@@ -41,17 +39,6 @@ class Api::V1::JournalsController < Api::V1::BaseController
   end
 
   private
-
-  # employee_id から担当者を特定し、店舗権限（全店舗権限 or 所属店舗）を確認する。
-  # 不正な場合は 403 を描画する（呼び出し側は performed? で中断を検知）。
-  def resolve_employee!(store)
-    employee = store.user.employees.find_by(id: params[:employee_id])
-    unless employee && (employee.is_all_stores || employee.stores.exists?(store.id))
-      render json: { success: false, message: "担当者が見つからないか、店舗の権限がありません" },
-             status: :forbidden
-    end
-    employee
-  end
 
   # pos_id / date / type パラメータでジャーナルエントリを絞り込む
   def filter_scope(scope)
