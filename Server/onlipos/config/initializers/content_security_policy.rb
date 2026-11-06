@@ -23,7 +23,12 @@ Rails.application.configure do
   end
 
   # importmap のインラインタグに付与する nonce。
-  # Turbo Drive の画面遷移でも同じ値になるようセッションIDから生成する（Rails 標準の推奨設定）
-  config.content_security_policy_nonce_generator = ->(request) { request.session.id.to_s }
+  # Turbo Drive の画面遷移でも同じ値になるようセッションIDから生成する。
+  # ただし初回訪問（セッションCookieなし）ではセッションIDが空になり、nonce が空 → スクリプトが
+  # すべてブロックされるため、その場合はリクエストごとの乱数を使う
+  # （Turbo は nonce の違いをページ差分とみなさないため、次の遷移以降はセッションIDの値に切り替わる）
+  config.content_security_policy_nonce_generator = lambda do |request|
+    request.session.id.to_s.presence || SecureRandom.base64(16)
+  end
   config.content_security_policy_nonce_directives = %w[script-src]
 end
