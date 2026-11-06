@@ -14,7 +14,8 @@ on:
 jobs:
   scan:
     name: Security & Style
-    runs-on: ubuntu-latest
+    # ubuntu-latest(26.04) には ruby/setup-ruby の Ruby 4.0.1 ビルドがまだ無いため固定する
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: Server/onlipos
@@ -39,7 +40,8 @@ jobs:
 
   test:
     name: Tests
-    runs-on: ubuntu-latest
+    # ubuntu-latest(26.04) には ruby/setup-ruby の Ruby 4.0.1 ビルドがまだ無いため固定する
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: Server/onlipos
