@@ -87,9 +87,44 @@ class _MenuTopViewState extends State<MenuTopView> {
     );
   }
 
+  // 途中回収: 操作する担当者を認証（cash_pickup 権限をサーバーで確認）してから画面を開く
+  Future<void> _openCashPickup() async {
+    final operator = await showEmployeeAuthDialog(
+      context,
+      title: '途中回収 担当者認証',
+      permission: 'cash_pickup',
+    );
+    if (operator == null || !mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => CashPickupView(
+          employeeId: operator.id,
+          employeeName: operator.name,
+        ),
+      ),
+    );
+  }
+
+  // レジ入出金: 操作する担当者を認証（cash_pickup 権限をサーバーで確認）してから画面を開く
+  Future<void> _openCashMovement() async {
+    final operator = await showEmployeeAuthDialog(
+      context,
+      title: 'レジ入出金 担当者認証',
+      permission: 'cash_pickup',
+    );
+    if (operator == null || !mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => CashMovementView(
+          employeeId: operator.id,
+          employeeName: operator.name,
+        ),
+      ),
+    );
+  }
+
   bool get _canEditPrices => widget.permissions.contains('edit_prices');
   bool get _canViewSales => widget.permissions.contains('view_sales');
-  bool get _canCashPickup => widget.permissions.contains('cash_pickup');
   bool get _canViewJournal => widget.permissions.contains('view_journal');
 
   // メニュー画面全体を構築する。AppBarにPOS役割バッジと担当者名を表示し、
@@ -283,38 +318,20 @@ class _MenuTopViewState extends State<MenuTopView> {
                       );
                     },
                   ),
-                  if (_canCashPickup)
-                    _MenuTile(
-                      title: '途中回収',
-                      icon: Icons.move_to_inbox,
-                      color: const Color(0xFFE65100), // Deep Orange
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => CashPickupView(
-                              employeeId: widget.employeeId,
-                              employeeName: widget.employeeName,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  if (_canCashPickup)
-                    _MenuTile(
-                      title: 'レジ入出金',
-                      icon: Icons.swap_vert,
-                      color: const Color(0xFF00796B), // Teal
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => CashMovementView(
-                              employeeId: widget.employeeId,
-                              employeeName: widget.employeeName,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                  // 途中回収・入出金は操作ごとに担当者認証を行い、cash_pickup 権限をサーバーで確認する
+                  // （業務開始ログインの担当者とは別の人が操作できるよう、タイルは常に表示）
+                  _MenuTile(
+                    title: '途中回収',
+                    icon: Icons.move_to_inbox,
+                    color: const Color(0xFFE65100), // Deep Orange
+                    onTap: _openCashPickup,
+                  ),
+                  _MenuTile(
+                    title: 'レジ入出金',
+                    icon: Icons.swap_vert,
+                    color: const Color(0xFF00796B), // Teal
+                    onTap: _openCashMovement,
+                  ),
                   if (_canViewSales)
                     _MenuTile(
                       title: '店舗売上',
