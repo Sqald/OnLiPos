@@ -1,8 +1,8 @@
 require "test_helper"
 
 # 従業員権限の API 強制テスト
-# - open / cash_check / close_register は開設者の権限では制御しない（開設者≠利用者）
-# - refund のみ操作者本人の権限を確認する
+# - 各操作（開設・レジ金チェック・精算・在庫入出荷・売上閲覧・返品）は操作を行う担当者本人の権限を確認する
+# - top_user_login / verify_employee は permission 指定時、ログイン（担当者認証）の時点で権限を確認する
 class EmployeePermissionsApiTest < ActionDispatch::IntegrationTest
   setup do
     @user = User.create!(
@@ -126,5 +126,103 @@ class EmployeePermissionsApiTest < ActionDispatch::IntegrationTest
 
     # 権限チェックは通過し、明細が空なので bad_request になる
     assert_response :bad_request
+  end
+
+  # ── ログイン時（担当者認証時）の権限チェック ──────────────────
+
+  def verify(employee, pin, permission)
+    employee.update_columns(pin_digest: BCrypt::Password.create(pin))
+    post "/api/v1/pos_devices/verify_employee",
+         params: { code: employee.code, pin: pin, permission: permission },
+         headers: auth_headers,
+         as: :json
+  end
+
+  def auth_headers
+    { "Authorization" => "Bearer #{@pos.token}" }
+  end
+
+  test "verify_employee は permission 指定時に権限がなければ 403" do
+    verify(@employee, "1234", "close_register")
+
+    assert_response :forbidden
+    data = JSON.parse(response.body)
+    assert_equal "close_register", data["required_permission"]
+  end
+
+  test "verify_employee は permission 指定時に権限があれば成功" do
+    verify(@full_employee, "5678", "close_register")
+
+    assert_response :ok
+    assert JSON.parse(response.body)["success"]
+  end
+
+  test "verify_employee に不明な permission を指定すると 400" do
+    verify(@full_employee, "5678", "no_such_permission")
+    assert_response :bad_request
+  end
+
+  test "top_user_login は permission 指定時に権限がなければ 403" do
+    @employee.update_columns(pin_digest: BCrypt::Password.create("1234"))
+    post "/api/v1/pos_devices/top_user_login",
+         params: { code: @employee.code, pin: "1234", permission: "open_register" },
+         headers: auth_headers,
+         as: :json
+
+    assert_response :forbidden
+  end
+
+  # ── 各操作エンドポイントでの権限チェック ─────────────────────
+
+  def drawer
+    { "10000" => 1, "5000" => 0, "1000" => 0, "500" => 0, "100" => 0, "50" => 0, "10" => 0, "5" => 0, "1" => 0 }
+  end
+
+  test "open_register 権限がなければレジ開設は 403" do
+    post "/api/v1/pos_devices/open",
+         params: { employee_id: @employee.id, open_date: Date.current.to_s, cash_drawer: drawer },
+         headers: auth_headers, as: :json
+
+    assert_response :forbidden
+    assert_equal 0, @pos.register_sessions.count
+  end
+
+  test "cash_check 権限がなければレジ金チェックは 403" do
+    post "/api/v1/pos_devices/cash_check",
+         params: { employee_id: @employee.id, cash_drawer: drawer },
+         headers: auth_headers, as: :json
+
+    assert_response :forbidden
+    assert_equal 0, CashLog.count
+  end
+
+  test "close_register 権限がなければレジ精算は 403、権限があれば成功" do
+    post "/api/v1/pos_devices/close_register",
+         params: { employee_id: @employee.id, cash_drawer: drawer },
+         headers: auth_headers, as: :json
+    assert_response :forbidden
+
+    post "/api/v1/pos_devices/close_register",
+         params: { employee_id: @full_employee.id, cash_drawer: drawer },
+         headers: auth_headers, as: :json
+    assert_response :ok
+  end
+
+  test "inventory 権限がなければ在庫入出荷は 403" do
+    product = @user.products.create!(code: "4900000000009", name: "在庫商品", price: 100, tax_rate: 10)
+    post "/api/v1/store_stocks/move",
+         params: { employee_id: @employee.id, movements: [ { jan_code: product.code, quantity: 1, direction: "in" } ] },
+         headers: auth_headers, as: :json
+
+    assert_response :forbidden
+    assert_equal 0, StockMovement.count
+  end
+
+  test "view_sales 権限がなければ売上一覧は 403、権限があれば成功" do
+    get "/api/v1/sales", params: { employee_id: @employee.id }, headers: auth_headers
+    assert_response :forbidden
+
+    get "/api/v1/sales", params: { employee_id: @full_employee.id }, headers: auth_headers
+    assert_response :ok
   end
 end

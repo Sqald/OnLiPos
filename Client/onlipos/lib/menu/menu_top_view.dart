@@ -9,6 +9,7 @@ import 'package:onlipos/cash/cash_check_view.dart';
 import 'package:onlipos/cash/cash_close_view.dart';
 import 'package:onlipos/cash/cash_movement_view.dart';
 import 'package:onlipos/cash/cash_pickup_view.dart';
+import 'package:onlipos/login/employee_auth_dialog.dart';
 import 'package:onlipos/login/operator_input_view.dart';
 import 'package:onlipos/inventory/inventory_inout_view.dart';
 import 'package:onlipos/inventory/stock_check_view.dart';
@@ -54,6 +55,38 @@ class _MenuTopViewState extends State<MenuTopView> {
   }
 
   bool get _isHost => _posRole == 'host';
+  // レジ金チェック: 操作する担当者を認証（cash_check 権限をサーバーで確認）してから画面を開く
+  Future<void> _openCashCheck() async {
+    final operator = await showEmployeeAuthDialog(
+      context,
+      title: 'レジ金チェック 担当者認証',
+      permission: 'cash_check',
+    );
+    if (operator == null || !mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) =>
+            CashCheckView(employeeId: operator.id, employeeName: operator.name),
+      ),
+    );
+  }
+
+  // レジ精算: 操作する担当者を認証（close_register 権限をサーバーで確認）してから画面を開く
+  Future<void> _openCashClose() async {
+    final operator = await showEmployeeAuthDialog(
+      context,
+      title: 'レジ精算 担当者認証',
+      permission: 'close_register',
+    );
+    if (operator == null || !mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) =>
+            CashCloseView(employeeId: operator.id, employeeName: operator.name),
+      ),
+    );
+  }
+
   bool get _canEditPrices => widget.permissions.contains('edit_prices');
   bool get _canViewSales => widget.permissions.contains('view_sales');
   bool get _canCashPickup => widget.permissions.contains('cash_pickup');
@@ -192,16 +225,7 @@ class _MenuTopViewState extends State<MenuTopView> {
                       title: 'レジ金チェック',
                       icon: Icons.account_balance_wallet,
                       color: const Color(0xFFE3A21A), // Metro Orange
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => CashCheckView(
-                              employeeId: widget.employeeId,
-                              employeeName: widget.employeeName,
-                            ),
-                          ),
-                        );
-                      },
+                      onTap: _openCashCheck,
                     ),
                   // ホスト機は待ち受けタイルを追加したのでレジ金チェックを次の行に
                   if (_isHost)
@@ -209,31 +233,13 @@ class _MenuTopViewState extends State<MenuTopView> {
                       title: 'レジ金チェック',
                       icon: Icons.account_balance_wallet,
                       color: const Color(0xFFE3A21A), // Metro Orange
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => CashCheckView(
-                              employeeId: widget.employeeId,
-                              employeeName: widget.employeeName,
-                            ),
-                          ),
-                        );
-                      },
+                      onTap: _openCashCheck,
                     ),
                   _MenuTile(
                     title: 'レジ精算',
                     icon: Icons.receipt_long,
                     color: const Color(0xFF00A300), // Metro Green
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => CashCloseView(
-                            employeeId: widget.employeeId,
-                            employeeName: widget.employeeName,
-                          ),
-                        ),
-                      );
-                    },
+                    onTap: _openCashClose,
                   ),
                   _MenuTile(
                     title: '入出荷管理',

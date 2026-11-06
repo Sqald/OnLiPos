@@ -23,6 +23,7 @@ class CashMovementsApiTest < ActionDispatch::IntegrationTest
     @employee.stores << @store
     @employee.employee_permissions.create!(permission: "cash_pickup")
     @employee.employee_permissions.create!(permission: "open_register")
+    @employee.employee_permissions.create!(permission: "close_register")
 
     @no_perm_employee = @user.employees.create!(code: "E002", name: "権限なし")
     @no_perm_employee.stores << @store

@@ -77,15 +77,13 @@ class _JournalListViewState extends State<JournalListView> {
     }
     setState(() => _isAuthenticating = true);
     try {
-      final result = await LoginApi.verifyEmployee(code: code, pin: pin);
+      final result = await LoginApi.verifyEmployee(
+        code: code,
+        pin: pin,
+        permission: 'view_journal',
+      );
       if (!mounted) return;
       if (result['success'] == true) {
-        final perms = (result['permissions'] as List?)?.cast<String>() ?? [];
-        if (!perms.contains('view_journal')) {
-          setState(() => _isAuthenticating = false);
-          _showError('ジャーナル閲覧権限がありません');
-          return;
-        }
         setState(() {
           _authenticated = true;
           _employeeId = result['employee_id'] as int?;

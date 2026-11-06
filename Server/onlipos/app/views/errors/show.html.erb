@@ -18,7 +18,8 @@
 
     <div class="error-actions">
       <%= link_to "ホームへ戻る", root_path, class: "btn-primary" %>
-      <a href="javascript:history.back()" class="btn-secondary">前のページへ</a>
+      <%# CSP で javascript: URL を禁止しているため、同一サイト内の参照元がある場合のみリンクを出す %>
+      <%= link_to "前のページへ", @back_url, class: "btn-secondary" if @back_url %>
     </div>
 
     <div class="error-footer">

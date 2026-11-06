@@ -25,7 +25,7 @@ class TaxSummaryReportTest < ActionDispatch::IntegrationTest
     @employee2 = @user.employees.create!(code: "E002", name: "佐藤二郎")
     [ @employee, @employee2 ].each do |e|
       e.stores << @store
-      %w[refund view_sales].each { |p| e.employee_permissions.create!(permission: p) }
+      %w[refund view_sales open_register cash_check close_register].each { |p| e.employee_permissions.create!(permission: p) }
     end
 
     @food  = @user.products.create!(code: "F001", name: "食品", price: 1080, tax_rate: 8)

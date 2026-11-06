@@ -71,7 +71,11 @@ class _StoreSalesViewState extends State<StoreSalesView> {
     setState(() => _isAuthenticating = true);
 
     try {
-      final result = await LoginApi.verifyEmployee(code: code, pin: pin);
+      final result = await LoginApi.verifyEmployee(
+        code: code,
+        pin: pin,
+        permission: 'view_sales',
+      );
       if (!mounted) return;
 
       if (result['success'] == true) {

@@ -50,19 +50,14 @@ class _PriceEditViewState extends State<PriceEditView> {
       return;
     }
     setState(() => _authLoading = true);
-    final result = await LoginApi.verifyEmployee(code: code, pin: pin);
+    final result = await LoginApi.verifyEmployee(
+      code: code,
+      pin: pin,
+      permission: 'edit_prices',
+    );
     setState(() => _authLoading = false);
 
     if (result['success'] == true) {
-      final permissions =
-          (result['permissions'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [];
-      if (!permissions.contains('edit_prices')) {
-        _showError('この操作の権限がありません（店舗価格編集）');
-        return;
-      }
       setState(() {
         _employeeId = result['employee_id'] as int?;
         _employeeName = result['employee_name'] as String?;

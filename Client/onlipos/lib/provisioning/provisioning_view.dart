@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../product/master_sync_api.dart';
 import '../login/login_top_view.dart';
+import '../sale/offline_sale_repository.dart';
 import '../sale/send_to_api.dart';
 import 'provisioning_api.dart';
 
@@ -134,6 +135,10 @@ class _ProvisioningPageState extends State<ProvisioningPage> {
           final drained = await SentToApi().drainOfflineQueue();
           if (drained > 0) {
             _syncedSettings['オフライン送信'] = '$drained 件';
+          }
+          final failed = await OfflineSaleRepository().getFailedCount();
+          if (failed > 0) {
+            _syncedSettings['オフライン送信失敗'] = '$failed 件（要確認）';
           }
         } catch (_) {
           // オフライン送信に失敗しても続行（次回の同期時に再試行）

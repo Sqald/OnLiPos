@@ -20,7 +20,7 @@ class RegisterReportApiTest < ActionDispatch::IntegrationTest
 
     @employee = @user.employees.create!(code: "E001", name: "田中一郎")
     @employee.stores << @store
-    %w[cash_check cash_pickup].each { |p| @employee.employee_permissions.create!(permission: p) }
+    %w[open_register cash_check close_register cash_pickup].each { |p| @employee.employee_permissions.create!(permission: p) }
 
     @no_perm = @user.employees.create!(code: "E002", name: "権限なし")
     @no_perm.stores << @store

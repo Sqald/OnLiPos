@@ -8,7 +8,7 @@ import 'package:sqflite/sqflite.dart';
 /// 同一DBファイルを別々にオープンすることによる "database is locked" を防ぐ。
 class DatabaseService {
   static const _dbName = 'pos_app.db';
-  static const _dbVersion = 7;
+  static const _dbVersion = 8;
 
   DatabaseService._();
   static final DatabaseService instance = DatabaseService._();
@@ -82,7 +82,9 @@ class DatabaseService {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         receipt_number TEXT,
         payload TEXT,
-        created_at TEXT
+        created_at TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        last_error TEXT
       )
     ''');
   }
@@ -146,6 +148,15 @@ class DatabaseService {
     if (oldVersion < 7) {
       await db.execute(
         'ALTER TABLE products ADD COLUMN sold_by_weight INTEGER DEFAULT 0',
+      );
+    }
+    if (oldVersion < 8) {
+      // オフライン会計の送信状態（pending: 再送対象 / failed: サーバーに拒否され要確認）
+      await db.execute(
+        "ALTER TABLE offline_sales_queue ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'",
+      );
+      await db.execute(
+        'ALTER TABLE offline_sales_queue ADD COLUMN last_error TEXT',
       );
     }
   }

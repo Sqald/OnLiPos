@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_06_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_06_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -391,6 +391,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_06_000002) do
 
   create_table "sales", force: :cascade do |t|
     t.date "business_date"
+    t.string "client_request_id"
     t.datetime "created_at", null: false
     t.integer "customer_age_group"
     t.integer "customer_gender"
@@ -416,6 +417,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_06_000002) do
     t.datetime "voided_at"
     t.bigint "voided_by_employee_id"
     t.index ["employee_id"], name: "index_sales_on_employee_id"
+    t.index ["pos_token_id", "client_request_id"], name: "index_sales_on_pos_token_id_and_client_request_id", unique: true, where: "(client_request_id IS NOT NULL)"
     t.index ["pos_token_id"], name: "index_sales_on_pos_token_id"
     t.index ["receipt_number"], name: "index_sales_on_receipt_number", unique: true
     t.index ["register_session_id"], name: "index_sales_on_register_session_id"

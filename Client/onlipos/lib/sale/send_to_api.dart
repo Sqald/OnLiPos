@@ -4,6 +4,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:onlipos/api/pos_api_client.dart';
@@ -24,6 +26,23 @@ class SentToApi {
     }
   }
 
+  // 会計ごとの冪等キー（UUID v4）。タイムアウト後の再送でも同じ値を送ることで、
+  // サーバー側で登録済みの会計と照合され、二重計上されない。
+  @visibleForTesting
+  static String newRequestId() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
+  }
+
+  // 登録成功（新規 201 / 冪等キーによる登録済み 200）のレスポンスか
+  static bool _isRegistered(http.Response response) =>
+      response.statusCode == 201 || response.statusCode == 200;
+
   /// 会計をサーバーに送信する。通信不可時はオフラインキューに保存してフォールバックする。
   Future<Map<String, dynamic>> sendSale({
     required int totalAmount,
@@ -37,6 +56,7 @@ class SentToApi {
     String? customerAgeGroup,
   }) async {
     final Map<String, dynamic> requestBody = {
+      'client_request_id': newRequestId(),
       'sale': {
         'total_amount': totalAmount,
         'subtotal_ex_tax': subtotalExTax,
@@ -46,8 +66,8 @@ class SentToApi {
         // 販売時刻。オフライン後送でも実際の会計時刻がサーバーに記録される
         'sold_at': DateTime.now().toIso8601String(),
         // 客層キー（性別・年代）。未選択の場合は送信しない
-        if (customerGender != null) 'customer_gender': customerGender,
-        if (customerAgeGroup != null) 'customer_age_group': customerAgeGroup,
+        'customer_gender': ?customerGender,
+        'customer_age_group': ?customerAgeGroup,
       },
       'employee_id': employeeId,
       'details': details,
@@ -57,7 +77,7 @@ class SentToApi {
     try {
       final response = await _post('/api/v1/sales', requestBody);
 
-      if (response.statusCode == 201) {
+      if (_isRegistered(response)) {
         final responseData = jsonDecode(response.body);
         if (responseData['success'] == true) {
           // サーバーから返却されたシーケンス番号をローカルに保存（次回オフライン採番の基準）
@@ -138,6 +158,10 @@ class SentToApi {
 
   /// 未送信のオフライン会計をサーバーに一括送信する。
   /// 返り値は送信成功した件数。ネットワークエラーが発生した時点で処理を中断する。
+  ///
+  /// - 送信済みかどうかはサーバーが冪等キー（client_request_id）で照合するため、
+  ///   タイムアウトで結果が分からなかった会計を再送しても二重計上されない。
+  /// - サーバーに拒否された会計（再送しても成功しない 4xx）は削除せず failed として残す。
   Future<int> drainOfflineQueue() async {
     final pending = await _offlineRepo.getPending();
     if (pending.isEmpty) return 0;
@@ -148,6 +172,12 @@ class SentToApi {
       final payload =
           jsonDecode(row['payload'] as String) as Map<String, dynamic>;
 
+      // 旧バージョンで保存された会計には冪等キーがないため、送信前に付与して保存する
+      if (payload['client_request_id'] == null) {
+        payload['client_request_id'] = newRequestId();
+        await _offlineRepo.updatePayload(id, payload);
+      }
+
       try {
         final response = await PosApiClient.send(
           'POST',
@@ -155,7 +185,7 @@ class SentToApi {
           body: payload,
         );
 
-        if (response.statusCode == 201) {
+        if (_isRegistered(response)) {
           final data = jsonDecode(response.body) as Map<String, dynamic>;
           if (data['success'] == true) {
             await _offlineRepo.delete(id);
@@ -167,12 +197,12 @@ class SentToApi {
             }
             sent++;
           }
-        } else if (response.statusCode == 409) {
-          // 409 Conflict = 重複レシート番号。永続的に失敗するためキューから除去
-          await _offlineRepo.delete(id);
+        } else if (isPermanentFailure(response.statusCode)) {
+          // 409（レシート番号重複）・422（入力不正）等は再送しても成功しないため、
+          // 再送対象から外して failed として残す（売上データは削除しない）
+          await _offlineRepo.markFailed(id, _errorSummary(response));
         }
-        // 401/403 はトークン期限切れの可能性があるためキューに残す
-        // 5xx はキューに残し次回再試行
+        // 401/403（トークン・権限）、408/429、5xx はキューに残し次回再試行
       } on PosApiConfigException {
         // 未セットアップ（接続先・トークンなし）の場合は送信しようがないので中断
         break;
@@ -185,5 +215,22 @@ class SentToApi {
       }
     }
     return sent;
+  }
+
+  // 再送しても結果が変わらない 4xx か（認証・権限・タイムアウト・レート制限は除く）
+  @visibleForTesting
+  static bool isPermanentFailure(int status) =>
+      status >= 400 &&
+      status < 500 &&
+      !const {401, 403, 408, 429}.contains(status);
+
+  // failed として記録するエラー内容（サーバーのエラーメッセージ、なければステータスコード）
+  static String _errorSummary(http.Response response) {
+    final data = PosApiClient.parseJson(response);
+    final errors = data['errors'];
+    if (errors is List && errors.isNotEmpty) {
+      return 'HTTP ${response.statusCode}: ${errors.join(', ')}';
+    }
+    return 'HTTP ${response.statusCode}: ${data['message'] ?? ''}';
   }
 }

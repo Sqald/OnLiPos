@@ -7,8 +7,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
   # POST /api/v1/pos_devices/login — POS端末そのもののログイン（ユーザー名・店舗名・POS名＋パスワード）。
   # 成功したらトークンを再発行し、以後のAPI呼び出しはそのトークンで認証する。
   def login
-    brute_key = "pos_login:#{login_params[:userName]}:#{login_params[:storeName]}:#{login_params[:posName]}"
-    if pos_login_locked?(brute_key)
+    if pos_login_locked?
       return render json: {
         success: false,
         message: "ログイン試行回数が上限に達しました。しばらく時間をおいてから再試行してください。"
@@ -20,7 +19,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     @pos_token = store&.pos_tokens&.find_by(ascii_name: login_params[:posName])
 
     if @pos_token&.authenticate(login_params[:password])
-      reset_pos_login_failures(brute_key)
+      reset_pos_login_failures
       @pos_token.regenerate_token
       @pos_token.update_columns(
         last_used_at: Time.current,
@@ -28,69 +27,26 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
       )
       render :login, status: :ok
     else
-      increment_pos_login_failures(brute_key)
+      increment_pos_login_failures
       render json: { success: false, message: I18n.t("api.v1.pos_devices.login.failure") }, status: :unauthorized
     end
   end
 
-  # POST /api/v1/pos_devices/top_user_login — 従業員コード＋PINでのログイン（POS端末利用開始時）
+  # POST /api/v1/pos_devices/top_user_login — 従業員コード＋PINでのログイン（POS端末利用開始時）。
+  # permission を指定すると、その操作権限を持たない従業員はログイン時点で 403 になる。
   def top_user_login
-    # アクセス元のPOS端末が所属する店舗のオーナー配下の従業員から検索
-    owner = @current_pos.store.user
-    employee = owner.employees.find_by(code: user_login_params[:code])
-
-    # 従業員が存在しない、またはPINが空の場合は即座に失敗させる
-    if employee.nil? || user_login_params[:pin].blank?
-      return render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.failure") }, status: :unauthorized
-    end
-
-    # アカウントがロックされているか確認
-    if employee.access_locked?
-      return render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.locked") }, status: :forbidden
-    end
-
-    if employee.authenticate_pin(user_login_params[:pin])
-      # 認証成功
-      employee.unlock_access! # ロック情報をリセット
-
-      # 全店舗権限があるか、または現在の店舗に所属しているか確認
-      if employee.can_access_store?(@current_pos.store)
-        render json: { success: true, employee_id: employee.id, employee_name: employee.name, permissions: employee.permission_keys }
-      else
-        render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.not_authorized_for_store") }, status: :forbidden
-      end
-    else
-      # 認証失敗
-      employee.increment_failed_attempts # 失敗回数を記録
-      render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.failure") }, status: :unauthorized
-    end
+    authenticate_employee_pin(
+      not_found_message: I18n.t("api.v1.pos_devices.top_user_login.failure")
+    )
   end
 
-  # 業務中（返品・在庫入出庫等）の担当者PIN認証。
-  # top_user_login と同様にPINを検証するが、「ログイン」ではなく「中間承認」用途。
+  # 業務中（レジ金チェック・精算・返品・在庫入出庫等）の担当者PIN認証。
+  # top_user_login と同様にPINを検証するが、「ログイン」ではなく各操作の「担当者認証」用途。
+  # permission を指定すると、その操作権限を持たない従業員は認証時点で 403 になる。
   def verify_employee
-    owner = @current_pos.store.user
-    employee = owner.employees.find_by(code: user_login_params[:code])
-
-    if employee.nil? || user_login_params[:pin].blank?
-      return render json: { success: false, message: I18n.t("api.v1.pos_devices.check_operator.failure", default: "担当者が見つかりません") }, status: :unauthorized
-    end
-
-    if employee.access_locked?
-      return render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.locked", default: "アカウントがロックされています") }, status: :forbidden
-    end
-
-    if employee.authenticate_pin(user_login_params[:pin])
-      employee.unlock_access!
-      if employee.can_access_store?(@current_pos.store)
-        render json: { success: true, employee_id: employee.id, employee_name: employee.name, permissions: employee.permission_keys }
-      else
-        render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.not_authorized_for_store", default: "店舗権限がありません") }, status: :forbidden
-      end
-    else
-      employee.increment_failed_attempts
-      render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.failure", default: "PINが正しくありません") }, status: :unauthorized
-    end
+    authenticate_employee_pin(
+      not_found_message: I18n.t("api.v1.pos_devices.check_operator.failure", default: "担当者が見つかりません")
+    )
   end
 
   # POST /api/v1/pos_devices/check_operator — 従業員コードのみで担当者情報を取得（PIN不要の簡易確認）
@@ -133,6 +89,9 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     unless employee
       return render json: { success: false, message: I18n.t("api.v1.pos_devices.open.employee_not_found") }, status: :forbidden
     end
+
+    authorize_employee!(employee, "open_register")
+    return if performed?
 
     # 前回の精算が済んでいない（開いたままの）セッションがあれば開設不可
     if current_register_session
@@ -219,7 +178,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     # 基準情報（前回ログ・あるべきレジ金）を取得し、今回の実査ログを組み立てる
     previous_log, _opening_log, last_amount, expected_amount = cash_check_baseline
 
-    cash_log = build_cash_log(is_start: false, is_end: false)
+    cash_log = build_cash_log(is_start: false, is_end: false, permission: "cash_check")
     return if performed?
 
     diff_amount = if expected_amount
@@ -316,7 +275,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
   def close_register
     session = current_register_session
     previous_log, _opening_log, last_amount, expected_amount = cash_check_baseline
-    cash_log = build_cash_log(is_start: false, is_end: true)
+    cash_log = build_cash_log(is_start: false, is_end: true, permission: "close_register")
     return if performed?
 
     # 実査結果と理論在高の過不足を確定する
@@ -416,20 +375,81 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
 
   private
 
-  # ブルートフォース対策: 同一ユーザー/店舗/POS名の組み合わせで失敗回数が上限（10回）に達したか
-  def pos_login_locked?(key)
-    (Rails.cache.read("#{key}:count") || 0) >= 10
+  # 従業員コード＋PINを検証し、成功時は従業員情報と権限一覧を返す（top_user_login / verify_employee 共通）。
+  # - 一定回数失敗するとロックする（Employee#increment_failed_attempts）
+  # - 当店舗を操作できない従業員は 403
+  # - params[:permission] が指定されていれば、その権限がない従業員は 403（各操作のログイン時チェック）
+  def authenticate_employee_pin(not_found_message:)
+    permission = params[:permission].presence&.to_s
+    if permission && !Employee::PERMISSION_CATALOG.key?(permission)
+      return render json: { success: false, message: "不明な権限が指定されました" }, status: :bad_request
+    end
+
+    # アクセス元のPOS端末が所属する店舗のオーナー配下の従業員から検索
+    employee = @current_pos.store.user.employees.find_by(code: user_login_params[:code])
+
+    # 従業員が存在しない、またはPINが空の場合は即座に失敗させる
+    if employee.nil? || user_login_params[:pin].blank?
+      return render json: { success: false, message: not_found_message }, status: :unauthorized
+    end
+
+    if employee.access_locked?
+      return render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.locked", default: "アカウントがロックされています") }, status: :forbidden
+    end
+
+    unless employee.authenticate_pin(user_login_params[:pin])
+      employee.increment_failed_attempts
+      return render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.failure", default: "PINが正しくありません") }, status: :unauthorized
+    end
+
+    employee.unlock_access!
+
+    unless employee.can_access_store?(@current_pos.store)
+      return render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.not_authorized_for_store", default: "店舗権限がありません") }, status: :forbidden
+    end
+
+    if permission
+      authorize_employee!(employee, permission)
+      return if performed?
+    end
+
+    render json: { success: true, employee_id: employee.id, employee_name: employee.name, permissions: employee.permission_keys }
   end
 
-  # ログイン失敗回数をキャッシュに記録（1時間で自動失効）
-  def increment_pos_login_failures(key)
-    count = (Rails.cache.read("#{key}:count") || 0) + 1
-    Rails.cache.write("#{key}:count", count, expires_in: 1.hour)
+  # ブルートフォース対策の失敗回数上限（1時間あたり）。
+  # 対象端末だけで数えると、第三者がわざと失敗させて正規の端末をロックアウトできてしまうため、
+  # 「対象端末×接続元IP」で通常のロックを行い、対象端末単位・IP単位は分散攻撃への歯止めとして高めに設定する。
+  POS_LOGIN_FAILURE_LIMITS = { target_ip: 10, ip: 50, target: 100 }.freeze
+  POS_LOGIN_FAILURE_WINDOW = 1.hour
+
+  def pos_login_failure_keys
+    target = "#{login_params[:userName]}:#{login_params[:storeName]}:#{login_params[:posName]}"
+    {
+      target_ip: "pos_login:target:#{target}:ip:#{request.remote_ip}",
+      ip: "pos_login:ip:#{request.remote_ip}",
+      target: "pos_login:target:#{target}"
+    }
   end
 
-  # ログイン成功時に失敗カウンタをリセットする
-  def reset_pos_login_failures(key)
-    Rails.cache.delete("#{key}:count")
+  # いずれかの単位で失敗回数が上限に達していればロック中とみなす
+  def pos_login_locked?
+    pos_login_failure_keys.any? do |kind, key|
+      Rails.cache.read(key).to_i >= POS_LOGIN_FAILURE_LIMITS[kind]
+    end
+  end
+
+  # ログイン失敗回数をキャッシュに記録（POS_LOGIN_FAILURE_WINDOW で自動失効）
+  def increment_pos_login_failures
+    pos_login_failure_keys.each_value do |key|
+      Rails.cache.increment(key, 1, expires_in: POS_LOGIN_FAILURE_WINDOW)
+    end
+  end
+
+  # ログイン成功時に対象端末の失敗カウンタをリセットする（IP単位は他端末への試行も含むため残す）
+  def reset_pos_login_failures
+    keys = pos_login_failure_keys
+    Rails.cache.delete(keys[:target_ip])
+    Rails.cache.delete(keys[:target])
   end
 
   def login_params
@@ -437,7 +457,7 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
   end
 
   def user_login_params
-    params.permit(:code, :pin)
+    params.permit(:code, :pin, :permission)
   end
 
   def open_params
@@ -525,17 +545,21 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     params.permit(:employee_id, :amount, :reason)
   end
 
-  # 共通のレジ金ログ生成ロジック。
+  # 共通のレジ金ログ生成ロジック（権限チェックを含む。不可の場合は 403 を描画して nil）。
   # - POSトークン(@current_pos)と、そのオーナー配下の従業員のみを対象とし、
   #   他社・他店舗の従業員IDは通さないことで権限昇格を防ぎます。
   # - 合計金額はサーバー側で再計算し、クライアントからの total_amount をそのまま信用しないことで、
   #   改ざんされた値での記録を防ぎます。
-  def build_cash_log(is_start:, is_end:)
+  def build_cash_log(is_start:, is_end:, permission:)
     employee = find_store_employee(cash_log_params[:employee_id])
     unless employee
       render json: { success: false, message: I18n.t("api.v1.pos_devices.open.employee_not_found") }, status: :forbidden
       return
     end
+
+    # 操作に必要な権限（cash_check / close_register）を担当者本人が持っているか
+    authorize_employee!(employee, permission)
+    return if performed?
 
     cash_data = cash_log_params[:cash_drawer] || {}
 

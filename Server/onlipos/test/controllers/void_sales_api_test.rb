@@ -24,6 +24,7 @@ class VoidSalesApiTest < ActionDispatch::IntegrationTest
     [ @employee, @employee2 ].each do |e|
       e.stores << @store
       e.employee_permissions.create!(permission: "refund")
+      %w[open_register cash_check close_register].each { |p| e.employee_permissions.create!(permission: p) }
     end
     @no_perm = @user.employees.create!(code: "E003", name: "権限なし")
     @no_perm.stores << @store

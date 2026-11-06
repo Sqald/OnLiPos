@@ -1,6 +1,9 @@
 <%# ダッシュボード: セット商品(バンドル)登録/編集フォーム(new/editの両画面から render される共通パーシャル)
     基本情報(コード・名称・価格・ステータス)に加え、構成商品と数量をJavaScriptで動的に追加/削除できるようにする %>
-<%= form_with(model: [:dashboard, bundle], local: true, class: "dashboard-form") do |f| %>
+<%# 構成商品行の追加・削除は bundle_items_controller.js（Stimulus）で行う %>
+<%= form_with(model: [:dashboard, bundle], local: true, class: "dashboard-form",
+              data: { controller: "bundle-items",
+                      bundle_items_products_value: @products.map { |p| { id: p.id, label: "#{p.code} - #{p.name}" } }.to_json }) do |f| %>
   <% if bundle.errors.any? %>
     <div id="error_explanation">
       <ul>
@@ -49,7 +52,7 @@
         <th style="width:60px"></th>
       </tr>
     </thead>
-    <tbody id="bundle-items-body">
+    <tbody id="bundle-items-body" data-bundle-items-target="body">
       <% existing_items = bundle.product_bundle_items.includes(:product) %>
       <% (existing_items.any? ? existing_items : [nil]).each_with_index do |item, idx| %>
         <tr class="bundle-item-row">
@@ -68,40 +71,19 @@
                    min="1" class="form-control" style="text-align:right" />
           </td>
           <td>
-            <button type="button" class="btn-sm btn-danger remove-item-btn" onclick="this.closest('tr').remove()">削除</button>
+            <button type="button" class="btn-sm btn-danger remove-item-btn" data-action="bundle-items#remove">削除</button>
           </td>
         </tr>
       <% end %>
     </tbody>
   </table>
 
-  <button type="button" class="btn-outline mt-2" id="add-item-btn">+ 商品を追加</button>
+  <button type="button" class="btn-outline mt-2" id="add-item-btn" data-action="bundle-items#add">+ 商品を追加</button>
 
   <div class="actions mt-3">
     <%= f.button bundle.new_record? ? "登録する" : "更新する",
-          type: "button", class: "btn-signup", onclick: "this.form.submit();" %>
+          type: "button", class: "btn-signup",
+          data: { controller: "form-submit", action: "form-submit#submit" } %>
     <%= link_to "キャンセル", dashboard_product_bundles_path, class: "link-cancel" %>
   </div>
 <% end %>
-
-<%# 「+ 商品を追加」ボタン押下時に構成商品の行をクライアント側で動的追加するJavaScript %>
-<script>
-  const products = <%= raw @products.map { |p| { id: p.id, label: "#{p.code} - #{p.name}" } }.to_json %>;
-
-  document.getElementById('add-item-btn').addEventListener('click', function() {
-    const tbody = document.getElementById('bundle-items-body');
-    const tr = document.createElement('tr');
-    tr.className = 'bundle-item-row';
-
-    tr.innerHTML = `
-      <td><select name="items[][product_id]" class="form-control"></select></td>
-      <td><input type="number" name="items[][quantity]" value="1" min="1" class="form-control" style="text-align:right" /></td>
-      <td><button type="button" class="btn-sm btn-danger" onclick="this.closest('tr').remove()">削除</button></td>
-    `;
-    // 商品名はユーザー入力値のため innerHTML に埋め込まず、DOM API で安全に設定する（XSS対策）
-    const select = tr.querySelector('select');
-    select.add(new Option('-- 商品を選択 --', ''));
-    products.forEach(p => select.add(new Option(p.label, p.id)));
-    tbody.appendChild(tr);
-  });
-</script>

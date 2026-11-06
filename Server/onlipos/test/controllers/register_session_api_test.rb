@@ -24,7 +24,9 @@ class RegisterSessionApiTest < ActionDispatch::IntegrationTest
     @employee.stores << @store
     @employee2 = @user.employees.create!(code: "E002", name: "佐藤二郎")
     @employee2.stores << @store
-    [ @employee, @employee2 ].each { |e| e.employee_permissions.create!(permission: "refund") }
+    [ @employee, @employee2 ].each do |e|
+      %w[refund open_register cash_check close_register].each { |p| e.employee_permissions.create!(permission: p) }
+    end
 
     @product = @user.products.create!(code: "P001", name: "商品A", price: 1100, tax_rate: 10)
     StoreStock.create!(store: @store, product: @product, quantity: 100)

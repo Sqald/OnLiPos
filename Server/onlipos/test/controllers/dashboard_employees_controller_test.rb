@@ -32,4 +32,15 @@ class DashboardEmployeesControllerTest < ActionDispatch::IntegrationTest
     assert employee
     assert_equal [ @store.id ], employee.store_ids
   end
+
+  test "CSP ヘッダーが付与され、フォームにインラインスクリプトが含まれない" do
+    get new_dashboard_employee_path
+
+    assert_response :ok
+    csp = response.headers["Content-Security-Policy"]
+    assert_includes csp, "script-src 'self'"
+    assert_includes csp, "object-src 'none'"
+    assert_no_match(/onclick=|<script>/, response.body)
+    assert_includes response.body, 'data-controller="store-select"'
+  end
 end

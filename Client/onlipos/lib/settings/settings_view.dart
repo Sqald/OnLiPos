@@ -23,6 +23,7 @@ class _SettingsViewState extends State<SettingsView> {
   String? _storeName;
   String? _printerIp;
   int _offlinePendingCount = 0;
+  int _offlineFailedCount = 0;
   bool _loading = true;
 
   @override
@@ -36,11 +37,13 @@ class _SettingsViewState extends State<SettingsView> {
     final storeName = await _storage.read(key: 'StoreName');
     final printerIp = await _storage.read(key: 'PrinterIP');
     final offlineCount = await OfflineSaleRepository().getPendingCount();
+    final failedCount = await OfflineSaleRepository().getFailedCount();
     if (!mounted) return;
     setState(() {
       _storeName = storeName;
       _printerIp = printerIp;
       _offlinePendingCount = offlineCount;
+      _offlineFailedCount = failedCount;
       _loading = false;
     });
   }
@@ -134,6 +137,17 @@ class _SettingsViewState extends State<SettingsView> {
                           : const Icon(Icons.check_circle, color: Colors.green),
                     ),
                   ),
+                  // サーバーに拒否されたオフライン会計（自動再送しない。端末内に保持）
+                  if (_offlineFailedCount > 0)
+                    Card(
+                      child: ListTile(
+                        title: const Text('送信失敗のオフライン会計'),
+                        subtitle: Text(
+                          '$_offlineFailedCount 件（サーバーに受け付けられませんでした。管理者に連絡してください）',
+                        ),
+                        trailing: const Icon(Icons.error, color: Colors.red),
+                      ),
+                    ),
                   const SizedBox(height: 24),
                   const Text(
                     '操作',

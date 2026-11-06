@@ -37,9 +37,11 @@ class _LoginTopViewState extends State<LoginTopView> {
     });
 
     // login_api.dart の関数を呼び出し
+    // ログイン後はそのままレジ開設を行うため、開設権限をサーバー側で確認する
     final result = await LoginApi.userLogin(
       code: _codeController.text,
       pin: _pinController.text,
+      permission: 'open_register',
       openDate:
           "${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}",
     );

@@ -48,6 +48,9 @@ class Api::V1::StoreStocksController < Api::V1::BaseController
     employee = require_store_employee!(params[:employee_id])
     return unless employee
 
+    authorize_employee!(employee, "inventory")
+    return if performed?
+
     store = @current_pos.store
     results = []
 

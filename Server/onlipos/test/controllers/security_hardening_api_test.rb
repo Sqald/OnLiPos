@@ -18,6 +18,7 @@ class SecurityHardeningApiTest < ActionDispatch::IntegrationTest
     @pos.update_columns(token: SecureRandom.hex(32))
     @employee = @user.employees.create!(code: "E001", name: "田中一郎")
     @employee.stores << @store
+    @employee.employee_permissions.create!(permission: "inventory")
     @product = @user.products.create!(code: "4900000000001", name: "商品A", price: 1100, tax_rate: 10)
     @stock = StoreStock.create!(store: @store, product: @product, quantity: 10)
   end
@@ -144,5 +145,61 @@ class SecurityHardeningApiTest < ActionDispatch::IntegrationTest
 
     assert_response :forbidden
     assert_equal 10, @stock.reload.quantity
+  end
+
+  # ---- 冪等キー（再送時の二重計上防止） ----
+
+  def post_sale_with_request_id(request_id, receipt_number: nil)
+    post "/api/v1/sales",
+         params: {
+           client_request_id: request_id,
+           sale: { total_amount: 1100, subtotal_ex_tax: 1000, tax_amount: 100, receipt_number: receipt_number },
+           employee_id: @employee.id,
+           details: [ { product_id: @product.id, quantity: 1, unit_price: 1100, subtotal: 1100, tax_rate: 10 } ],
+           payments: [ { method: 0, amount: 1100 } ]
+         },
+         headers: auth_headers,
+         as: :json
+  end
+
+  test "同じ client_request_id で再送しても会計は1件だけ登録され、既存の会計が返る" do
+    request_id = SecureRandom.uuid
+    post_sale_with_request_id(request_id)
+    assert_response :created
+    first = JSON.parse(response.body)
+
+    # オフライン再送ではローカル採番のレシート番号が付くが、冪等キーで同一会計と判定される
+    post_sale_with_request_id(request_id, receipt_number: "sectest-secstore-#{@pos.id}-00000050")
+    assert_response :ok
+    second = JSON.parse(response.body)
+
+    assert second["success"]
+    assert second["duplicate"]
+    assert_equal first["sale_id"], second["sale_id"]
+    assert_equal first["receipt_number"], second["receipt_number"]
+    assert_equal 1, Sale.count
+    assert_equal 9, @stock.reload.quantity
+  end
+
+  test "client_request_id が異なれば別の会計として登録される" do
+    post_sale_with_request_id(SecureRandom.uuid)
+    post_sale_with_request_id(SecureRandom.uuid)
+    assert_equal 2, Sale.count
+  end
+
+  test "client_request_id の形式が不正なら 422" do
+    post_sale_with_request_id("bad id!")
+    assert_response :unprocessable_entity
+    assert_equal 0, Sale.count
+  end
+
+  test "レシート番号が重複した場合は 409" do
+    receipt = "sectest-secstore-#{@pos.id}-00000077"
+    post_sale_with_request_id(SecureRandom.uuid, receipt_number: receipt)
+    assert_response :created
+
+    post_sale_with_request_id(SecureRandom.uuid, receipt_number: receipt)
+    assert_response :conflict
+    assert_equal 1, Sale.count
   end
 end

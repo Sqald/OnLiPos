@@ -1,8 +1,18 @@
 # 売上（会計）に関するAPI。会計の登録（create）に加え、日次一覧、期間集計、
 # 取消（void）、領収書発行の記録を扱う。
 class Api::V1::SalesController < Api::V1::BaseController
-  # GET /api/v1/sales?date=YYYY-MM-DD — 指定日（省略時は当日）の自店舗の売上一覧
+  # 冪等キー（client_request_id）として受け付ける形式（UUID 等の英数字・ハイフン）
+  CLIENT_REQUEST_ID_FORMAT = /\A[0-9A-Za-z-]{8,64}\z/
+
+  # GET /api/v1/sales?date=YYYY-MM-DD&employee_id=... — 指定日（省略時は当日）の自店舗の売上一覧。
+  # 店舗の売上を閲覧するため view_sales 権限を持つ担当者のみ。
   def index
+    employee = require_store_employee!(params[:employee_id])
+    return unless employee
+
+    authorize_employee!(employee, "view_sales")
+    return if performed?
+
     date = params[:date].present? ? Date.parse(params[:date]) : Date.current
     store = @current_pos.store
 
@@ -121,7 +131,19 @@ class Api::V1::SalesController < Api::V1::BaseController
   # POST /api/v1/sales — 会計（売上）を登録する。
   # Sale作成 → 明細保存 → 小計割引適用 → 支払い保存 → 税率別内訳確定、の順で処理し、
   # 失敗時はロールバックしてエラーを返す。
+  #
+  # client_request_id（冪等キー）が指定され、この端末で同じキーの会計が登録済みなら、
+  # 新たに登録せず既存の会計を 200 で返す（タイムアウト後の再送による二重計上の防止）。
   def create
+    request_id = params[:client_request_id].presence&.to_s
+    if request_id && !request_id.match?(CLIENT_REQUEST_ID_FORMAT)
+      return render json: { success: false, errors: [ "client_request_id の形式が不正です" ] }, status: :unprocessable_entity
+    end
+
+    if request_id && (existing = @current_pos.sales.find_by(client_request_id: request_id))
+      return render_registered_sale(existing)
+    end
+
     # BaseControllerのauthenticate_pos_tokenでセットされた @current_pos を使用
     payments = payment_params_array
 
@@ -130,6 +152,7 @@ class Api::V1::SalesController < Api::V1::BaseController
     @sale.store = @current_pos.store
     @sale.user = @current_pos.store.user
     @sale.employee = operator_employee
+    @sale.client_request_id = request_id
 
     # レジセッション・営業日・販売時刻の紐付け。
     # sold_at はオフライン会計の後送時にクライアントの計上時刻を受け取る（なければ受信時刻）
@@ -160,12 +183,22 @@ class Api::V1::SalesController < Api::V1::BaseController
           next_receipt_sequence: next_sequence
         }, status: :created
       else
-        render json: { success: false, errors: @sale.errors.full_messages }, status: :unprocessable_entity
+        # レシート番号の重複は再送しても解消しないため 409 で区別して返す
+        status = @sale.errors.of_kind?(:receipt_number, :taken) ? :conflict : :unprocessable_entity
+        render json: { success: false, errors: @sale.errors.full_messages }, status: status
         raise ActiveRecord::Rollback
       end
     end
   rescue ArgumentError => e
     render json: { success: false, errors: [ e.message ] }, status: :unprocessable_entity
+  rescue ActiveRecord::RecordNotUnique
+    # 同じ冪等キーの同時送信は、先に登録された会計を返す。それ以外はレシート番号の重複
+    existing = request_id && @current_pos.sales.find_by(client_request_id: request_id)
+    if existing
+      render_registered_sale(existing)
+    else
+      render json: { success: false, errors: [ "レシート番号が重複しています" ] }, status: :conflict
+    end
   rescue => e
     logger.error "💥 エラー発生: #{e.class} - #{e.message}"
     logger.error e.backtrace.take(5).join("\n") unless Rails.env.production?
@@ -333,6 +366,17 @@ class Api::V1::SalesController < Api::V1::BaseController
   end
 
   private
+
+  # 登録済みの会計（冪等キーによる再送）を、新規登録時と同じ形式で返す
+  def render_registered_sale(sale)
+    render json: {
+      success: true,
+      duplicate: true,
+      sale_id: sale.id,
+      receipt_number: sale.receipt_number,
+      next_receipt_sequence: @current_pos.reload.next_receipt_sequence
+    }, status: :ok
+  end
 
   # create アクション用のストロングパラメータ
   def sale_params

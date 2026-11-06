@@ -19,6 +19,7 @@ class JournalsControllerTest < ActionDispatch::IntegrationTest
     @emp = @user.employees.create!(code: "J001", name: "担当者A", pin: "1234")
     @emp.stores << @store
     @emp.employee_permissions.create!(permission: "view_journal")
+    %w[open_register cash_check close_register].each { |p| @emp.employee_permissions.create!(permission: p) }
 
     @emp_no_perm = @user.employees.create!(code: "J002", name: "担当者B", pin: "5678")
     @emp_no_perm.stores << @store

@@ -75,7 +75,11 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
       return;
     }
     setState(() => _authLoading[index] = true);
-    final result = await LoginApi.verifyEmployee(code: code, pin: pin);
+    final result = await LoginApi.verifyEmployee(
+      code: code,
+      pin: pin,
+      permission: 'refund',
+    );
     if (!mounted) return;
     setState(() => _authLoading[index] = false);
 

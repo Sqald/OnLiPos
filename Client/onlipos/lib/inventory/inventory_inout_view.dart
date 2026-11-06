@@ -76,7 +76,11 @@ class _InventoryInOutViewState extends State<InventoryInOutView> {
     });
 
     try {
-      final result = await LoginApi.verifyEmployee(code: code, pin: pin);
+      final result = await LoginApi.verifyEmployee(
+        code: code,
+        pin: pin,
+        permission: 'inventory',
+      );
       if (!mounted) return;
 
       if (result['success'] == true) {

@@ -53,6 +53,8 @@ class ErrorsController < ActionController::Base
     status_param = params[:status].to_i
     @status_code = ERROR_DETAILS.key?(status_param) ? status_param : 500
     @error_info  = ERROR_DETAILS[@status_code]
+    # 「前のページへ」リンク用。外部サイトの参照元は使わない（url_from は他ホストなら nil）
+    @back_url    = url_from(request.referer)
     render "errors/show", formats: [ :html ], layout: "error", status: @status_code
   end
 
