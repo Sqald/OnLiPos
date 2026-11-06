@@ -52,6 +52,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ランナー既定のJDK（ubuntu-latest=26.04 では 25）は Gradle 8.14 が未対応のため、
+      # android/app/build.gradle.kts の設定に合わせて JDK 17 を使う
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
