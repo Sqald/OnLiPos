@@ -46,8 +46,15 @@ class Dashboard::ProductsController < Dashboard::BaseController
 
   # 商品を削除する
   def destroy
-    @product.destroy
-    redirect_to dashboard_products_path, notice: "商品を削除しました。", status: :see_other
+    if @product.destroy
+      redirect_to dashboard_products_path, notice: "商品を削除しました。", status: :see_other
+    else
+      redirect_to dashboard_products_path, status: :see_other,
+                  alert: "販売履歴がある商品は削除できません。ステータスを「廃盤」にしてください。"
+    end
+  rescue ActiveRecord::InvalidForeignKey
+    redirect_to dashboard_products_path, status: :see_other,
+                alert: "返品・入出庫・セット商品などで参照されているため、この商品は削除できません。ステータスを「廃盤」にしてください。"
   end
 
   # アップロードされたCSVファイルを一時保存し、バックグラウンドジョブで商品を一括インポートする。

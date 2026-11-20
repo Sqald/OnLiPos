@@ -49,6 +49,9 @@ class Dashboard::PosDevicesController < Dashboard::BaseController
     redirect_to dashboard_root_path, notice: "POS端末「#{name}」を削除しました。", status: :see_other
   rescue ActiveRecord::RecordNotFound
     redirect_to dashboard_root_path, alert: "端末が見つかりません。", status: :see_other
+  rescue ActiveRecord::RecordNotDestroyed, ActiveRecord::InvalidForeignKey, ActiveRecord::NotNullViolation
+    redirect_to dashboard_root_path, status: :see_other,
+                alert: "売上・レジ精算などの履歴がある端末は削除できません（取引記録の保存のため）。端末を紛失した場合はパスワードを再発行してください。"
   rescue => e
     Rails.logger.error "POS token destroy failed: #{e.message}"
     redirect_to dashboard_root_path, alert: "削除に失敗しました。時間をおいて再試行してください。", status: :see_other

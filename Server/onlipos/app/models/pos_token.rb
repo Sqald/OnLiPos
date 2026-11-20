@@ -4,7 +4,9 @@ class PosToken < ApplicationRecord
   # アソシエーション
   belongs_to :store
   belongs_to :provisioning, optional: true
-  has_many :sales, dependent: :nullify
+  # 売上・返品の「どのレジで」を失わないよう、履歴のある端末は削除できない
+  has_many :sales, dependent: :restrict_with_error
+  has_many :refunds, dependent: :restrict_with_error
   has_many :cash_logs, dependent: :nullify
   has_many :register_sessions, dependent: :destroy
   has_many :cash_movements, dependent: :destroy

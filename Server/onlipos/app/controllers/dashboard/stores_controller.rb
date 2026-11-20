@@ -38,8 +38,15 @@ class Dashboard::StoresController < Dashboard::BaseController
 
   # 店舗を削除する
   def destroy
-    @store.destroy
-    redirect_to dashboard_stores_path, notice: "店舗を削除しました。", status: :see_other
+    if @store.destroy
+      redirect_to dashboard_stores_path, notice: "店舗を削除しました。", status: :see_other
+    else
+      redirect_to dashboard_stores_path, status: :see_other,
+                  alert: "売上・返品の履歴がある店舗は削除できません（取引記録の保存のため）。"
+    end
+  rescue ActiveRecord::InvalidForeignKey
+    redirect_to dashboard_stores_path, status: :see_other,
+                alert: "レジ・在庫などの履歴が残っているため、この店舗は削除できません。"
   end
 
   # 店舗別価格一覧・編集

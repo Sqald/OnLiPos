@@ -27,12 +27,15 @@ class BundleSalesApiTest < ActionDispatch::IntegrationTest
     @bundle = @user.product_bundles.create!(code: "SET001", name: "お得セット", price: 999)
     @bundle.product_bundle_items.create!(product: @product_a, quantity: 1)
     @bundle.product_bundle_items.create!(product: @product_b, quantity: 1)
+    @employee = @user.employees.create!(code: "B001", name: "セット担当")
+    @employee.stores << @store
   end
 
   def post_sale(total:, details:)
     post "/api/v1/sales",
          params: {
            sale: { total_amount: total, subtotal_ex_tax: 0, tax_amount: 0 },
+           employee_id: @employee.id,
            details: details,
            payments: [ { method: 0, amount: total } ]
          },

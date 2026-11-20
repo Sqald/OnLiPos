@@ -42,6 +42,7 @@ Rails.application.routes.draw do
     resources :stock_movements, only: [ :index ]
     resources :product_bundles, except: [ :show ]
     resources :reports, only: [ :index ]
+    resources :analytics, only: [ :index ]
   end
 
   namespace :api do

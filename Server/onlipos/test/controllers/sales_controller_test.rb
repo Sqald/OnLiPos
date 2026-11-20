@@ -46,22 +46,77 @@ class SalesControllerTest < ActionDispatch::IntegrationTest
     assert_equal @employee.id, sale.employee_id
   end
 
-  test "employee_id が存在しない場合も売上を作成できる" do
-    post "/api/v1/sales",
-         params: {
-           sale: { total_amount: 1100, subtotal_ex_tax: 1000, tax_amount: 100 },
-           details: [
-             { product_id: @product.id, product_name: @product.name,
-               quantity: 1, unit_price: 1100, subtotal: 1100, tax_rate: 10, tax_amount: 100 }
-           ],
-           payments: [ { method: 0, amount: 1100 } ]
-         },
-         headers: { "Authorization" => "Bearer #{@pos_token.token}" },
-         as: :json
+  # 「誰が売ったか」はPOSの必須記録のため、担当者なしの会計は受け付けない
+  test "employee_id がない会計は 422 で拒否され売上が作成されない" do
+    assert_no_difference -> { Sale.count } do
+      post "/api/v1/sales",
+           params: {
+             sale: { total_amount: 1100, subtotal_ex_tax: 1000, tax_amount: 100 },
+             details: [
+               { product_id: @product.id, product_name: @product.name,
+                 quantity: 1, unit_price: 1100, subtotal: 1100, tax_rate: 10, tax_amount: 100 }
+             ],
+             payments: [ { method: 0, amount: 1100 } ]
+           },
+           headers: { "Authorization" => "Bearer #{@pos_token.token}" },
+           as: :json
+    end
 
-    assert_response :created
-    sale = Sale.find(JSON.parse(response.body)["sale_id"])
-    assert_nil sale.employee_id
+    assert_response :unprocessable_entity
+  end
+
+  test "他社の employee_id を指定した会計は 422 で拒否される" do
+    other = User.create!(login_name: "salesother", email: "salesother@example.com", password: "Password1!",
+                         password_confirmation: "Password1!", first_name: "太郎", last_name: "他社",
+                         user_type: :individual, confirmed_at: Time.current)
+    other_employee = other.employees.create!(code: "X001", name: "他社担当")
+
+    assert_no_difference -> { Sale.count } do
+      post "/api/v1/sales",
+           params: {
+             sale: { total_amount: 1100, subtotal_ex_tax: 1000, tax_amount: 100 },
+             employee_id: other_employee.id,
+             details: [ { product_id: @product.id, quantity: 1, unit_price: 1100, subtotal: 1100, tax_rate: 10 } ],
+             payments: [ { method: 0, amount: 1100 } ]
+           },
+           headers: { "Authorization" => "Bearer #{@pos_token.token}" },
+           as: :json
+    end
+    assert_response :unprocessable_entity
+  end
+
+  # 「何を売ったか」が欠落した会計（明細なし・商品不明）は記録しない
+  test "明細のない会計は 422 で拒否される" do
+    assert_no_difference -> { Sale.count } do
+      post "/api/v1/sales",
+           params: {
+             sale: { total_amount: 1100 },
+             employee_id: @employee.id,
+             details: [],
+             payments: [ { method: 0, amount: 1100 } ]
+           },
+           headers: { "Authorization" => "Bearer #{@pos_token.token}" },
+           as: :json
+    end
+    assert_response :unprocessable_entity
+  end
+
+  test "存在しない商品の明細を含む会計は 422 で拒否され採番も戻る" do
+    before_seq = @pos_token.reload.next_receipt_sequence
+    assert_no_difference -> { Sale.count } do
+      post "/api/v1/sales",
+           params: {
+             sale: { total_amount: 1100 },
+             employee_id: @employee.id,
+             details: [ { product_id: 999_999, product_name: "幻の商品", quantity: 1, unit_price: 1100, subtotal: 1100, tax_rate: 10 } ],
+             payments: [ { method: 0, amount: 1100 } ]
+           },
+           headers: { "Authorization" => "Bearer #{@pos_token.token}" },
+           as: :json
+    end
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body)["errors"].join, "幻の商品"
+    assert_equal before_seq, @pos_token.reload.next_receipt_sequence
   end
 
   # ---- 割引追跡 ----

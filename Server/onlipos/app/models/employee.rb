@@ -22,6 +22,10 @@ class Employee < ApplicationRecord
   belongs_to :user
   has_secure_password :pin, validations: false
   has_and_belongs_to_many :stores
+  # 売上・返品の「誰が」を失わないよう、取引履歴のある従業員は削除できない
+  # （権限の削除より先に判定させるため employee_permissions より前に宣言する）
+  has_many :sales, dependent: :restrict_with_error
+  has_many :refunds, dependent: :restrict_with_error
   has_many :employee_permissions, dependent: :destroy
 
   # バリデーション

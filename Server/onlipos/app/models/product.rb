@@ -5,9 +5,11 @@ require "csv"
 class Product < ApplicationRecord
   belongs_to :user
   belongs_to :product_category, optional: true
+  # 売上明細の「何を」を失わないよう、販売履歴のある商品は削除できない（廃盤にして運用する）。
+  # 在庫・価格の削除より先に判定させるため先頭で宣言する
+  has_many :saledetails, dependent: :restrict_with_error
   has_many :store_stocks, dependent: :destroy
   has_many :prices, dependent: :destroy
-  has_many :saledetails
   has_many :stores, through: :store_stocks
 
   validates :code, presence: true, uniqueness: { scope: :user_id }

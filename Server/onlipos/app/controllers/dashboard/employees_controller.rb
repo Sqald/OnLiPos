@@ -41,8 +41,15 @@ class Dashboard::EmployeesController < Dashboard::BaseController
 
   # 従業員を削除する
   def destroy
-    @employee.destroy
-    redirect_to dashboard_employees_path, notice: "従業員を削除しました。"
+    if @employee.destroy
+      redirect_to dashboard_employees_path, notice: "従業員を削除しました。"
+    else
+      redirect_to dashboard_employees_path,
+                  alert: "売上・返品の担当履歴がある従業員は削除できません（取引記録の保存のため）。PINを外すなどで利用を停止してください。"
+    end
+  rescue ActiveRecord::InvalidForeignKey
+    redirect_to dashboard_employees_path,
+                alert: "レジ操作・在庫操作などの履歴がある従業員は削除できません（取引記録の保存のため）。"
   end
 
   private

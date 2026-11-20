@@ -1,0 +1,315 @@
+<%# ダッシュボード: 売上分析画面
+    いつ・どこで・誰が・何を・いくつ・いくらで・どうやって売れたかを、1軸または2軸（クロス集計）で
+    グラフ（SVG）と集計表にして表示する。集計は Dashboard::AnalyticsController / SalesAnalysis %>
+<% a = @analysis
+   unit = a.metric_info[:unit]
+   t = a.totals
+   prev = a.previous_totals
+   today = Date.current
+   periods = [
+     [ "今日", today, today ],
+     [ "昨日", today - 1, today - 1 ],
+     [ "過去7日", today - 6, today ],
+     [ "過去30日", today - 29, today ],
+     [ "今月", today.beginning_of_month, today ],
+     [ "先月", today.prev_month.beginning_of_month, today.prev_month.end_of_month ],
+     [ "今年", today.beginning_of_year, today ]
+   ]
+   dim_options = SalesAnalysis::DIMENSIONS.group_by { |_, d| d[:element] }
+                                         .map { |el, dims| [ el, dims.map { |k, d| [ d[:label], k ] } ] }
+   change = ->(cur, before) { before.to_i.zero? ? nil : ((cur - before) * 100.0 / before.abs).round(1) } %>
+<div class="dashboard-container">
+  <%= render 'dashboard/shared/menu' %>
+
+  <div class="dashboard-content card analytics">
+    <div class="subtitle d-flex justify-content-between align-items-center">
+      <h2>売上分析</h2>
+      <%= link_to "CSVダウンロード", dashboard_analytics_path(analysis_params.merge(format: :csv)), class: "btn-signup" %>
+    </div>
+
+    <%# 条件フォーム %>
+    <%= form_with url: dashboard_analytics_path, method: :get, local: true, class: "an-form" do |f| %>
+      <div class="an-form-row">
+        <div class="an-field">
+          <%= f.label :from, "期間（営業日）" %>
+          <div class="an-range">
+            <%= f.date_field :from, value: @from, class: "form-control" %>
+            <span>〜</span>
+            <%= f.date_field :to, value: @to, class: "form-control" %>
+          </div>
+        </div>
+        <div class="an-field">
+          <%= f.label :row, "集計軸（行）" %>
+          <%= f.select :row, grouped_options_for_select(dim_options, a.row_dim), {}, class: "form-control" %>
+        </div>
+        <div class="an-field">
+          <%= f.label :col, "クロス集計（列）" %>
+          <%= f.select :col, grouped_options_for_select(dim_options, a.col_dim), { include_blank: "なし" }, class: "form-control" %>
+        </div>
+        <div class="an-field">
+          <%= f.label :metric, "指標" %>
+          <%= f.select :metric, options_for_select(SalesAnalysis::METRICS.map { |k, m| [ m[:label], k ] }, a.metric), {}, class: "form-control" %>
+        </div>
+      </div>
+      <div class="an-form-row">
+        <div class="an-field">
+          <%= f.label :store_id, "店舗" %>
+          <%= f.select :store_id, options_from_collection_for_select(@stores, :id, :name, params[:store_id]), { include_blank: "すべて" }, class: "form-control" %>
+        </div>
+        <div class="an-field">
+          <%= f.label :pos_token_id, "レジ" %>
+          <%= f.select :pos_token_id, options_for_select(@pos_tokens.map { |p| [ "#{p.store.name} / #{p.name}", p.id ] }, params[:pos_token_id]), { include_blank: "すべて" }, class: "form-control" %>
+        </div>
+        <div class="an-field">
+          <%= f.label :employee_id, "従業員" %>
+          <%= f.select :employee_id, options_for_select(@employees.map { |e| [ "#{e.name.presence || e.code}（#{e.code}）", e.id ] }, params[:employee_id]), { include_blank: "すべて" }, class: "form-control" %>
+        </div>
+        <div class="an-field">
+          <%= f.label :category_id, "カテゴリ" %>
+          <%= f.select :category_id, options_for_select(@categories.map { |c| [ c.name, c.id ] }, params[:category_id]), { include_blank: "すべて" }, class: "form-control" %>
+        </div>
+        <div class="an-field">
+          <%= f.label :product_id, "商品" %>
+          <%= f.select :product_id, options_for_select(@products.map { |p| [ "#{p.code} #{p.name}", p.id ] }, params[:product_id]), { include_blank: "すべて" }, class: "form-control" %>
+        </div>
+        <div class="an-field">
+          <%= f.label :payment_method, "支払方法" %>
+          <%= f.select :payment_method, options_for_select(SalesAnalysis::PAYMENT_LABELS.map { |k, v| [ v, k ] }, params[:payment_method]), { include_blank: "すべて" }, class: "form-control" %>
+        </div>
+      </div>
+      <div class="an-form-row an-form-actions">
+        <label class="an-check">
+          <%= hidden_field_tag :refunds, "0", id: nil %>
+          <%= check_box_tag :refunds, "1", a.include_refunds %> 返品を差し引く（純売上）
+        </label>
+        <div class="an-field an-field-inline">
+          <%= f.label :limit, "表示件数" %>
+          <%= f.select :limit, options_for_select([ 10, 20, 30, 50, 100, 200 ], a.row_limit), {}, class: "form-control" %>
+        </div>
+        <%= f.submit "集計", class: "btn-signup" %>
+        <%= link_to "条件をクリア", dashboard_analytics_path, class: "an-link" %>
+      </div>
+    <% end %>
+
+    <div class="an-chips" aria-label="期間">
+      <span class="an-chips-title">期間</span>
+      <% periods.each do |label, pf, pt| %>
+        <%= link_to label, dashboard_analytics_path(analysis_params(from: pf.to_s, to: pt.to_s)),
+              class: "an-chip #{'active' if pf == @from && pt == @to}" %>
+      <% end %>
+    </div>
+    <div class="an-chips" aria-label="切り口">
+      <span class="an-chips-title">切り口</span>
+      <% Dashboard::AnalyticsController::PRESETS.each do |p| %>
+        <%= link_to p[:label], dashboard_analytics_path(analysis_params(row: p[:row], col: p[:col])),
+              class: "an-chip #{'active' if a.row_dim == p[:row] && a.col_dim == p[:col]}" %>
+      <% end %>
+    </div>
+
+    <% active_filters = SalesAnalysis::FILTERS.keys.select { |k| params[k].present? } %>
+    <% if active_filters.any? %>
+      <div class="an-active-filters">
+        絞り込み中:
+        <% labels = { store_id: [ "店舗", @stores.to_h { |s| [ s.id.to_s, s.name ] } ],
+                      pos_token_id: [ "レジ", @pos_tokens.to_h { |p| [ p.id.to_s, p.name ] } ],
+                      employee_id: [ "従業員", @employees.to_h { |e| [ e.id.to_s, e.name.presence || e.code ] } ],
+                      product_id: [ "商品", @products.to_h { |p| [ p.id.to_s, p.name ] } ],
+                      category_id: [ "カテゴリ", @categories.to_h { |c| [ c.id.to_s, c.name ] } ],
+                      payment_method: [ "支払方法", SalesAnalysis::PAYMENT_LABELS ] } %>
+        <% active_filters.each do |k| %>
+          <% title, names = labels[k] %>
+          <%= link_to dashboard_analytics_path(analysis_params.except(k)), class: "an-chip active", title: "この絞り込みを解除" do %>
+            <%= title %>: <%= names[params[k].to_s] || params[k] %> ✕
+          <% end %>
+        <% end %>
+      </div>
+    <% end %>
+
+    <%# KPI %>
+    <div class="an-kpis">
+      <div class="an-kpi an-kpi-hero">
+        <div class="an-kpi-label"><%= a.include_refunds ? "純売上（税込）" : "売上（税込）" %></div>
+        <div class="an-kpi-value"><%= analytics_value(t.amount, :yen) %></div>
+        <% if (c = change.call(t.amount, prev.amount)) %>
+          <div class="an-kpi-sub <%= c.negative? ? 'down' : 'up' %>">前期間比 <%= c.positive? ? "▲" : (c.negative? ? "▼" : "") %><%= c.abs %>%</div>
+        <% else %>
+          <div class="an-kpi-sub">前期間比 —</div>
+        <% end %>
+      </div>
+      <div class="an-kpi">
+        <div class="an-kpi-label">客数（会計件数）</div>
+        <div class="an-kpi-value"><%= number_with_delimiter(t.tickets) %></div>
+        <% if (c = change.call(t.tickets, prev.tickets)) %>
+          <div class="an-kpi-sub <%= c.negative? ? 'down' : 'up' %>">前期間比 <%= c.positive? ? "▲" : (c.negative? ? "▼" : "") %><%= c.abs %>%</div>
+        <% end %>
+      </div>
+      <div class="an-kpi">
+        <div class="an-kpi-label">客単価</div>
+        <div class="an-kpi-value"><%= analytics_value(t.value("avg_ticket"), :yen) %></div>
+      </div>
+      <div class="an-kpi">
+        <div class="an-kpi-label">販売点数</div>
+        <div class="an-kpi-value"><%= number_with_delimiter(t.quantity) %></div>
+      </div>
+      <div class="an-kpi">
+        <div class="an-kpi-label">返品</div>
+        <div class="an-kpi-value"><%= analytics_value(t.refund_amount, :yen) %></div>
+        <div class="an-kpi-sub">総売上 <%= analytics_value(t.gross_amount, :yen) %></div>
+      </div>
+      <div class="an-kpi">
+        <div class="an-kpi-label">値引額</div>
+        <div class="an-kpi-value"><%= analytics_value(t.discount, :yen) %></div>
+      </div>
+      <div class="an-kpi">
+        <div class="an-kpi-label">取消（VOID・除外済）</div>
+        <div class="an-kpi-value"><%= number_with_delimiter(a.void_summary[:count]) %> 件</div>
+        <div class="an-kpi-sub"><%= analytics_value(a.void_summary[:amount], :yen) %></div>
+      </div>
+    </div>
+
+    <%# グラフ %>
+    <% row_kind = a.row_dimension[:kind]
+       title = a.cross? ? "#{a.row_dimension[:label].delete_suffix('別')} × #{a.col_dimension[:label].delete_suffix('別')}（#{a.metric_info[:label]}）" : "#{a.row_dimension[:label]} #{a.metric_info[:label]}" %>
+    <section class="an-panel">
+      <h3 class="an-panel-title"><%= title %></h3>
+      <p class="an-panel-sub"><%= @from %> 〜 <%= @to %> ・ <%= a.include_refunds ? "返品控除後" : "返品控除前" %>
+        <% if row_kind == :category && a.rows.size > 1 %> ・ 上位<%= [ a.rows.size, 20 ].min %>件をグラフ表示<% end %></p>
+
+      <% if t.gross_amount.zero? && t.refund_amount.zero? %>
+        <%= analytics_empty_chart %>
+      <% elsif a.cross? && a.metric_info[:additive] %>
+        <% series, srows = analytics_fold_series(a) %>
+        <% srows = srows.reject { |r| r[:label].start_with?("その他（") } if row_kind == :category %>
+        <ul class="viz-legend">
+          <% series.each do |s| %>
+            <li><span class="viz-swatch" style="background: <%= s[:color] %>"></span><%= s[:label] %></li>
+          <% end %>
+        </ul>
+        <%= analytics_stacked_chart(row_kind == :category ? srows.first(20) : srows, series, unit: unit, horizontal: row_kind == :category) %>
+      <% elsif a.cross? %>
+        <p class="an-note">「<%= a.metric_info[:label] %>」は足し合わせできない指標のため、下の表の濃淡（ヒートマップ）で比較してください。</p>
+      <% else %>
+        <% items = a.rows.reject { |r| r.key == SalesAnalysis::OTHER_KEY }.map do |r|
+             { label: r.label, value: r.total.value(a.metric), href: (dp = drill_params(r.key)) && dashboard_analytics_path(dp) }
+           end %>
+        <%= row_kind == :category ? analytics_hbar_chart(items.first(20), unit: unit) : analytics_column_chart(items, unit: unit) %>
+      <% end %>
+    </section>
+
+    <%# 集計表 %>
+    <section class="an-panel">
+      <h3 class="an-panel-title">集計表</h3>
+      <% if a.cross? %>
+        <% max_cell = a.rows.flat_map { |r| r.cells.values.map { |c| c.value(a.metric) } }.max.to_i %>
+        <div class="an-table-wrap">
+          <table class="data-table an-table an-pivot">
+            <thead>
+              <tr>
+                <th class="an-sticky"><%= a.row_dimension[:label].delete_suffix("別") %> ＼ <%= a.col_dimension[:label].delete_suffix("別") %></th>
+                <% a.columns.each do |_, label| %><th class="text-right"><%= label %></th><% end %>
+                <th class="text-right">合計</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% a.rows.each do |row| %>
+                <tr>
+                  <th class="an-sticky an-rowhead">
+                    <% if (dp = drill_params(row.key)) %><%= link_to row.label, dashboard_analytics_path(dp), title: "#{row.label}で絞り込む" %><% else %><%= row.label %><% end %>
+                  </th>
+                  <% a.columns.each do |k, label| %>
+                    <% v = row.cells[k].value(a.metric) %>
+                    <td class="text-right" style="<%= analytics_heat_style(v, max_cell) %>" title="<%= row.label %> × <%= label %>"><%= v.zero? ? "·" : analytics_value(v, unit) %></td>
+                  <% end %>
+                  <td class="text-right an-total"><%= analytics_value(row.total.value(a.metric), unit) %></td>
+                </tr>
+              <% end %>
+            </tbody>
+            <tfoot>
+              <tr>
+                <th class="an-sticky">合計</th>
+                <% a.columns.each do |k, _| %><td class="text-right"><%= analytics_value(a.column_totals[k].value(a.metric), unit) %></td><% end %>
+                <td class="text-right"><%= analytics_value(t.value(a.metric), unit) %></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      <% else %>
+        <% show_abc = row_kind == :category && a.metric_info[:additive] && t.value(a.metric).positive?
+           cumulative = 0 %>
+        <div class="an-table-wrap">
+          <table class="data-table an-table">
+            <thead>
+              <tr>
+                <th><%= a.row_dimension[:label].delete_suffix("別") %></th>
+                <th class="text-right">売上金額</th>
+                <th class="text-right">構成比</th>
+                <% if show_abc %><th class="text-right" title="選択指標の累積構成比: A=〜70%, B=〜90%, C=それ以降">累積 / ABC</th><% end %>
+                <th class="text-right">販売点数</th>
+                <th class="text-right">客数</th>
+                <th class="text-right">客単価</th>
+                <th class="text-right">平均単価</th>
+                <th class="text-right">値引額</th>
+                <th class="text-right">返品額</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% a.rows.each do |row| %>
+                <% c = row.total %>
+                <tr>
+                  <td>
+                    <% if (dp = drill_params(row.key)) %><%= link_to row.label, dashboard_analytics_path(dp), title: "#{row.label}で絞り込む" %><% else %><%= row.label %><% end %>
+                  </td>
+                  <td class="text-right"><%= analytics_value(c.amount, :yen) %></td>
+                  <td class="text-right an-share">
+                    <% share = t.amount.positive? ? (c.amount * 100.0 / t.amount) : 0 %>
+                    <span class="an-share-bar" style="width: <%= share.clamp(0, 100).round(1) %>%"></span><span class="an-share-text"><%= share.round(1) %>%</span>
+                  </td>
+                  <% if show_abc %>
+                    <% unless row.key == SalesAnalysis::OTHER_KEY
+                         cumulative += c.value(a.metric)
+                         cum = cumulative * 100.0 / t.value(a.metric)
+                         rank = cum <= 70 ? "A" : (cum <= 90 ? "B" : "C")
+                       end %>
+                    <td class="text-right"><% if row.key != SalesAnalysis::OTHER_KEY %><%= cum.round(1) %>% <span class="an-abc an-abc-<%= rank.downcase %>"><%= rank %></span><% end %></td>
+                  <% end %>
+                  <td class="text-right"><%= number_with_delimiter(c.quantity) %></td>
+                  <td class="text-right"><%= number_with_delimiter(c.tickets) %></td>
+                  <td class="text-right"><%= analytics_value(c.value("avg_ticket"), :yen) %></td>
+                  <td class="text-right"><%= analytics_value(c.value("avg_price"), :yen) %></td>
+                  <td class="text-right"><%= analytics_value(c.discount, :yen) %></td>
+                  <td class="text-right"><%= analytics_value(c.refund_amount, :yen) %></td>
+                </tr>
+              <% end %>
+            </tbody>
+            <tfoot>
+              <tr>
+                <th>合計</th>
+                <td class="text-right"><%= analytics_value(t.amount, :yen) %></td>
+                <td class="text-right">100%</td>
+                <% if show_abc %><td></td><% end %>
+                <td class="text-right"><%= number_with_delimiter(t.quantity) %></td>
+                <td class="text-right"><%= number_with_delimiter(t.tickets) %></td>
+                <td class="text-right"><%= analytics_value(t.value("avg_ticket"), :yen) %></td>
+                <td class="text-right"><%= analytics_value(t.value("avg_price"), :yen) %></td>
+                <td class="text-right"><%= analytics_value(t.discount, :yen) %></td>
+                <td class="text-right"><%= analytics_value(t.refund_amount, :yen) %></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      <% end %>
+    </section>
+
+    <details class="an-notes">
+      <summary>集計の定義</summary>
+      <ul>
+        <li>期間は営業日（レジ開設日）基準。時間帯は販売時刻（返品は返品処理時刻）。</li>
+        <li>売上金額は税込の明細金額（小計割引の按分後）。外税商品は明細ごとの税額を加えるため、レシート単位の端数処理と数円ずれることがあります。正式な税額は「売上レポート」の税率別売上を参照してください。</li>
+        <li>取消（VOID）は売上から除外しています。返品は返品日・返品店舗・返品レジに計上し、担当者・支払方法・客層・商品は元の売上のものを使います。</li>
+        <li>客数は会計件数です。商品別など1会計が複数行にまたがる切り口では、各行の客数の合計は全体の客数と一致しません（合計行は重複を除いた件数）。</li>
+        <li>支払方法は会計の主たる支払方法（現金を含む併用払いは現金）で分類します。正確な支払方法別金額は「売上レポート」を参照してください。</li>
+        <li>カテゴリは現在の商品マスタの分類です。行名をクリックすると、その値で絞り込んで次の切り口に移ります。</li>
+      </ul>
+    </details>
+  </div>
+</div>

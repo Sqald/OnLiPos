@@ -2,10 +2,13 @@
 class Store < ApplicationRecord
   # アソシエーション
   belongs_to :user
+  # 売上・返品は「どこで売れたか」の記録（帳簿）なので、店舗削除で一緒に消さない。
+  # 履歴がある店舗は削除できない（他の dependent より先に判定させるため先頭で宣言する）
+  has_many :sales, dependent: :restrict_with_error
+  has_many :refunds, dependent: :restrict_with_error
   has_many :pos_tokens, dependent: :destroy
   has_many :prices, dependent: :destroy
   has_many :store_stocks, dependent: :destroy
-  has_many :sales, dependent: :destroy
   has_many :stocked_products, through: :store_stocks, source: :product
   has_many :table_orders, dependent: :destroy
   has_many :hold_orders, dependent: :destroy

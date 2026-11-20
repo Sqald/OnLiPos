@@ -144,6 +144,14 @@ class Api::V1::SalesController < Api::V1::BaseController
       return render_registered_sale(existing)
     end
 
+    # 「誰が」（担当者）と「何を」（明細）が欠けた会計は売上分析・監査で追跡できないため受け付けない
+    unless operator_employee
+      return render json: { success: false, errors: [ "担当者（employee_id）が指定されていないか、存在しません" ] }, status: :unprocessable_entity
+    end
+    unless params[:details].is_a?(Array) && params[:details].any?
+      return render json: { success: false, errors: [ "明細（details）が1件以上必要です" ] }, status: :unprocessable_entity
+    end
+
     # BaseControllerのauthenticate_pos_tokenでセットされた @current_pos を使用
     payments = payment_params_array
 
@@ -490,7 +498,10 @@ class Api::V1::SalesController < Api::V1::BaseController
       product = nil
       product = @sale.user.products.find_by(id: attrs[:product_id]) if attrs[:product_id].present?
       product = @sale.user.products.find_by(code: attrs[:product_code]) if product.nil? && attrs[:product_code].present?
-      next if product.nil?
+      # 商品を特定できない明細を黙って捨てると「何を売ったか」が記録から欠落するため、会計ごと拒否する
+      if product.nil?
+        raise ArgumentError, "明細の商品が見つかりません: #{attrs[:product_name].presence || attrs[:product_code].presence || attrs[:product_id]}"
+      end
 
       # tax_rate / tax_type: クライアント送信値を優先、なければ商品マスタから取得
       # （販売時点の値として明細に凍結する）
@@ -670,7 +681,7 @@ class Api::V1::SalesController < Api::V1::BaseController
   # 構成品の定価比で按分し、端数は最後の構成品に寄せて合計を一致させる。
   def save_bundle_detail(bundle_code, attrs)
     bundle = @sale.user.product_bundles.includes(product_bundle_items: :product).find_by(code: bundle_code)
-    return unless bundle
+    raise ArgumentError, "セット商品が見つかりません: #{bundle_code}" unless bundle
 
     bundle_qty = attrs[:quantity].to_i
     bundle_qty = 1 if bundle_qty <= 0
@@ -679,7 +690,7 @@ class Api::V1::SalesController < Api::V1::BaseController
     raise ArgumentError, "セット商品の金額が負の値です: #{bundle.name}" if bundle_total < 0
 
     items = bundle.product_bundle_items.select(&:product)
-    return if items.empty?
+    raise ArgumentError, "セット商品に構成商品がありません: #{bundle.name}" if items.empty?
 
     # 定価合計を重みに按分する。全構成品が0円の場合は数量比で按分する。
     weights = items.map { |item| item.product.price * item.quantity * bundle_qty }
