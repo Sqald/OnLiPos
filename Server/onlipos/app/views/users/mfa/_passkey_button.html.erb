@@ -1,0 +1,12 @@
+<%# パスキーの登録/認証ボタン。locals: mode ("register"/"authenticate"), options_url, verify_url, label, nickname (登録時の名前入力を出すか) %>
+<div data-controller="passkey" data-passkey-mode-value="<%= mode %>"
+     data-passkey-options-url-value="<%= options_url %>" data-passkey-verify-url-value="<%= verify_url %>" class="mfa-passkey">
+  <% if local_assigns[:nickname] %>
+    <div class="field">
+      <label for="passkey_nickname">パスキーの名前（例: 事務所PC、iPhone）</label>
+      <input type="text" id="passkey_nickname" maxlength="50" value="パスキー" data-passkey-target="nickname">
+    </div>
+  <% end %>
+  <button type="button" class="mfa-passkey-button" data-passkey-target="button" data-action="passkey#start"><%= label %></button>
+  <p class="mfa-error" data-passkey-target="error" role="alert" hidden></p>
+</div>

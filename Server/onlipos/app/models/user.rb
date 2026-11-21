@@ -2,6 +2,8 @@
 # 店舗・商品・従業員・売上などほぼ全てのデータの起点となる。Devise で認証する。
 class User < ApplicationRecord
   devise :database_authenticatable, :registerable, :rememberable, :validatable
+  # ダッシュボードログインの多要素認証（認証アプリ / パスキー / リカバリーコード）
+  include MultiFactorAuthenticatable
 
   has_many :stores, dependent: :destroy
   has_many :employees, dependent: :destroy

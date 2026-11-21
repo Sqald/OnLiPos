@@ -1,0 +1,44 @@
+<%# ログインの2段階目（MFA 設定済みのユーザー）: 認証アプリのコード / パスキー / リカバリーコード %>
+<div class="auth-wrapper">
+  <div class="auth-container mfa-container">
+    <h2>2段階認証</h2>
+    <p class="mfa-lead"><%= @user.email %> でログインしています。本人確認のため、もう1つの方法で確認してください。</p>
+
+    <% if @user.passkeys.exists? %>
+      <section class="mfa-section">
+        <h3>パスキーで確認</h3>
+        <%= render "users/mfa/passkey_button", mode: "authenticate", label: "パスキーで確認する",
+                   options_url: user_mfa_passkey_options_path, verify_url: user_mfa_passkey_path %>
+      </section>
+    <% end %>
+
+    <% if @user.otp_enabled? %>
+      <section class="mfa-section">
+        <h3>認証アプリのコードで確認</h3>
+        <%= form_with url: user_mfa_totp_path, method: :post, local: true do |f| %>
+          <div class="field">
+            <%= f.label :code, "確認コード（6桁）" %>
+            <%= f.text_field :code, inputmode: "numeric", autocomplete: "one-time-code", pattern: "\\d{6}", maxlength: 6, required: true, autofocus: true, class: "mfa-code-input" %>
+          </div>
+          <div class="actions"><%= f.submit "確認" %></div>
+        <% end %>
+      </section>
+    <% end %>
+
+    <details class="mfa-section mfa-recovery">
+      <summary>端末を紛失した場合（リカバリーコード）</summary>
+      <%= form_with url: user_mfa_recovery_path, method: :post, local: true do |f| %>
+        <div class="field">
+          <%= f.label :recovery_code, "リカバリーコード（例: ABCDE-12345）" %>
+          <%= f.text_field :recovery_code, autocomplete: "off", required: true %>
+        </div>
+        <div class="actions"><%= f.submit "リカバリーコードで確認" %></div>
+      <% end %>
+      <p class="mfa-note">リカバリーコードも無い場合は、サーバー管理者に2段階認証のリセット（bin/rails "mfa:reset[ログイン名]"）を依頼してください。</p>
+    </details>
+
+    <div class="auth-links">
+      <%= button_to "ログインをやめる", cancel_user_mfa_path, method: :delete, class: "mfa-link-button" %>
+    </div>
+  </div>
+</div>

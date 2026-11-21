@@ -1,0 +1,11 @@
+<%# ダッシュボード: 認証アプリの登録 %>
+<div class="dashboard-container">
+  <%= render 'dashboard/shared/menu' %>
+  <div class="dashboard-content card mfa-settings">
+    <div class="subtitle"><h2>認証アプリの登録</h2></div>
+    <section class="mfa-section">
+      <%= render "users/mfa/totp_setup", secret: @otp_secret, uri: @otp_uri, url: dashboard_security_totp_path %>
+    </section>
+    <%= link_to "セキュリティ設定に戻る", dashboard_security_path %>
+  </div>
+</div>

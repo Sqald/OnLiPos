@@ -9,6 +9,9 @@ class ApplicationController < ActionController::Base
 
   before_action :configure_permitted_parameters, if: :devise_controller?
 
+  # ダッシュボードログインは2段階認証（MFA）必須
+  include MfaSignIn
+
   protected
 
   # Devise のストロングパラメータに、標準では許可されていない独自カラムを追加する

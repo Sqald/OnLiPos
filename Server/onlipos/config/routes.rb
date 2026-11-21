@@ -2,7 +2,16 @@ Rails.application.routes.draw do
   # ヘルスチェック用（config.silence_healthcheck_path / ssl_options の除外設定が /up を前提にしている）
   get "up" => "rails/health#show", as: :rails_health_check
 
-  devise_for :users, skip: [ :confirmations, :unlocks, :passwords, :omniauth_callbacks ]
+  devise_for :users, skip: [ :confirmations, :unlocks, :passwords, :omniauth_callbacks ], controllers: { sessions: "users/sessions" }
+  # ダッシュボードログインの2段階目（多要素認証）。パスワード確認後にのみ使える
+  devise_scope :user do
+    get    "users/mfa",                 to: "users/mfa#show",            as: :user_mfa
+    delete "users/mfa",                 to: "users/mfa#cancel",          as: :cancel_user_mfa
+    post   "users/mfa/totp",            to: "users/mfa#verify_totp",     as: :user_mfa_totp
+    post   "users/mfa/recovery",        to: "users/mfa#verify_recovery", as: :user_mfa_recovery
+    post   "users/mfa/passkey/options", to: "users/mfa#passkey_options", as: :user_mfa_passkey_options
+    post   "users/mfa/passkey",         to: "users/mfa#verify_passkey",  as: :user_mfa_passkey
+  end
   root to: redirect("/dashboard")
 
   # エラーページ: /errors?status=404 で個別プレビュー、/errors でコード一覧
@@ -43,6 +52,16 @@ Rails.application.routes.draw do
     resources :product_bundles, except: [ :show ]
     resources :reports, only: [ :index ]
     resources :analytics, only: [ :index ]
+    # セキュリティ設定（2段階認証の管理）
+    get    "security",                   to: "security#show",                      as: :security
+    get    "security/totp/new",          to: "security#new_totp",                  as: :new_security_totp
+    post   "security/totp",              to: "security#create_totp",               as: :security_totp
+    delete "security/totp",              to: "security#destroy_totp"
+    post   "security/passkeys/options",  to: "security#passkey_options",           as: :security_passkey_options
+    post   "security/passkeys",          to: "security#create_passkey",            as: :security_passkeys
+    delete "security/passkeys/:id",      to: "security#destroy_passkey",           as: :security_passkey
+    post   "security/recovery_codes",    to: "security#regenerate_recovery_codes", as: :security_recovery_codes
+    get    "security/recovery_codes",    to: "security#recovery_codes"
   end
 
   namespace :api do

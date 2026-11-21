@@ -1,0 +1,15 @@
+<%# 認証アプリ（TOTP）の登録フォーム。locals: secret, uri, url %>
+<ol class="mfa-steps">
+  <li>スマートフォンに認証アプリ（Google Authenticator、Microsoft Authenticator など）を用意します。</li>
+  <li>アプリで下のQRコードを読み取ります。読み取れない場合はキーを手入力してください。</li>
+  <li>アプリに表示された6桁のコードを入力して「登録」を押します。</li>
+</ol>
+<div class="mfa-qr"><%= mfa_qr_svg(uri) %></div>
+<p class="mfa-secret">キー: <code><%= mfa_secret_display(secret) %></code></p>
+<%= form_with url: url, method: :post, local: true, class: "mfa-code-form" do |f| %>
+  <div class="field">
+    <%= f.label :code, "確認コード（6桁）" %>
+    <%= f.text_field :code, inputmode: "numeric", autocomplete: "one-time-code", pattern: "\\d{6}", maxlength: 6, required: true, class: "mfa-code-input" %>
+  </div>
+  <div class="actions"><%= f.submit "登録" %></div>
+<% end %>

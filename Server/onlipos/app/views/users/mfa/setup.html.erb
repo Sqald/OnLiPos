@@ -1,0 +1,23 @@
+<%# ログインの2段階目（MFA 未設定のユーザー）: 認証アプリかパスキーのどちらかを登録してからログイン %>
+<div class="auth-wrapper">
+  <div class="auth-container mfa-container">
+    <h2>2段階認証の設定</h2>
+    <p class="mfa-lead">ダッシュボードへのログインには2段階認証が必須です。次のどちらかを登録してください（あとから両方登録することもできます）。</p>
+
+    <section class="mfa-section">
+      <h3>方法1: パスキー</h3>
+      <p class="mfa-note">このPC・スマートフォンの指紋認証、顔認証、PIN などでログインを確認します。</p>
+      <%= render "users/mfa/passkey_button", mode: "register", label: "パスキーを登録してログイン", nickname: true,
+                 options_url: user_mfa_passkey_options_path, verify_url: user_mfa_passkey_path %>
+    </section>
+
+    <section class="mfa-section">
+      <h3>方法2: 認証アプリ</h3>
+      <%= render "users/mfa/totp_setup", secret: @otp_secret, uri: @otp_uri, url: user_mfa_totp_path %>
+    </section>
+
+    <div class="auth-links">
+      <%= button_to "ログインをやめる", cancel_user_mfa_path, method: :delete, class: "mfa-link-button" %>
+    </div>
+  </div>
+</div>

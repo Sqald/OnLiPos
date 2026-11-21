@@ -4,5 +4,6 @@
 @import "pages/top.css";
 @import "pages/dashboard.css";
 @import "pages/analytics.css";
+@import "pages/mfa.css";
 @import "pages/errors.css";
 @import "pages/admin.css";

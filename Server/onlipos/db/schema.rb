@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_06_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_21_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -163,6 +163,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_06_000001) do
     t.bigint "next_journal_sequence", default: 1, null: false
     t.bigint "next_receipt_sequence", default: 1, null: false
     t.string "password_digest"
+    t.datetime "password_expires_at"
     t.bigint "provisioning_id"
     t.bigint "store_id", null: false
     t.string "token"
@@ -492,6 +493,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_06_000001) do
     t.index ["store_id"], name: "index_transfer_orders_on_store_id"
   end
 
+  create_table "user_passkeys", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "external_id", null: false
+    t.datetime "last_used_at"
+    t.string "nickname", null: false
+    t.text "public_key", null: false
+    t.bigint "sign_count", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["external_id"], name: "index_user_passkeys_on_external_id", unique: true
+    t.index ["user_id"], name: "index_user_passkeys_on_user_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.string "company_name"
     t.datetime "confirmation_sent_at"
@@ -510,6 +524,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_06_000001) do
     t.string "last_sign_in_ip"
     t.datetime "locked_at"
     t.string "login_name", null: false
+    t.jsonb "mfa_recovery_code_digests", default: [], null: false
+    t.datetime "otp_enabled_at"
+    t.bigint "otp_last_used_timestep"
+    t.text "otp_secret_ciphertext"
     t.datetime "remember_created_at"
     t.datetime "reset_password_sent_at"
     t.string "reset_password_token"
@@ -519,11 +537,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_06_000001) do
     t.string "unlock_token"
     t.datetime "updated_at", null: false
     t.integer "user_type"
+    t.string "webauthn_id"
     t.index ["confirmation_token"], name: "index_users_on_confirmation_token", unique: true
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["login_name"], name: "index_users_on_login_name", unique: true
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
     t.index ["unlock_token"], name: "index_users_on_unlock_token", unique: true
+    t.index ["webauthn_id"], name: "index_users_on_webauthn_id", unique: true
   end
 
   add_foreign_key "cash_logs", "employees"
@@ -588,4 +608,5 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_06_000001) do
   add_foreign_key "stores", "users"
   add_foreign_key "table_orders", "stores"
   add_foreign_key "transfer_orders", "stores"
+  add_foreign_key "user_passkeys", "users"
 end
