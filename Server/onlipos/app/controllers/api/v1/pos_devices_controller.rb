@@ -20,10 +20,20 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
 
     if @pos_token&.authenticate(login_params[:password])
       reset_pos_login_failures
+      # 管理画面で生成した初期パスワードは2週間で失効する（再設定で新しいパスワードを発行する）
+      if @pos_token.password_expired?
+        return render json: {
+          success: false,
+          message: "パスワードの有効期限が切れています。管理画面で端末のパスワードを再設定してください。"
+        }, status: :unauthorized
+      end
+
+      # 認証済みの端末はトークンで認証する（トークンは無期限）。初期パスワードは使い捨てなので消去する
       @pos_token.regenerate_token
       @pos_token.update_columns(
         last_used_at: Time.current,
-        password_digest: nil
+        password_digest: nil,
+        password_expires_at: nil
       )
       render :login, status: :ok
     else

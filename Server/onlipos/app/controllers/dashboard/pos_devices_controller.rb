@@ -25,12 +25,11 @@ class Dashboard::PosDevicesController < Dashboard::BaseController
 
     @pos_token = @store.pos_tokens.build(pos_token_params.except(:store_id))
 
-    generated_password = SecureRandom.random_number(100000..999999).to_s
-    @pos_token.password = generated_password
-    @pos_token.password_confirmation = generated_password
+    generated_password = @pos_token.issue_initial_password
 
     if @pos_token.save
-      flash[:notice] = "POS端末「#{@pos_token.name}」を登録しました。パスワード: #{generated_password} (※このパスワードは再表示されませんので必ず控えてください)"
+      flash[:notice] = "POS端末「#{@pos_token.name}」を登録しました。パスワード: #{generated_password} " \
+                       "（有効期限: #{I18n.l(@pos_token.password_expires_at, format: '%Y/%m/%d %H:%M')}まで。※このパスワードは再表示されませんので必ず控えてください）"
       redirect_to dashboard_root_path
     else
       @stores = current_user.stores
@@ -68,13 +67,12 @@ class Dashboard::PosDevicesController < Dashboard::BaseController
       return
     end
 
-    new_password = SecureRandom.random_number(100000..999999).to_s
-    @pos_token.password = new_password
-    @pos_token.password_confirmation = new_password
+    new_password = @pos_token.issue_initial_password
 
     if @pos_token.save
       @pos_token.regenerate_token
-      msg = "POS端末「#{@pos_token.name}」のパスワードを再設定しました。\n新パスワード: #{new_password}\n(※メモしてください)"
+      msg = "POS端末「#{@pos_token.name}」のパスワードを再設定しました。\n新パスワード: #{new_password}\n" \
+            "有効期限: #{I18n.l(@pos_token.password_expires_at, format: '%Y/%m/%d %H:%M')}まで（期限内に端末で認証してください）\n(※メモしてください)"
       redirect_to dashboard_root_path, notice: msg, status: :see_other
     else
       redirect_to dashboard_root_path, alert: "パスワードの更新に失敗しました。", status: :see_other

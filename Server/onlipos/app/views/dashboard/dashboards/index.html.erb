@@ -67,6 +67,7 @@
                     <th>端末ID</th>
                     <th>ステータス</th>
                     <th>最終利用</th>
+                    <th>端末認証</th>
                     <th>操作</th>
                   </tr>
                 </thead>
@@ -84,6 +85,18 @@
                         <% end %>
                       </td>
                       <td><%= pos.last_used_at ? pos.last_used_at.strftime('%Y/%m/%d %H:%M') : '-' %></td>
+                      <%# 初期パスワードは2週間で失効。認証済みの端末は期限なし %>
+                      <td>
+                        <% case pos.password_status %>
+                        <% when :authenticated %>
+                          <span class="status-badge status-active">認証済み</span>
+                        <% when :pending %>
+                          <span class="status-badge status-inactive">未認証</span>
+                          <% if pos.password_expires_at %><br><small>PW期限 <%= pos.password_expires_at.strftime('%Y/%m/%d %H:%M') %></small><% end %>
+                        <% else %>
+                          <span class="status-badge status-inactive">PW期限切れ</span><br><small>PW再設定が必要です</small>
+                        <% end %>
+                      </td>
                       <%# パスワード再設定・端末削除ボタン(いずれも確認ダイアログあり) %>
                       <td>
                         <%= button_to "PW再設定", dashboard_pos_device_update_password_path(pos), method: :patch, data: { turbo_confirm: "パスワードを再設定しますか？\n新しいパスワードが画面に表示されます。" }, class: "btn-sm btn-outline" %>

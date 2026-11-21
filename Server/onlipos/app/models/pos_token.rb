@@ -21,6 +21,30 @@ class PosToken < ApplicationRecord
 
   validate :provisioning_must_belong_to_same_store
 
+  # 管理画面で生成する初期パスワードの有効期限。
+  # 端末がこのパスワードで認証すると、パスワードは消去され以後はトークン（無期限）で認証する
+  INITIAL_PASSWORD_TTL = 2.weeks
+
+  # 6桁の初期パスワードを生成して設定し、平文を返す（保存は呼び出し側で行う）
+  def issue_initial_password
+    generated = SecureRandom.random_number(100000..999999).to_s
+    self.password = generated
+    self.password_confirmation = generated
+    self.password_expires_at = INITIAL_PASSWORD_TTL.from_now
+    generated
+  end
+
+  # 初期パスワードの期限切れか（期限なし = 旧データは期限切れ扱いにしない）
+  def password_expired?
+    password_expires_at.present? && password_expires_at <= Time.current
+  end
+
+  # 端末の認証状態: :authenticated（認証済み）/ :pending（パスワード有効・未認証）/ :expired（期限切れ）
+  def password_status
+    return :authenticated if password_digest.blank?
+    password_expired? ? :expired : :pending
+  end
+
   private
 
   # provisioning が紐付く場合、その store と自身の store が一致することを検証する
