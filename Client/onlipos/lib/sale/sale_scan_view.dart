@@ -6,9 +6,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:onlipos/login/operator_input_view.dart';
+import 'package:onlipos/product/catalog_service.dart';
 import 'package:onlipos/product/product.dart';
 import 'package:onlipos/product/product_repository.dart';
+import 'package:onlipos/sale/cart_pricing.dart';
+import 'package:onlipos/sale/customer_display.dart';
+import 'package:onlipos/sale/option_select_dialog.dart';
 import 'package:onlipos/sale/payment_view.dart';
+import 'package:onlipos/sale/sale_extras_api.dart';
+import 'package:onlipos/sale/send_to_api.dart';
 import 'package:onlipos/sale/sale_item.dart';
 import 'package:onlipos/sale/table_order_store.dart';
 import 'package:onlipos/sale/hold_order_store.dart';
@@ -18,6 +24,7 @@ import 'package:onlipos/sale/transfer_order_api.dart';
 import 'package:onlipos/product/product_lookup_api.dart';
 import 'package:onlipos/sale/escpos/lan_recipt_api.dart';
 import 'package:onlipos/sale/price_edit_dialog.dart';
+import 'package:onlipos/sale/weight_input_dialog.dart';
 
 export 'sale_item.dart' show ScannedItem;
 
@@ -57,8 +64,13 @@ class _SaleScanViewState extends State<SaleScanView> {
   String _barcodeBuffer = '';
   bool _isLoadingTable = false;
   String _posRole = 'standard'; // 'standard' | 'host' | 'client'
-  List<({int id, String name})> _categories = [];
-  int? _selectedCategoryId; // null = すべて
+  // 自動値引き・税の端数処理の設定（読み込み完了までは値引きなしで計算する）
+  CartPricing _pricing = const CartPricing();
+  int _promotionDiscount = 0;
+  // 店内飲食（飲食店モードの既定）/ 持ち帰り
+  late bool _eatIn = widget.storeMode == 'restaurant';
+  // 厨房へ送信済みの数量（商品名・オプションごと）
+  final Map<String, int> _sentToKitchen = {};
 
   bool get _isRestaurant => widget.storeMode == 'restaurant';
   bool get _isRetail => widget.storeMode == 'retail';
@@ -68,7 +80,7 @@ class _SaleScanViewState extends State<SaleScanView> {
   void initState() {
     super.initState();
     _loadPosRole();
-    _loadCategories();
+    _loadPricing();
     // プリロードアイテムがあれば展開（ホスト受け取り時）
     if (widget.initialItems != null && widget.initialItems!.isNotEmpty) {
       _scannedItems.addAll(widget.initialItems!);
@@ -89,9 +101,13 @@ class _SaleScanViewState extends State<SaleScanView> {
     if (mounted) setState(() => _posRole = role);
   }
 
-  Future<void> _loadCategories() async {
-    final cats = await _productRepository.getCategories();
-    if (mounted) setState(() => _categories = cats);
+  Future<void> _loadPricing() async {
+    final pricing = await CatalogService.instance.cartPricing();
+    if (!mounted) return;
+    setState(() {
+      _pricing = pricing;
+      _calculateTotals();
+    });
   }
 
   @override
@@ -143,59 +159,30 @@ class _SaleScanViewState extends State<SaleScanView> {
 
     final product = await _productRepository.findProductByCode(barcode);
     if (product != null) {
-      if (product.soldByWeight) {
-        await _addWeightedProduct(product);
-        return;
-      }
-      setState(() {
-        // overridePrice が設定されていない行のみ同一商品としてマージする
-        final existingIdx = _scannedItems.indexWhere(
-          (item) =>
-              item.product.code == barcode &&
-              item.bundleCode == null &&
-              item.overridePrice == null,
-        );
-        if (existingIdx != -1) {
-          _scannedItems[existingIdx].quantity++;
-        } else {
-          _scannedItems.insert(0, ScannedItem(product: product));
-        }
-        _calculateTotals();
-      });
-      _triggerTableSave();
-      _focusNode.requestFocus();
+      await _addProduct(product);
       return;
     }
 
     final bundle = await _productRepository.findBundleByCode(barcode);
     if (bundle != null) {
-      final expandedProducts = await _productRepository.expandBundle(bundle);
-      if (expandedProducts.isEmpty) {
+      final item = await _productRepository.bundleItem(bundle);
+      if (item == null) {
         _showNotFound(barcode);
         return;
       }
       setState(() {
-        for (final product in expandedProducts) {
-          final item = bundle.items.firstWhere(
-            (i) => i.productId == product.id,
-            orElse: () => BundleItem(productId: product.id, quantity: 1),
-          );
-          final existingIdx = _scannedItems.indexWhere(
-            (s) => s.product.id == product.id && s.bundleCode == bundle.code,
-          );
-          if (existingIdx != -1) {
-            _scannedItems[existingIdx].quantity += item.quantity;
-          } else {
-            _scannedItems.insert(
-              0,
-              ScannedItem(
-                product: product,
-                bundleCode: bundle.code,
-                bundleName: bundle.name,
-                quantity: item.quantity,
-              ),
-            );
-          }
+        final existing = _scannedItems
+            .where(
+              (s) =>
+                  s.isBundle &&
+                  s.bundleCode == bundle.code &&
+                  s.overridePrice == null,
+            )
+            .firstOrNull;
+        if (existing != null) {
+          existing.quantity++;
+        } else {
+          _scannedItems.insert(0, item);
         }
         _calculateTotals();
       });
@@ -206,6 +193,41 @@ class _SaleScanViewState extends State<SaleScanView> {
 
     // ローカルに存在しない場合はサーバ問い合わせを提案
     await _askAndLookupFromServer(barcode);
+  }
+
+  // 商品をカートに加える。量り売り・オプション・バリエーションがあれば選択してから加える
+  Future<void> _addProduct(Product product) async {
+    if (product.soldByWeight) return _addWeightedProduct(product);
+
+    List<OptionItem> options = const [];
+    if (product.optionGroups.isNotEmpty) {
+      final selected = await showOptionSelectDialog(context, product);
+      if (!mounted) return;
+      if (selected == null) {
+        _focusNode.requestFocus();
+        return;
+      }
+      options = selected;
+    }
+
+    setState(() {
+      final existing = options.isEmpty
+          ? _scannedItems
+                .where((item) => item.canMerge(product, eatIn: _eatIn))
+                .firstOrNull
+          : null;
+      if (existing != null) {
+        existing.quantity++;
+      } else {
+        _scannedItems.insert(
+          0,
+          ScannedItem(product: product, eatIn: _eatIn, options: options),
+        );
+      }
+      _calculateTotals();
+    });
+    _triggerTableSave();
+    _focusNode.requestFocus();
   }
 
   void _showNotFound(String barcode) {
@@ -249,25 +271,7 @@ class _SaleScanViewState extends State<SaleScanView> {
         _showNotFound(barcode);
         return;
       }
-      if (product.soldByWeight) {
-        await _addWeightedProduct(product);
-        return;
-      }
-      setState(() {
-        final existingIdx = _scannedItems.indexWhere(
-          (item) =>
-              item.product.code == barcode &&
-              item.bundleCode == null &&
-              item.overridePrice == null,
-        );
-        if (existingIdx != -1) {
-          _scannedItems[existingIdx].quantity++;
-        } else {
-          _scannedItems.insert(0, ScannedItem(product: product));
-        }
-        _calculateTotals();
-      });
-      _triggerTableSave();
+      await _addProduct(product);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -282,9 +286,106 @@ class _SaleScanViewState extends State<SaleScanView> {
 
   // カート内の合計点数・合計金額・合計消費税を再計算する
   void _calculateTotals() {
-    _totalItems = _scannedItems.fold(0, (sum, item) => sum + item.quantity);
-    _totalAmount = _scannedItems.fold(0, (sum, item) => sum + item.subtotal);
-    _totalTax = _scannedItems.fold(0, (sum, item) => sum + item.taxAmount);
+    final quote = _pricing.quote(_scannedItems);
+    _totalItems = quote.itemCount;
+    _totalAmount = quote.total;
+    _totalTax = quote.tax;
+    _promotionDiscount = quote.promotionDiscount;
+    CustomerDisplay.update(_scannedItems, quote.total);
+  }
+
+  // 店内飲食と持ち帰りを切り替える（税率・価格が変わる）
+  void _toggleEatIn(bool eatIn) {
+    setState(() {
+      _eatIn = eatIn;
+      for (final item in _scannedItems) {
+        item.eatIn = eatIn;
+      }
+      _calculateTotals();
+    });
+    _triggerTableSave();
+    _focusNode.requestFocus();
+  }
+
+  // まだ送っていない注文を厨房へ送る
+  Future<void> _sendToKitchen() async {
+    final pending = <Map<String, dynamic>>[];
+    final totals = <String, int>{};
+    for (final item in _scannedItems) {
+      final options = item.options.map((o) => o.name).toList();
+      final name = item.bundleName ?? item.product.name;
+      final key = '$name|${options.join(',')}';
+      totals[key] = (totals[key] ?? 0) + item.quantity;
+      final rest = totals[key]! - (_sentToKitchen[key] ?? 0);
+      if (rest > 0) {
+        pending.add({
+          'product_id': item.product.id,
+          'name': name,
+          'quantity': rest > item.quantity ? item.quantity : rest,
+          'options': options,
+        });
+      }
+    }
+    if (pending.isEmpty) return;
+    final result = await SaleExtrasApi.sendKitchen(
+      requestId: SentToApi.newRequestId(),
+      tableNumber: widget.tableNumber,
+      items: pending,
+    );
+    if (!mounted) return;
+    final ok = result['success'] == true;
+    if (ok) {
+      _sentToKitchen
+        ..clear()
+        ..addAll(totals);
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok ? '厨房へ送信しました' : result['message']?.toString() ?? '送信に失敗しました',
+        ),
+        backgroundColor: ok ? Colors.green : Colors.red,
+      ),
+    );
+    _focusNode.requestFocus();
+  }
+
+  // 商品マスタが更新されたら、カートの商品を新しい価格・税率に置き換える
+  Future<void> _refreshCart() async {
+    final refreshed = <ScannedItem>[];
+    for (final item in _scannedItems) {
+      final ScannedItem? fresh;
+      if (item.isBundle) {
+        final bundle = await _productRepository.findBundleByCode(
+          item.bundleCode!,
+        );
+        fresh = bundle == null
+            ? null
+            : await _productRepository.bundleItem(
+                bundle,
+                quantity: item.quantity,
+              );
+      } else {
+        final product = await _productRepository.findProductByCode(
+          item.product.code,
+        );
+        fresh = product == null
+            ? null
+            : (ScannedItem.fromJson({
+                ...item.toJson(),
+                'product': product.toMap(),
+              }));
+      }
+      if (fresh != null) refreshed.add(fresh);
+    }
+    await _loadPricing();
+    if (!mounted) return;
+    setState(() {
+      _scannedItems
+        ..clear()
+        ..addAll(refreshed);
+      _calculateTotals();
+    });
   }
 
   // ---- 量り売り（計量）商品 ------------------------------------------
@@ -295,7 +396,7 @@ class _SaleScanViewState extends State<SaleScanView> {
     if (!mounted) return;
     final grams = await showDialog<int>(
       context: context,
-      builder: (ctx) => _WeightInputDialog(product: product),
+      builder: (ctx) => WeightInputDialog(product: product),
     );
     if (grams == null || !mounted) {
       _focusNode.requestFocus();
@@ -304,7 +405,7 @@ class _SaleScanViewState extends State<SaleScanView> {
     setState(() {
       _scannedItems.insert(
         0,
-        ScannedItem(product: product, weightGrams: grams),
+        ScannedItem(product: product, weightGrams: grams, eatIn: _eatIn),
       );
       _calculateTotals();
     });
@@ -315,6 +416,8 @@ class _SaleScanViewState extends State<SaleScanView> {
   // 明細行を長押し/タップした際に価格変更ダイアログを開き、上書き価格を反映する
   Future<void> _editItemPrice(int index) async {
     final item = _scannedItems[index];
+    // セット商品の価格は変更しない（小計割引を使う）
+    if (item.isBundle) return;
     final result = await showDialog<({int price, String? reason})>(
       context: context,
       builder: (ctx) => PriceEditDialog(product: item.product),
@@ -327,14 +430,8 @@ class _SaleScanViewState extends State<SaleScanView> {
     setState(() {
       final newPrice = result.price;
       final newOverride = newPrice == item.product.price ? null : newPrice;
-      _scannedItems[index] = ScannedItem(
-        product: item.product,
-        bundleCode: item.bundleCode,
-        bundleName: item.bundleName,
-        quantity: item.quantity,
-        overridePrice: newOverride,
-        discountReason: newOverride != null ? result.reason : null,
-      );
+      item.overridePrice = newOverride;
+      item.discountReason = newOverride != null ? result.reason : null;
       _calculateTotals();
     });
     _triggerTableSave();
@@ -379,33 +476,6 @@ class _SaleScanViewState extends State<SaleScanView> {
   Future<void> _subtotal() async {
     if (_scannedItems.isEmpty) return;
 
-    final List<Map<String, dynamic>> details = _scannedItems.map((item) {
-      final taxRate = item.product.taxRate;
-      final sub = item.subtotal;
-      final exTax = (sub * 100 / (100 + taxRate)).floor();
-      final taxAmt = sub - exTax;
-      final hasDiscount =
-          item.overridePrice != null &&
-          item.overridePrice! < item.product.price;
-      return {
-        'product_id': item.product.id,
-        'product_name': item.product.name,
-        'product_code': item.product.code,
-        'quantity': item.quantity,
-        'unit_price': item.price,
-        'subtotal': sub,
-        'tax_rate': taxRate,
-        'tax_amount': taxAmt,
-        if (item.bundleCode != null) 'bundle_code': item.bundleCode,
-        if (hasDiscount) 'original_unit_price': item.product.price,
-        if (hasDiscount && item.discountReason != null)
-          'discount_reason': item.discountReason,
-        if (item.weightGrams != null) 'weight_grams': item.weightGrams,
-      };
-    }).toList();
-
-    final int totalExTax = _totalAmount - _totalTax;
-
     final String? extraInfo = _isRestaurant && widget.tableNumber != null
         ? '卓 ${widget.tableNumber}'
         : null;
@@ -416,10 +486,8 @@ class _SaleScanViewState extends State<SaleScanView> {
         builder: (context) => PaymentView(
           operatorName: widget.operatorName,
           operatorId: widget.operatorId,
-          totalAmount: _totalAmount,
-          subtotalExTax: totalExTax,
-          taxAmount: _totalTax,
-          saleDetails: details,
+          items: _scannedItems,
+          pricing: _pricing,
           extraInfo: extraInfo,
         ),
       ),
@@ -427,7 +495,9 @@ class _SaleScanViewState extends State<SaleScanView> {
 
     _focusNode.requestFocus();
 
+    if (result == 'master_updated') await _refreshCart();
     if (result == true) {
+      _sentToKitchen.clear();
       if (_isRestaurant && widget.tableNumber != null) {
         TableOrderApi.clearTable(widget.tableNumber!).catchError((_) {
           TableOrderStore().clearTable(widget.tableNumber!);
@@ -642,25 +712,6 @@ class _SaleScanViewState extends State<SaleScanView> {
     return KeyEventResult.ignored;
   }
 
-  // ---- カテゴリチップ ----------------------------------------------
-
-  Widget _buildCategoryChip(int? categoryId, String label) {
-    final isSelected = _selectedCategoryId == categoryId;
-    return Padding(
-      padding: const EdgeInsets.only(right: 6),
-      child: FilterChip(
-        label: Text(label, style: const TextStyle(fontSize: 13)),
-        selected: isSelected,
-        onSelected: (_) {
-          setState(() => _selectedCategoryId = categoryId);
-          _focusNode.requestFocus();
-        },
-        selectedColor: Colors.blue[200],
-        checkmarkColor: Colors.blue[900],
-      ),
-    );
-  }
-
   // ---- UI ----------------------------------------------------------
 
   String get _appBarTitle {
@@ -684,7 +735,26 @@ class _SaleScanViewState extends State<SaleScanView> {
       autofocus: true,
       onKeyEvent: _handleKeyEvent,
       child: Scaffold(
-        appBar: AppBar(title: Text(_appBarTitle)),
+        appBar: AppBar(
+          title: Text(_appBarTitle),
+          actions: [
+            if (_isRestaurant)
+              TextButton.icon(
+                onPressed: _scannedItems.isEmpty ? null : _sendToKitchen,
+                icon: const Icon(Icons.restaurant),
+                label: const Text('厨房へ送る'),
+              ),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: true, label: Text('店内')),
+                ButtonSegment(value: false, label: Text('持ち帰り')),
+              ],
+              selected: {_eatIn},
+              onSelectionChanged: (v) => _toggleEatIn(v.first),
+            ),
+            const SizedBox(width: 12),
+          ],
+        ),
         body: Row(
           children: [
             Expanded(
@@ -693,21 +763,6 @@ class _SaleScanViewState extends State<SaleScanView> {
                 onTap: () => _focusNode.requestFocus(),
                 child: Column(
                   children: [
-                    // カテゴリフィルタータブ（カテゴリが登録されている場合のみ表示）
-                    if (_categories.isNotEmpty)
-                      SizedBox(
-                        height: 40,
-                        child: ListView(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          children: [
-                            _buildCategoryChip(null, 'すべて'),
-                            ..._categories.map(
-                              (c) => _buildCategoryChip(c.id, c.name),
-                            ),
-                          ],
-                        ),
-                      ),
                     Expanded(
                       child: Container(
                         color: Colors.grey[200],
@@ -715,7 +770,9 @@ class _SaleScanViewState extends State<SaleScanView> {
                           itemCount: _scannedItems.length,
                           itemBuilder: (context, index) {
                             final item = _scannedItems[index];
-                            final hasOverride = item.overridePrice != null;
+                            final hasOverride =
+                                item.overridePrice != null ||
+                                item.promotionPrice != null;
                             return Card(
                               margin: const EdgeInsets.symmetric(
                                 horizontal: 8,
@@ -752,7 +809,9 @@ class _SaleScanViewState extends State<SaleScanView> {
                                         ),
                                       Expanded(
                                         child: Text(
-                                          item.product.name,
+                                          item.options.isEmpty
+                                              ? item.product.name
+                                              : '${item.product.name}（${item.options.map((o) => o.name).join('・')}）',
                                           style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                           ),
@@ -764,7 +823,7 @@ class _SaleScanViewState extends State<SaleScanView> {
                                       ? Row(
                                           children: [
                                             Text(
-                                              '¥${item.product.price}',
+                                              '¥${item.regularPrice}',
                                               style: TextStyle(
                                                 decoration:
                                                     TextDecoration.lineThrough,
@@ -788,7 +847,7 @@ class _SaleScanViewState extends State<SaleScanView> {
                                                 ),
                                               ),
                                               child: Text(
-                                                '¥${item.overridePrice}',
+                                                '¥${item.price}${item.promotionName == null ? '' : ' ${item.promotionName}'}',
                                                 style: TextStyle(
                                                   color: Colors.red[700],
                                                   fontWeight: FontWeight.bold,
@@ -798,7 +857,7 @@ class _SaleScanViewState extends State<SaleScanView> {
                                             ),
                                             const SizedBox(width: 6),
                                             Text(
-                                              '(税${item.product.taxRate}%)',
+                                              '(税${item.taxRate}%)',
                                               style: TextStyle(
                                                 fontSize: 13,
                                                 color: Colors.grey[600],
@@ -807,7 +866,7 @@ class _SaleScanViewState extends State<SaleScanView> {
                                           ],
                                         )
                                       : Text(
-                                          '¥${item.product.price}  (税${item.product.taxRate}%)',
+                                          '¥${item.price}  (税${item.taxRate}%)',
                                         ),
                                   trailing: Row(
                                     mainAxisSize: MainAxisSize.min,
@@ -904,6 +963,11 @@ class _SaleScanViewState extends State<SaleScanView> {
                         ),
                         textAlign: TextAlign.center,
                       ),
+                      if (_promotionDiscount > 0)
+                        Text(
+                          'まとめ買い割引 -¥$_promotionDiscount',
+                          textAlign: TextAlign.center,
+                        ),
                       if (_totalTax > 0) ...[
                         const SizedBox(height: 8),
                         Text(
@@ -1139,89 +1203,6 @@ class _HoldRecallDialogState extends State<_HoldRecallDialog> {
           child: const Text('キャンセル'),
         ),
         ElevatedButton(onPressed: _confirm, child: const Text('呼び出し')),
-      ],
-    );
-  }
-}
-
-/// 量り売り（計量）商品の重量(g)を入力するダイアログ。
-/// 実機のはかりとは連携せず、レジ担当が読み取った重量を手入力する運用を想定する。
-class _WeightInputDialog extends StatefulWidget {
-  final Product product;
-
-  const _WeightInputDialog({required this.product});
-
-  @override
-  State<_WeightInputDialog> createState() => _WeightInputDialogState();
-}
-
-class _WeightInputDialogState extends State<_WeightInputDialog> {
-  final TextEditingController _controller = TextEditingController();
-  final FocusNode _fieldFocus = FocusNode();
-
-  int get _grams => int.tryParse(_controller.text) ?? 0;
-  int get _amount => (widget.product.price * _grams / 100).round();
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _fieldFocus.requestFocus();
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    _fieldFocus.dispose();
-    super.dispose();
-  }
-
-  void _confirm() {
-    if (_grams <= 0) return;
-    Navigator.of(context).pop(_grams);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.product.name),
-      content: SizedBox(
-        width: 320,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('100gあたり ¥${widget.product.price}（量り売り）'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _controller,
-              focusNode: _fieldFocus,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: '重量 (g)',
-                border: OutlineInputBorder(),
-              ),
-              style: const TextStyle(fontSize: 24),
-              onChanged: (_) => setState(() {}),
-              onSubmitted: (_) => _confirm(),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '金額: ¥$_amount',
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('キャンセル'),
-        ),
-        ElevatedButton(onPressed: _confirm, child: const Text('確定')),
       ],
     );
   }

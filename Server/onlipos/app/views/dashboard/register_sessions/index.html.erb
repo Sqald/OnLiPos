@@ -1,0 +1,22 @@
+<%# ダッシュボード: レジ精算（Z） %>
+<div class="dashboard-container">
+  <%= render "dashboard/shared/menu" %>
+  <div class="dashboard-content card">
+    <div class="subtitle"><h2>レジ精算（Z）</h2></div>
+    <%= form_with url: dashboard_register_sessions_path, method: :get do |f| %>
+      <div class="filter-row">
+        <div class="filter-item"><%= f.label :store_id, "店舗" %><br><%= f.select :store_id, options_from_collection_for_select(@stores, :id, :name, params[:store_id]), { include_blank: "すべて" }, class: "form-control" %></div>
+        <div class="filter-item"><%= f.label :from, "日付（自）" %><br><%= f.date_field :from, value: @from || params[:from], class: "form-control" %></div>
+        <div class="filter-item"><%= f.label :to, "日付（至）" %><br><%= f.date_field :to, value: @to || params[:to], class: "form-control" %></div>
+        <div class="filter-item"><br><label><%= f.check_box :diff_only, { checked: params[:diff_only] == "1" }, "1", nil %> 過不足ありのみ</label></div>
+        <div class="filter-item"><br><%= f.submit "検索", class: "btn-signup" %></div>
+      </div>
+    <% end %>
+    <p><%= link_to "CSVで出力", dashboard_register_sessions_path(request.query_parameters.merge(format: :csv)), class: "btn-sm btn-outline" %></p>
+    <%= data_table([ "営業日", "店舗 / 端末", "Z番号", "状態", "売上", "返品", "理論在高", "実査額", "過不足", "" ],
+          @sessions.map { |s| [ s.business_date, "#{s.store.name} / #{s.pos_token.name}", s.z_number, s.closed? ? badge("精算済み") : badge("営業中", false), yen(s.sales_total), yen(s.refund_total),
+                                yen(s.expected_cash_amount), yen(s.closing_counted_amount), s.cash_diff_amount.to_i.zero? ? yen(s.cash_diff_amount) : tag.strong(yen(s.cash_diff_amount)),
+                                link_to("詳細", dashboard_register_session_path(s)) ] }) %>
+    <div class="pagination-wrapper"><%= paginate @sessions %></div>
+  </div>
+</div>

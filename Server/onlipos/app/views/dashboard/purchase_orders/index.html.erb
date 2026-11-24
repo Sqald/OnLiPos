@@ -1,0 +1,10 @@
+<%# ダッシュボード: 発注・入荷 %>
+<div class="dashboard-container">
+  <%= render "dashboard/shared/menu" %>
+  <div class="dashboard-content card">
+    <div class="subtitle"><h2>発注・入荷</h2></div>
+    <% if can_write? %><%= link_to "発注を作成", new_dashboard_purchase_order_path, class: "btn-signup" %><% end %>
+    <%= data_table([ "番号", "店舗", "仕入先", "状態", "発注日", "入荷予定", "金額", "" ], @orders.map { |o| [ o.number, o.store.name, o.supplier.name, PurchaseOrder::STATUS_LABELS[o.status], o.ordered_on, o.expected_on, yen(o.total_amount), link_to("詳細", dashboard_purchase_order_path(o)) ] }) %>
+    <div class="pagination-wrapper"><%= paginate @orders %></div>
+  </div>
+</div>

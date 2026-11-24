@@ -1,17 +1,50 @@
 # POS端末（レジ端末）。店舗に属し、端末単位でレシート連番・ジャーナル連番を採番する。
 # 端末側はこの token（has_secure_token）で API 認証を行う。
 class PosToken < ApplicationRecord
+  include Auditable
   # アソシエーション
   belongs_to :store
   belongs_to :provisioning, optional: true
   # 売上・返品の「どのレジで」を失わないよう、履歴のある端末は削除できない
   has_many :sales, dependent: :restrict_with_error
   has_many :refunds, dependent: :restrict_with_error
+  has_many :journal_entries, dependent: :restrict_with_error
+  has_one :customer_display, dependent: :delete
+  has_many :operator_approvals, dependent: :delete_all
   has_many :cash_logs, dependent: :nullify
   has_many :register_sessions, dependent: :destroy
   has_many :cash_movements, dependent: :destroy
 
-  has_secure_token :token
+  # 端末の認証トークン。DBにはダイジェストだけを保存する。平文は発行直後のインスタンスでのみ参照できる
+  attr_reader :token
+
+  scope :enabled, -> { where(disabled_at: nil) }
+
+  before_create :issue_token
+
+  def self.digest_token(token) = Digest::SHA256.hexdigest(token.to_s)
+
+  def self.find_by_token(token)
+    find_by(token_digest: digest_token(token)) if token.present?
+  end
+
+  # 新しいトークンを発行して保存し、平文を返す（以前のトークンは無効になる）
+  def regenerate_token
+    issue_token
+    update_columns(token_digest: token_digest, updated_at: Time.current)
+    token
+  end
+
+  # 端末の遠隔停止（紛失・盗難・退店時）。履歴は残したままAPIを使えなくする
+  def disable!(reason = nil)
+    update!(disabled_at: Time.current, disabled_reason: reason.presence)
+    OperatorApproval.where(pos_token_id: id).active.update_all(expires_at: Time.current)
+  end
+
+  def enable! = update!(disabled_at: nil, disabled_reason: nil)
+
+  def disabled? = disabled_at.present?
+
   has_secure_password
 
   # バリデーション
@@ -39,13 +72,19 @@ class PosToken < ApplicationRecord
     password_expires_at.present? && password_expires_at <= Time.current
   end
 
-  # 端末の認証状態: :authenticated（認証済み）/ :pending（パスワード有効・未認証）/ :expired（期限切れ）
+  # 端末の認証状態: :disabled（停止中）/ :authenticated（認証済み）/ :pending（パスワード有効・未認証）/ :expired（期限切れ）
   def password_status
+    return :disabled if disabled?
     return :authenticated if password_digest.blank?
     password_expired? ? :expired : :pending
   end
 
   private
+
+  def issue_token
+    @token = SecureRandom.base58(40)
+    self.token_digest = self.class.digest_token(@token)
+  end
 
   # provisioning が紐付く場合、その store と自身の store が一致することを検証する
   def provisioning_must_belong_to_same_store

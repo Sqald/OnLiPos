@@ -1,0 +1,17 @@
+# 依存ライブラリの更新（脆弱性対応を含む）
+version: 2
+updates:
+  - package-ecosystem: bundler
+    directory: /Server/onlipos
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+  - package-ecosystem: pub
+    directory: /Client/onlipos
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+  - package-ecosystem: docker
+    directory: /Server/onlipos
+    schedule: { interval: weekly }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }

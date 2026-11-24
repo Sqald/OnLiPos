@@ -1,0 +1,31 @@
+<%# ダッシュボード: 税率の一括変更 %>
+<div class="dashboard-container">
+  <%= render "dashboard/shared/menu" %>
+  <div class="dashboard-content card">
+    <div class="subtitle"><h2>税率の一括変更</h2></div>
+    <p>対象の税率の商品を、適用日からまとめて新しい税率に変更します。外食（店内飲食）用の税率は変わりません。酒類など対象外の商品は、カテゴリを分けて除外してください。</p>
+    <%= form_with url: tax_change_dashboard_scheduled_changes_path, method: :get do |f| %>
+      <div class="field"><%= f.label :effective_on, "適用日" %><%= f.date_field :effective_on, value: params[:effective_on], required: true, min: Date.tomorrow %></div>
+      <div class="field"><%= f.label :from_rate, "現在の税率（%）" %><%= f.number_field :from_rate, value: params[:from_rate] || 8, min: 0, max: 100, required: true %></div>
+      <div class="field"><%= f.label :to_rate, "新しい税率（%）" %><%= f.number_field :to_rate, value: params[:to_rate] || 1, min: 0, max: 100, required: true %></div>
+      <div class="field"><%= f.label :keep, "内税商品の価格" %><%= f.select :keep, options_for_select([ [ "税抜額を維持する（税込価格が変わる）", "ex_tax" ], [ "税込価格を維持する", "in_tax" ] ], params[:keep]), {}, class: "form-select" %></div>
+      <div class="field">
+        <p>除外するカテゴリ</p>
+        <% @categories.each do |c| %><label class="checkbox-item"><%= check_box_tag "excluded_category_ids[]", c.id, Array(params[:excluded_category_ids]).include?(c.id.to_s), id: "cat_#{c.id}" %> <%= c.name %></label><% end %>
+      </div>
+      <div class="actions"><%= f.submit "内容を確認する", class: "btn-signup" %></div>
+    <% end %>
+    <% if @rows %>
+      <h3>変更内容（<%= @rows.size %>件）</h3>
+      <%= data_table([ "商品", "店舗", "税率", "現在の価格", "新しい価格" ], @rows.first(300).map { |r| [ "#{r.product.code} #{r.product.name}", r.store&.name || "商品マスタ", "#{params[:from_rate].to_i}% → #{params[:to_rate].to_i}%", yen(r.current_price), yen(r.new_price) ] }) %>
+      <% if @rows.size > 300 %><p>先頭300件を表示しています。</p><% end %>
+      <% if @rows.any? && can_write? %>
+        <%= form_with url: apply_tax_change_dashboard_scheduled_changes_path, method: :post, data: { turbo_confirm: "#{@rows.size}件の変更を予約しますか？" } do |f| %>
+          <% request.query_parameters.slice("effective_on", "from_rate", "to_rate", "keep").each do |k, v| %><%= hidden_field_tag k, v, id: nil %><% end %>
+          <% Array(params[:excluded_category_ids]).each do |id| %><%= hidden_field_tag "excluded_category_ids[]", id, id: nil %><% end %>
+          <%= f.submit "この内容で予約する", class: "btn-signup" %>
+        <% end %>
+      <% end %>
+    <% end %>
+  </div>
+</div>

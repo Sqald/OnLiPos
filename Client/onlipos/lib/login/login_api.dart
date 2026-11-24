@@ -16,8 +16,8 @@ class LoginApi {
     required String pin,
     required String openDate,
     String? permission,
-  }) {
-    return PosApiClient.request(
+  }) async {
+    final result = await PosApiClient.request(
       'POST',
       '/api/v1/pos_devices/top_user_login',
       body: {
@@ -27,6 +27,8 @@ class LoginApi {
         'permission': ?permission,
       },
     );
+    OperatorApprovals.addFromResponse(result);
+    return result;
   }
 
   /// 業務中の担当者PIN認証（レジ金チェック・精算・返品・在庫入出庫等の担当者認証用）。
@@ -36,12 +38,14 @@ class LoginApi {
     required String code,
     required String pin,
     String? permission,
-  }) {
-    return PosApiClient.request(
+  }) async {
+    final result = await PosApiClient.request(
       'POST',
       '/api/v1/pos_devices/verify_employee',
       body: {'code': code, 'pin': pin, 'permission': ?permission},
     );
+    OperatorApprovals.addFromResponse(result);
+    return result;
   }
 
   /// 担当者コードを確認し、名前・ID・権限リストを返す。オフライン時は適切なエラーを返す。

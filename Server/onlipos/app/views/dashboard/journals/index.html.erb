@@ -1,0 +1,26 @@
+<%# ダッシュボード: 電子ジャーナル %>
+<div class="dashboard-container">
+  <%= render "dashboard/shared/menu" %>
+  <div class="dashboard-content card">
+    <div class="subtitle"><h2>電子ジャーナル</h2></div>
+    <%= form_with url: dashboard_journals_path, method: :get do |f| %>
+      <div class="filter-row">
+        <div class="filter-item"><%= f.label :store_id, "店舗" %><br><%= f.select :store_id, options_from_collection_for_select(@stores, :id, :name, params[:store_id]), { include_blank: "すべて" }, class: "form-control" %></div>
+        <div class="filter-item"><%= f.label :pos_token_id, "POS端末" %><br><%= f.select :pos_token_id, options_for_select(@stores.flat_map { |s| s.pos_tokens.map { |p| [ "#{s.name} / #{p.name}", p.id ] } }, params[:pos_token_id]), { include_blank: "すべて" }, class: "form-control" %></div>
+        <div class="filter-item"><%= f.label :type, "種別" %><br><%= f.select :type, options_for_select(Dashboard::JournalsController::TYPE_LABELS.invert, params[:type]), { include_blank: "すべて" }, class: "form-control" %></div>
+        <div class="filter-item"><%= f.label :receipt, "レシート番号（末尾）" %><br><%= f.text_field :receipt, value: params[:receipt], class: "form-control" %></div>
+        <div class="filter-item"><%= f.label :from, "日付（自）" %><br><%= f.date_field :from, value: @from || params[:from], class: "form-control" %></div>
+        <div class="filter-item"><%= f.label :to, "日付（至）" %><br><%= f.date_field :to, value: @to || params[:to], class: "form-control" %></div>
+        <div class="filter-item"><br><%= f.submit "検索", class: "btn-signup" %></div>
+      </div>
+    <% end %>
+    <p>
+      <%= link_to "CSVで出力", dashboard_journals_path(request.query_parameters.merge(format: :csv)), class: "btn-sm btn-outline" %>
+      <%= link_to "改ざん検証", verify_dashboard_journals_path, class: "btn-sm btn-outline" %>
+    </p>
+    <%= data_table([ "連番", "日時", "店舗 / 端末", "種別", "レシート番号", "担当者", "金額", "" ],
+          @entries.map { |e| [ e.sequence_number, datetime(e.printed_at), "#{e.store.name} / #{e.pos_token.name}", type_label(e.entry_type), e.receipt_number, e.employee&.name,
+                               yen(e.payload["total_amount"] || e.payload["amount"]), link_to("詳細", dashboard_journal_path(e)) ] }) %>
+    <div class="pagination-wrapper"><%= paginate @entries %></div>
+  </div>
+</div>

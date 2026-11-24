@@ -97,6 +97,16 @@ namespace :admin do
     puts "✓ '#{admin.username}' のロックを解除しました。"
   end
 
+  desc "管理者の2段階認証をリセットします (例: rails 'admin:reset_mfa[username]')"
+  task :reset_mfa, [ :username ] => :environment do |_, args|
+    admin = Admin.find_by("LOWER(username) = LOWER(?)", args[:username].to_s.strip)
+    abort "エラー: 管理者 '#{args[:username]}' が見つかりません。" unless admin
+
+    admin.disable_otp!
+    AdminAuditLog.record(admin: admin, action: "reset_admin_mfa", details: "rake")
+    puts "✓ '#{admin.username}' の2段階認証をリセットしました。次回ログイン時に再設定が必要です。"
+  end
+
   desc "管理者アカウントを削除します (例: rails 'admin:delete[username]')"
   task :delete, [ :username ] => :environment do |_, args|
     username = args[:username] || begin

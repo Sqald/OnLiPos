@@ -43,6 +43,13 @@
     </section>
 
     <section class="mfa-section">
+      <h3>ログイン中の端末</h3>
+      <p>紛失した端末や共用PCでログインしたままの場合は、すべての端末からログアウトできます（この端末もログアウトします）。</p>
+      <%= button_to "すべての端末からログアウト", dashboard_security_sign_out_everywhere_path, method: :post, class: "btn-sm btn-danger-outline",
+                    data: { turbo_confirm: "すべての端末からログアウトしますか？" } %>
+    </section>
+
+    <section class="mfa-section">
       <h3>リカバリーコード</h3>
       <p>パスキーや認証アプリが使えなくなったときに、1回だけ使えるコードです。残り <strong><%= current_user.recovery_codes_remaining %></strong> 個。</p>
       <%= button_to "リカバリーコードを再発行", dashboard_security_recovery_codes_path, method: :post, class: "btn-sm btn-outline",

@@ -13,7 +13,7 @@ class Users::SessionsController < Devise::SessionsController
     unless user && user.valid_for_authentication? { user.valid_password?(password) }
       # 存在しないメールアドレスでも処理時間を揃える（アカウントの有無を推測されにくくする）
       User.new.password = password unless user
-      return render_login_failure(email, user&.respond_to?(:access_locked?) && user.access_locked? ? :locked : :invalid)
+      return render_login_failure(email, show_locked?(user) ? :locked : :invalid)
     end
 
     unless user.active_for_authentication?
@@ -25,6 +25,11 @@ class Users::SessionsController < Devise::SessionsController
   end
 
   private
+
+  # 凍結中であることは、アカウントの有無を知られないよう画面には出さない（本人には凍結解除メールが届く）
+  def show_locked?(user)
+    !Devise.paranoid && user.respond_to?(:access_locked?) && user.access_locked?
+  end
 
   def render_login_failure(email, reason)
     self.resource = User.new(email: email)

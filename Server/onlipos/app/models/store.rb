@@ -1,11 +1,14 @@
 # 店舗。User（企業）に属し、POS端末・在庫・売上など店舗単位のデータの起点となる。
 class Store < ApplicationRecord
+  include Auditable
   # アソシエーション
   belongs_to :user
   # 売上・返品は「どこで売れたか」の記録（帳簿）なので、店舗削除で一緒に消さない。
   # 履歴がある店舗は削除できない（他の dependent より先に判定させるため先頭で宣言する）
   has_many :sales, dependent: :restrict_with_error
   has_many :refunds, dependent: :restrict_with_error
+  # ジャーナル（レジ開設・精算などの記録）も帳簿のため、残っている店舗は削除できない
+  has_many :journal_entries, dependent: :restrict_with_error
   has_many :pos_tokens, dependent: :destroy
   has_many :prices, dependent: :destroy
   has_many :store_stocks, dependent: :destroy
@@ -13,10 +16,14 @@ class Store < ApplicationRecord
   has_many :table_orders, dependent: :destroy
   has_many :hold_orders, dependent: :destroy
   has_many :transfer_orders, dependent: :destroy
-  # ジャーナルは readonly（追記型）のため destroy ではなく delete_all で削除する
-  has_many :journal_entries, dependent: :delete_all
   has_many :register_sessions, dependent: :destroy
   has_many :cash_movements, dependent: :destroy
+  has_many :attendances, dependent: :restrict_with_error
+  has_many :reservations, dependent: :delete_all
+  has_many :table_codes, dependent: :delete_all
+  has_many :kitchen_orders, dependent: :delete_all
+  has_many :purchase_orders, dependent: :restrict_with_error
+  has_many :stocktakes, dependent: :restrict_with_error
   has_and_belongs_to_many :employees
 
   delegate :products, to: :user
@@ -27,6 +34,9 @@ class Store < ApplicationRecord
 
   # コールバック
   after_create :assign_employees_marked_as_all_stores
+
+  # 厨房画面のURLに使うトークンを作り直す（以前のURLは使えなくなる）
+  def rotate_kitchen_display_token! = update!(kitchen_display_token: SecureRandom.urlsafe_base64(24))
 
   private
 

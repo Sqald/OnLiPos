@@ -5,6 +5,9 @@ class Saledetail < ApplicationRecord
   belongs_to :product
   has_many :refund_details, dependent: :restrict_with_exception
 
+  # 0: 持ち帰り・通常, 1: 店内飲食
+  enum :service_type, { takeout: 0, eat_in: 1 }
+
   # 販売時点の税区分の凍結（商品マスタの変更に影響されない）
   enum :tax_type, { inclusive: 0, exclusive: 1, tax_free: 2 }, prefix: :tax
 end

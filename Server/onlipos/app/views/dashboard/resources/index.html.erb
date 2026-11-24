@@ -1,0 +1,22 @@
+<%# ダッシュボード: マスタ一覧の共通画面（Dashboard::ResourceController） %>
+<div class="dashboard-container">
+  <%= render "dashboard/shared/menu" %>
+  <section class="dashboard-section">
+    <div class="section-header">
+      <h2><%= resource_config[:title] %></h2>
+      <% if can_write? %><%= link_to "追加", { action: :new }, class: "btn-signup" %><% end %>
+    </div>
+    <% if resource_config[:description] %><p><%= resource_config[:description] %></p><% end %>
+    <%= yield :resource_tools %>
+    <% rows = @records.map do |record|
+         cells = resource_config[:columns].values.map { |column| column.respond_to?(:call) ? column.call(record, self) : record.public_send(column) }
+         next cells unless can_write?
+         cells + [ safe_join([
+           link_to("編集", { action: :edit, id: record }, class: "btn-sm btn-outline"),
+           button_to("削除", { action: :destroy, id: record }, method: :delete, class: "btn-sm btn-danger-outline", data: { turbo_confirm: "削除しますか？" })
+         ]) ]
+       end %>
+    <%= data_table(resource_config[:columns].keys + (can_write? ? [ "操作" ] : []), rows, empty: "まだ登録されていません。") %>
+    <div class="pagination-wrapper"><%= paginate @records %></div>
+  </section>
+</div>

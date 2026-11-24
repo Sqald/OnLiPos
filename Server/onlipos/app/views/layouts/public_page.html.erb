@@ -1,0 +1,21 @@
+<%# レイアウト: お客様向けの公開ページ（電子レシート・セルフ注文など）。ログイン情報やメニューは表示しない %>
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <title><%= content_for(:title) || "OnLiPos" %></title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <%= yield :head %>
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <%= stylesheet_link_tag "pages/public_page" %>
+  </head>
+  <body class="public-page">
+    <main>
+      <% if flash[:notice] %><p class="public-notice"><%= flash[:notice] %></p><% end %>
+      <% if flash[:alert] %><p class="public-alert"><%= flash[:alert] %></p><% end %>
+      <%= yield %>
+    </main>
+  </body>
+</html>

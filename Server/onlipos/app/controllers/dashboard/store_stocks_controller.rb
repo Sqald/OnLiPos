@@ -5,9 +5,9 @@ class Dashboard::StoreStocksController < Dashboard::BaseController
 
   # 店舗間在庫移動
   def transfer
-    from_store = current_user.stores.find_by(id: params[:from_store_id])
-    to_store   = current_user.stores.find_by(id: params[:to_store_id])
-    product    = current_user.products.find_by(code: params[:jan_code].to_s.strip)
+    from_store = current_account.stores.find_by(id: params[:from_store_id])
+    to_store   = current_account.stores.find_by(id: params[:to_store_id])
+    product    = current_account.products.find_by(code: params[:jan_code].to_s.strip)
     quantity   = params[:quantity].to_i
 
     if from_store.nil? || to_store.nil?
@@ -29,24 +29,10 @@ class Dashboard::StoreStocksController < Dashboard::BaseController
 
     # 移動元は減算・移動先は加算し、それぞれ行ロックの上でStockMovementに記録する
     ActiveRecord::Base.transaction do
-      from_stock = StoreStock.find_or_create_by!(store: from_store, product: product)
-      from_stock.with_lock do
-        from_stock.decrement!(:quantity, quantity)
-        StockMovement.create!(
-          store: from_store, product: product, store_stock: from_stock,
-          quantity_change: -quantity, reason: "transfer_out"
-        )
-      end
-
-      to_stock = StoreStock.find_or_create_by!(store: to_store, product: product)
-      to_stock.with_lock do
-        to_stock.increment!(:quantity, quantity)
-        StockMovement.create!(
-          store: to_store, product: product, store_stock: to_stock,
-          quantity_change: quantity, reason: "transfer_in"
-        )
-      end
+      StoreStock.adjust!(store: from_store, product: product, change: -quantity, reason: "transfer_out")
+      StoreStock.adjust!(store: to_store, product: product, change: quantity, reason: "transfer_in")
     end
+    AuditLog.record("update", target: product, details: { "操作" => "店舗間の在庫移動", "数量" => quantity, "移動元" => from_store.name, "移動先" => to_store.name })
 
     redirect_back fallback_location: dashboard_store_stocks_path,
                   notice: "#{product.name} を #{from_store.name} から #{to_store.name} へ #{quantity} 個移動しました。"
@@ -63,12 +49,12 @@ class Dashboard::StoreStocksController < Dashboard::BaseController
 
     return if @jan_code.blank?
 
-    @product = current_user.products.find_by(code: @jan_code)
+    @product = current_account.products.find_by(code: @jan_code)
     return unless @product
 
     @store_stocks = StoreStock
       .includes(:store)
-      .where(store: current_user.stores, product: @product)
+      .where(store: current_account.stores, product: @product)
       .order("stores.name ASC")
   end
 
@@ -99,6 +85,7 @@ class Dashboard::StoreStocksController < Dashboard::BaseController
       end
     end
 
+    AuditLog.record("update", target: @store_stock, details: { "商品" => @store_stock.product.name, "店舗" => @store_stock.store.name, "数量" => new_quantity })
     redirect_back fallback_location: dashboard_store_stocks_path(jan_code: params[:jan_code]), notice: "在庫数量を更新しました。"
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: dashboard_store_stocks_path(jan_code: params[:jan_code]), alert: e.message
@@ -110,7 +97,7 @@ class Dashboard::StoreStocksController < Dashboard::BaseController
   def set_store_stock
     @store_stock = StoreStock
       .joins(:store)
-      .where(stores: { user_id: current_user.id })
+      .where(stores: { user_id: current_account.id })
       .find(params[:id])
   end
 end

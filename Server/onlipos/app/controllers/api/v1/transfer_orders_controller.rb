@@ -25,10 +25,7 @@ class Api::V1::TransferOrdersController < Api::V1::BaseController
   # クライアント機がカート内容をサーバーに転送する
   def create
     transfer = @current_pos.store.transfer_orders.build(transfer_params)
-    allowed_keys = %w[product_id product_name product_code quantity unit_price subtotal tax_rate bundle_code]
-    transfer.items = (params.dig(:transfer_order, :items) || []).map do |item|
-      item.to_h.stringify_keys.slice(*allowed_keys)
-    end
+    transfer.items = cart_items(params.dig(:transfer_order, :items))
 
     if transfer.save
       render json: { success: true, id: transfer.id }, status: :created
@@ -71,7 +68,7 @@ class Api::V1::TransferOrdersController < Api::V1::BaseController
 
   private
 
-  # create アクション用のストロングパラメータ（items は個別に許可キーでフィルタする）
+  # create アクション用のストロングパラメータ（items は cart_items で検査する）
   def transfer_params
     params.require(:transfer_order).permit(:operator_name, :operator_id, :total_amount, :table_number)
   end

@@ -14,7 +14,7 @@ class JournalsControllerTest < ActionDispatch::IntegrationTest
       name: "POS1", ascii_name: "pos1",
       password: "PosPass1!", password_confirmation: "PosPass1!"
     )
-    @pos.update_columns(token: SecureRandom.hex(32))
+    @pos.regenerate_token
 
     @emp = @user.employees.create!(code: "J001", name: "担当者A", pin: "1234")
     @emp.stores << @store
@@ -30,7 +30,7 @@ class JournalsControllerTest < ActionDispatch::IntegrationTest
   # ── JournalEntry 作成 ───────────────────────────────────────────────────────
 
   test "Sale 作成で JournalEntry が1件作られる" do
-    product = @user.products.create!(code: "P001", name: "商品A", price: 500, tax_rate: 10)
+    product = @user.products.create!(code: "P001", name: "商品A", price: 550, tax_rate: 10)
 
     assert_difference "JournalEntry.count", 1 do
       post "/api/v1/sales",
@@ -55,7 +55,7 @@ class JournalsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "Refund 作成で JournalEntry が1件作られる" do
-    product = @user.products.create!(code: "P002", name: "商品B", price: 1000, tax_rate: 10)
+    product = @user.products.create!(code: "P002", name: "商品B", price: 1100, tax_rate: 10)
 
     # 先に売上を作成
     post "/api/v1/sales",

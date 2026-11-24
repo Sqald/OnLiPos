@@ -1,6 +1,7 @@
 # 店舗スタッフ（POS端末の操作者）。PINでログインし、店舗ごとの権限（PERMISSION_CATALOG）で
 # 操作可否を制御する。User（企業アカウント）に属し、複数 Store と多対多で関連する。
 class Employee < ApplicationRecord
+  include Auditable
   MAX_FAILED_ATTEMPTS = 10
   UNLOCK_IN = 1.hour
 
@@ -26,6 +27,8 @@ class Employee < ApplicationRecord
   # （権限の削除より先に判定させるため employee_permissions より前に宣言する）
   has_many :sales, dependent: :restrict_with_error
   has_many :refunds, dependent: :restrict_with_error
+  has_many :operator_approvals, dependent: :delete_all
+  has_many :attendances, dependent: :restrict_with_error
   has_many :employee_permissions, dependent: :destroy
 
   # バリデーション

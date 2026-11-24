@@ -1,0 +1,12 @@
+<%# ダッシュボード: 電子ジャーナルの詳細 %>
+<div class="dashboard-container">
+  <%= render "dashboard/shared/menu" %>
+  <div class="dashboard-content card">
+    <div class="subtitle"><h2>電子ジャーナルの詳細</h2></div>
+    <%= detail_table([ [ "連番", @entry.sequence_number ], [ "日時", datetime(@entry.printed_at) ], [ "店舗 / 端末", "#{@entry.store.name} / #{@entry.pos_token.name}" ], [ "種別", type_label(@entry.entry_type) ],
+          [ "レシート番号", @entry.receipt_number ], [ "担当者", @entry.employee&.name ], [ "ハッシュ", @entry.entry_hash ], [ "直前のハッシュ", @entry.previous_hash ],
+          [ "整合性", @entry.sequence_number.nil? ? "対象外（旧形式）" : (@entry.entry_hash == @entry.compute_entry_hash ? badge("正常") : badge("不一致", false)) ] ]) %>
+    <h3>内容</h3>
+    <pre><%= JSON.pretty_generate(@entry.payload) %></pre>
+  </div>
+</div>

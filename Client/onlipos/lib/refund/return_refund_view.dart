@@ -4,6 +4,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:onlipos/api/pos_api_client.dart';
 import 'package:onlipos/login/login_api.dart';
 import 'package:onlipos/refund/refund_api.dart';
 import 'package:onlipos/refund/qr_scan_receipt_view.dart';
@@ -158,6 +159,15 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
     if (result['success'] == true && result['details'] != null) {
       final sale = result['sale'] as Map<String, dynamic>?;
       final alreadyRefunded = sale?['refunded'] == true;
+      if (sale?['voided'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('この会計は取消済みのため返品できません'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
       if (alreadyRefunded) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -187,6 +197,16 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
     }
   }
 
+  // 数量に応じた返金額（サーバーが支払額から計算した値。1個, 2個, …の順）
+  int _refundAmount(Map<dynamic, dynamic> detail, int quantity) {
+    if (quantity <= 0) return 0;
+    final amounts = detail['refund_amounts'] as List<dynamic>?;
+    if (amounts != null && quantity <= amounts.length) {
+      return (amounts[quantity - 1] as num).toInt();
+    }
+    return ((detail['unit_price'] as num?)?.toInt() ?? 0) * quantity;
+  }
+
   // 指定された返品数量から返金合計額を計算する
   int get _totalRefundAmount {
     if (_saleData == null || _saleData!['details'] == null) return 0;
@@ -194,9 +214,8 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
     for (final d in _saleData!['details'] as List<dynamic>) {
       final m = d as Map;
       final id = m['id'] as int?;
-      final unitPrice = (m['unit_price'] as num?)?.toInt() ?? 0;
       final qty = id != null ? (_returnQuantities[id] ?? 0) : 0;
-      total += unitPrice * qty;
+      total += _refundAmount(m, qty);
     }
     return total;
   }
@@ -237,6 +256,18 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
     );
     if (!mounted) return;
     setState(() => _submitLoading = false);
+    // 返品の承認は1回限り。成功後・期限切れのときは認証からやり直す
+    if (result['success'] == true ||
+        result['code'] == 'operator_approval_required') {
+      OperatorApprovals.clear('refund');
+      setState(() {
+        _employeeIds.fillRange(0, _employeeIds.length, null);
+        _employeeNames.fillRange(0, _employeeNames.length, null);
+        for (final c in _pinControllers) {
+          c.clear();
+        }
+      });
+    }
     if (result['success'] == true) {
       final totalRefund = result['total_refund_amount'] is int
           ? result['total_refund_amount'] as int
@@ -252,31 +283,29 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
           final id = m['id'] as int?;
           final qty = id != null ? (_returnQuantities[id] ?? 0) : 0;
           if (qty <= 0) continue;
-          final unitPrice = (m['unit_price'] as num?)?.toInt() ?? 0;
+          final amount = _refundAmount(m, qty);
           refundDetailsForReceipt.add({
             'product_code': m['product_code'] ?? '',
             'product_name': m['product_name'] ?? '',
             'quantity': qty,
-            'unit_price': unitPrice,
-            'subtotal': unitPrice * qty,
+            'unit_price': amount ~/ qty,
+            'subtotal': amount,
           });
         }
       }
 
-      // 元の会計の支払方法（ラベル付き）と、現金が含まれるか
+      // サーバーが決めた返金の決済手段別内訳（元の会計の支払いに応じる）
       bool hadCash = false;
       final paymentSummary = <Map<String, dynamic>>[];
-      if (_saleData != null && _saleData!['payments'] != null) {
-        for (final p in _saleData!['payments'] as List<dynamic>) {
-          final m = p as Map;
-          final methodCode = _normalizePaymentCode(m['method']);
-          final amount = _parseInt(m['amount'], fallback: 0);
-          final label = _paymentLabel(methodCode);
-          paymentSummary.add({'method': label, 'amount': amount});
-          if (methodCode == 0) {
-            hadCash = true;
-          }
-        }
+      for (final p in (result['payments'] as List<dynamic>?) ?? []) {
+        final m = p as Map;
+        final methodCode = _normalizePaymentCode(m['method']);
+        final amount = _parseInt(m['amount'], fallback: 0);
+        paymentSummary.add({
+          'method': _paymentLabel(methodCode),
+          'amount': amount,
+        });
+        if (methodCode == 0) hadCash = true;
       }
 
       try {
@@ -294,7 +323,9 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('返品・返金を登録しました。返金合計: ¥$totalRefund'),
+          content: Text(
+            '返品・返金を登録しました。返金: ${paymentSummary.map((p) => '${p['method']} ¥${p['amount']}').join('、')}',
+          ),
           backgroundColor: Colors.green,
         ),
       );
@@ -354,6 +385,14 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
         return 'カード';
       case 2:
         return 'バーコード決済';
+      case 3:
+        return '電子マネー';
+      case 4:
+        return 'ポイント';
+      case 5:
+        return '商品券';
+      case 6:
+        return '掛売';
       default:
         return 'その他';
     }

@@ -1,0 +1,11 @@
+<%# ダッシュボード: 在庫が不足している商品 %>
+<div class="dashboard-container">
+  <%= render "dashboard/shared/menu" %>
+  <div class="dashboard-content card">
+    <div class="subtitle"><h2>在庫が不足している商品</h2></div>
+    <p>商品ごとに設定した「在庫の警告数」以下になった商品です。</p>
+    <%= data_table([ "店舗", "商品", "在庫", "警告数", "仕入先", "" ], @stocks.map { |s| [ s.store.name, "#{s.product.code} #{s.product.name}", s.quantity, s.product.low_stock_threshold, s.product.supplier&.name,
+          s.product.supplier && can_write? ? link_to("発注", new_dashboard_purchase_order_path(store_id: s.store_id, supplier_id: s.product.supplier_id), class: "btn-sm btn-outline") : "" ] }, empty: "在庫が不足している商品はありません。") %>
+    <div class="pagination-wrapper"><%= paginate @stocks %></div>
+  </div>
+</div>

@@ -1,0 +1,16 @@
+<%# ダッシュボード: メンバーの追加 %>
+<div class="dashboard-container">
+  <%= render "dashboard/shared/menu" %>
+  <div class="dashboard-content card">
+    <div class="subtitle"><h2>メンバーの追加</h2></div>
+    <%= form_errors(@member) %>
+    <%= form_with model: @member, url: dashboard_members_path, method: :post, scope: :user do |f| %>
+      <div class="field"><%= f.label :last_name, "姓" %><%= f.text_field :last_name, required: true %></div>
+      <div class="field"><%= f.label :first_name, "名" %><%= f.text_field :first_name, required: true %></div>
+      <div class="field"><%= f.label :login_name, "ログイン名（半角英数字4〜16文字）" %><%= f.text_field :login_name, required: true %></div>
+      <div class="field"><%= f.label :email, "メールアドレス" %><%= f.email_field :email, required: true %></div>
+      <div class="field"><%= f.label :role, "役割" %><%= f.select :role, [ [ role_label("manager"), "manager" ], [ role_label("viewer"), "viewer" ] ], {}, class: "form-select" %></div>
+      <div class="actions"><%= f.submit "追加" %></div>
+    <% end %>
+  </div>
+</div>

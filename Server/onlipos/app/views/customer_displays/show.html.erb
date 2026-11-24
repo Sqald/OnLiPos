@@ -1,0 +1,13 @@
+<%# 客用表示 %>
+<% content_for :title, @store.name %>
+<% content_for :head do %><meta http-equiv="refresh" content="2"><% end %>
+<div class="public-card">
+  <% if @fresh && @content["items"].present? %>
+    <table class="display-items">
+      <% @content["items"].each do |i| %><tr><td><%= i["name"] %> ×<%= i["quantity"] %></td><td class="amount"><%= yen(i["subtotal"]) %></td></tr><% end %>
+    </table>
+    <p class="display-total"><%= yen(@content["total"]) %></p>
+  <% else %>
+    <h1><%= @store.name %></h1><p class="display-items"><%= @content["message"].presence || "いらっしゃいませ" %></p>
+  <% end %>
+</div>

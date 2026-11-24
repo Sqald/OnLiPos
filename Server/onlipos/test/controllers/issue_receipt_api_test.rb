@@ -17,7 +17,7 @@ class IssueReceiptApiTest < ActionDispatch::IntegrationTest
     )
     @store = @user.stores.create!(name: "領収書テスト店舗", ascii_name: "rcptstore")
     @pos_token = @store.pos_tokens.create!(name: "POS1", ascii_name: "pos1", password: "PosPass1!", password_confirmation: "PosPass1!")
-    @pos_token.update_columns(token: SecureRandom.hex(32))
+    @pos_token.regenerate_token
     @auth = { "Authorization" => "Bearer #{@pos_token.token}" }
 
     @employee = @user.employees.create!(code: "E001", name: "田中一郎")
@@ -86,7 +86,7 @@ class IssueReceiptApiTest < ActionDispatch::IntegrationTest
   test "他店舗の売上には発行できない" do
     other_store = @user.stores.create!(name: "他店舗", ascii_name: "otherrcpt")
     other_pos = other_store.pos_tokens.create!(name: "POS2", ascii_name: "pos2", password: "PosPass1!", password_confirmation: "PosPass1!")
-    other_pos.update_columns(token: SecureRandom.hex(32))
+    other_pos.regenerate_token
 
     post "/api/v1/sales/#{@sale.id}/issue_receipt",
          params: { addressee: "X" },

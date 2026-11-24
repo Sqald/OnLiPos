@@ -6,7 +6,7 @@
   <%# POS端末ログイン時に入力する企業ID(=login_name)の案内カード %>
   <div class="card login-id-card">
     <h3 class="login-id-label">POS端末ログインID (企業ID)</h3>
-    <p class="login-id-value"><%= current_user.login_name %></p>
+    <p class="login-id-value"><%= current_account.login_name %></p>
     <p class="login-id-note">※ POS端末でログインする際は、このIDと各端末のID,パスワードを入力してください。</p>
   </div>
 
@@ -67,6 +67,7 @@
                     <th>端末ID</th>
                     <th>ステータス</th>
                     <th>最終利用</th>
+                    <th>アプリ</th>
                     <th>端末認証</th>
                     <th>操作</th>
                   </tr>
@@ -85,11 +86,14 @@
                         <% end %>
                       </td>
                       <td><%= pos.last_used_at ? pos.last_used_at.strftime('%Y/%m/%d %H:%M') : '-' %></td>
+                      <td><%= [ pos.app_version, pos.platform ].compact_blank.join(" / ").presence || "-" %></td>
                       <%# 初期パスワードは2週間で失効。認証済みの端末は期限なし %>
                       <td>
                         <% case pos.password_status %>
                         <% when :authenticated %>
                           <span class="status-badge status-active">認証済み</span>
+                        <% when :disabled %>
+                          <span class="status-badge status-inactive">停止中</span><br><small><%= pos.disabled_reason %></small>
                         <% when :pending %>
                           <span class="status-badge status-inactive">未認証</span>
                           <% if pos.password_expires_at %><br><small>PW期限 <%= pos.password_expires_at.strftime('%Y/%m/%d %H:%M') %></small><% end %>
@@ -100,6 +104,11 @@
                       <%# パスワード再設定・端末削除ボタン(いずれも確認ダイアログあり) %>
                       <td>
                         <%= button_to "PW再設定", dashboard_pos_device_update_password_path(pos), method: :patch, data: { turbo_confirm: "パスワードを再設定しますか？\n新しいパスワードが画面に表示されます。" }, class: "btn-sm btn-outline" %>
+                        <% if pos.disabled? %>
+                          <%= button_to "停止を解除", enable_dashboard_pos_device_path(pos), method: :patch, data: { turbo_confirm: "「#{pos.name}」の停止を解除しますか？" }, class: "btn-sm btn-outline" %>
+                        <% else %>
+                          <%= button_to "停止", disable_dashboard_pos_device_path(pos), method: :patch, data: { turbo_confirm: "「#{pos.name}」を停止しますか？\nこの端末はすぐにAPIを使えなくなります（後から解除できます）。" }, class: "btn-sm btn-danger-outline" %>
+                        <% end %>
                         <%= button_to "削除", dashboard_pos_device_path(pos), method: :delete, data: { turbo_confirm: "「#{pos.name}」を削除しますか？\nこの端末は以後ログインできなくなります。この操作は取り消せません。" }, class: "btn-sm btn-danger-outline" %>
                       </td>
                     </tr>

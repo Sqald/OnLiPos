@@ -8,7 +8,7 @@
 #   どうやって : 支払方法別（会計の主たる支払方法）
 #   いくらで   : 単価帯別
 #   誰に   : 客層キー（性別・年代）別
-# 指標は 売上金額（税込）・販売点数・客数（会計件数）・客単価・平均単価・値引額。
+# 指標は 売上金額（税込）・販売点数・客数（会計件数）・客単価・平均単価・値引額・粗利（税抜売上 − 原価。原価未登録の明細は含めない）。
 #
 # 集計の単位は明細行。売上明細（取消=VOID を除く）と、返品明細（マイナス値）を UNION ALL した
 # 仮想テーブル lines を作り、そこに GROUP BY をかける。返品の帰属は次の通り:
@@ -25,7 +25,7 @@ class SalesAnalysis
     [ 100, "〜99円" ], [ 300, "100〜299円" ], [ 500, "300〜499円" ], [ 1000, "500〜999円" ],
     [ 3000, "1,000〜2,999円" ], [ 5000, "3,000〜4,999円" ], [ 10_000, "5,000〜9,999円" ], [ nil, "10,000円〜" ]
   ].freeze
-  PAYMENT_LABELS = { "0" => "現金", "1" => "カード", "2" => "バーコード決済", "3" => "電子マネー" }.freeze
+  PAYMENT_LABELS = PaymentMethods::LABELS_BY_CODE
   GENDER_LABELS  = { "0" => "男性", "1" => "女性", "2" => "その他" }.freeze
   AGE_LABELS     = { "0" => "〜19歳", "1" => "20代", "2" => "30代", "3" => "40代", "4" => "50代", "5" => "60歳〜" }.freeze
 
@@ -60,7 +60,8 @@ class SalesAnalysis
     "tickets"    => { label: "客数（会計件数）", unit: :count, additive: false },
     "avg_ticket" => { label: "客単価",    unit: :yen,   additive: false },
     "avg_price"  => { label: "平均単価",  unit: :yen,   additive: false },
-    "discount"   => { label: "値引額",    unit: :yen,   additive: true }
+    "discount"   => { label: "値引額",    unit: :yen,   additive: true },
+    "profit"     => { label: "粗利（税抜。原価を登録した商品のみ）", unit: :yen, additive: true }
   }.freeze
 
   # 絞り込み条件（パラメータ名 => lines の列）
@@ -72,8 +73,8 @@ class SalesAnalysis
   MAX_ROWS = 200
   MAX_FILL_DAYS = 400
 
-  Cell = Struct.new(:amount, :quantity, :tickets, :discount, :refund_amount, :gross_amount, keyword_init: true) do
-    def self.zero = new(amount: 0, quantity: 0, tickets: 0, discount: 0, refund_amount: 0, gross_amount: 0)
+  Cell = Struct.new(:amount, :quantity, :tickets, :discount, :profit, :refund_amount, :gross_amount, keyword_init: true) do
+    def self.zero = new(amount: 0, quantity: 0, tickets: 0, discount: 0, profit: 0, refund_amount: 0, gross_amount: 0)
 
     def value(metric)
       case metric
@@ -252,6 +253,7 @@ class SalesAnalysis
       Arel.sql("COALESCE(SUM(lines.qty), 0)"),
       Arel.sql("COUNT(DISTINCT lines.sale_id) FILTER (WHERE lines.kind = 'sale')"),
       Arel.sql("COALESCE(SUM(lines.discount), 0)"),
+      Arel.sql("COALESCE(SUM(lines.profit), 0)"),
       Arel.sql("COALESCE(SUM(-lines.amount) FILTER (WHERE lines.kind = 'refund'), 0)"),
       Arel.sql("COALESCE(SUM(lines.amount) FILTER (WHERE lines.kind = 'sale'), 0)")
     ]
@@ -261,8 +263,8 @@ class SalesAnalysis
     relation.pluck(*selects).each_with_object({}) do |row, h|
       row = Array(row)
       keys = row.first(n)
-      amount, qty, tickets, discount, refund, gross = row.drop(n).map(&:to_i)
-      h[keys] = Cell.new(amount: amount, quantity: qty, tickets: tickets, discount: discount,
+      amount, qty, tickets, discount, profit, refund, gross = row.drop(n).map(&:to_i)
+      h[keys] = Cell.new(amount: amount, quantity: qty, tickets: tickets, discount: discount, profit: profit,
                          refund_amount: refund, gross_amount: gross)
     end
   end
@@ -290,12 +292,16 @@ class SalesAnalysis
     sale_amount = "(sd.subtotal + CASE WHEN sd.tax_type = #{Saledetail.tax_types[:exclusive]} THEN sd.tax_amount ELSE 0 END)"
     refund_amount = "(rd.subtotal + CASE WHEN sd.tax_type = #{Saledetail.tax_types[:exclusive]} THEN rd.tax_amount ELSE 0 END)"
 
+    # 原価の個数。量り売りは原価も100gあたりとして扱う
+    cost_units = "(CASE WHEN sd.weight_grams IS NULL THEN sd.quantity ELSE sd.weight_grams / 100.0 END)"
+
     sale_part = ActiveRecord::Base.sanitize_sql_array([ <<~SQL, { uid: user.id, completed: Sale.statuses[:completed], from: from, to: to, tz: tz } ])
       SELECT 'sale' AS kind, s.id AS sale_id, s.business_date,
              (COALESCE(s.sold_at, s.created_at) AT TIME ZONE 'UTC' AT TIME ZONE :tz) AS local_at,
              s.store_id, s.pos_token_id, s.employee_id, sd.product_id, p.product_category_id AS category_id,
              s.payment_method, s.customer_gender, s.customer_age_group,
-             sd.quantity AS qty, sd.unit_price, #{sale_amount} AS amount, sd.discount_amount AS discount
+             sd.quantity AS qty, sd.unit_price, #{sale_amount} AS amount, sd.discount_amount AS discount,
+             (#{sale_amount} - sd.tax_amount - sd.cost_price * #{cost_units}) AS profit
         FROM saledetails sd
         JOIN sales s ON s.id = sd.sale_id
         LEFT JOIN products p ON p.id = sd.product_id
@@ -307,7 +313,8 @@ class SalesAnalysis
              (COALESCE(r.refunded_at, r.created_at) AT TIME ZONE 'UTC' AT TIME ZONE :tz) AS local_at,
              r.store_id, r.pos_token_id, s.employee_id, rd.product_id, p.product_category_id AS category_id,
              s.payment_method, s.customer_gender, s.customer_age_group,
-             -rd.quantity AS qty, rd.unit_price, -#{refund_amount} AS amount, 0 AS discount
+             -rd.quantity AS qty, rd.unit_price, -#{refund_amount} AS amount, 0 AS discount,
+             -(#{refund_amount} - rd.tax_amount - sd.cost_price * rd.quantity * #{cost_units} / NULLIF(sd.quantity, 0)) AS profit
         FROM refund_details rd
         JOIN refunds r ON r.id = rd.refund_id
         JOIN sales s ON s.id = r.sale_id

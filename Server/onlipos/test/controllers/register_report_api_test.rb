@@ -15,7 +15,7 @@ class RegisterReportApiTest < ActionDispatch::IntegrationTest
     )
     @store = @user.stores.create!(name: "レポート店舗", ascii_name: "reportstore")
     @pos_token = @store.pos_tokens.create!(name: "POS1", ascii_name: "pos1", password: "PosPass1!", password_confirmation: "PosPass1!")
-    @pos_token.update_columns(token: SecureRandom.hex(32))
+    @pos_token.regenerate_token
     @auth = { "Authorization" => "Bearer #{@pos_token.token}" }
 
     @employee = @user.employees.create!(code: "E001", name: "田中一郎")

@@ -17,7 +17,7 @@ class SalesSummaryControllerTest < ActionDispatch::IntegrationTest
       name: "POS1", ascii_name: "pos1",
       password: "PosPass1!", password_confirmation: "PosPass1!"
     )
-    @pos.update_columns(token: SecureRandom.hex(32))
+    @pos.regenerate_token
 
     @product1 = @user.products.create!(code: "SP001", name: "商品1", price: 1000, tax_rate: 10)
     @product2 = @user.products.create!(code: "SP002", name: "商品2", price: 2000, tax_rate: 10)
@@ -170,7 +170,7 @@ class SalesSummaryControllerTest < ActionDispatch::IntegrationTest
       name: "POS2", ascii_name: "pos2",
       password: "PosPass2!", password_confirmation: "PosPass2!"
     )
-    other_pos.update_columns(token: SecureRandom.hex(32))
+    other_pos.regenerate_token
 
     other_sale = Sale.create!(
       user: @user, store: @store2, pos_token: other_pos,

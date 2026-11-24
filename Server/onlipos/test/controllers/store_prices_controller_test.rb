@@ -17,7 +17,7 @@ class StorePricesControllerTest < ActionDispatch::IntegrationTest
       name: "POS1", ascii_name: "pos1",
       password: "PosPass1!", password_confirmation: "PosPass1!"
     )
-    @pos.update_columns(token: SecureRandom.hex(32))
+    @pos.regenerate_token
 
     @product  = @user.products.create!(code: "A001", name: "商品A", price: 1000, tax_rate: 10)
     @product2 = @user.products.create!(code: "B002", name: "商品B", price: 2000, tax_rate: 10)

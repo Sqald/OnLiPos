@@ -1,0 +1,28 @@
+<%# ダッシュボード: 会員の詳細 %>
+<div class="dashboard-container">
+  <%= render "dashboard/shared/menu" %>
+  <div class="dashboard-content card">
+    <div class="subtitle"><h2>会員の詳細</h2></div>
+    <%= detail_table([ [ "会員番号", @customer.code ], [ "名前", @customer.name ], [ "電話", @customer.phone ], [ "メール", @customer.email ], [ "誕生日", @customer.birthday ],
+          [ "ポイント", @customer.points ], [ "掛売残高", yen(@customer.receivable) ], [ "来店回数", @customer.visits_count ], [ "メモ", @customer.note ] ]) %>
+    <% if can_write? %>
+      <%= form_with url: adjust_dashboard_customer_path(@customer), method: :post do |f| %>
+        <div class="filter-row">
+          <div class="filter-item"><%= f.label :target, "対象" %><br><%= f.select :target, [ [ "ポイントの調整（減らす場合は負の数）", "points" ], [ "掛売の入金", "receivable" ] ] %></div>
+          <div class="filter-item"><%= f.label :amount, "数量・金額" %><br><%= f.number_field :amount, required: true %></div>
+          <div class="filter-item"><%= f.label :note, "理由" %><br><%= f.text_field :note, required: true %></div>
+          <div class="filter-item"><br><%= f.submit "登録", class: "btn-signup" %></div>
+        </div>
+      <% end %>
+      <% unless @customer.anonymized_at %>
+        <%= button_to "個人情報を削除（取引記録は残す）", anonymize_dashboard_customer_path(@customer), method: :post, class: "btn-sm btn-danger-outline", data: { turbo_confirm: "元に戻せません。個人情報を削除しますか？" } %>
+      <% end %>
+    <% end %>
+    <h3>ポイント履歴</h3>
+    <%= data_table([ "日時", "種類", "増減", "残高", "備考" ], @point_transactions.map { |t| [ datetime(t.created_at), PointTransaction::KIND_LABELS[t.kind], t.points, t.balance, t.note ] }) %>
+    <h3>掛売履歴</h3>
+    <%= data_table([ "日時", "増減", "残高", "備考" ], @receivables.map { |t| [ datetime(t.created_at), yen(t.amount), yen(t.balance), t.note ] }) %>
+    <h3>購入履歴</h3>
+    <%= data_table([ "日時", "店舗", "レシート番号", "金額" ], @sales.map { |s| [ datetime(s.sold_at), s.store.name, link_to(s.receipt_number, dashboard_sale_detail_path(s)), yen(s.total_amount) ] }) %>
+  </div>
+</div>

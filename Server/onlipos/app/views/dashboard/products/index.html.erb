@@ -7,6 +7,7 @@
     <div class="subtitle d-flex justify-content-between align-items-center mb-3">
       <h2>商品一覧</h2>
       <div class="d-flex gap-2">
+        <%= link_to "CSVで出力", export_dashboard_products_path, class: "btn-sm btn-outline" %>
         <%= link_to "商品登録", new_dashboard_product_path, class: "btn-signup" %>
       </div>
     </div>
@@ -16,11 +17,10 @@
       <div class="card-body">
         <h3 class="card-title">CSVで一括登録・更新</h3>
         <p class="text-muted">
-          ヘッダー: <strong>code, name, price, description, status, tax_rate, sold_by_weight</strong> を含むCSVファイルを選択してください。<br>
-          statusは <strong>active</strong> または <strong>discontinued</strong>、
-          tax_rateは整数（例: 10）を指定します。省略時は10%が適用されます。<br>
-          sold_by_weightは <strong>true</strong> にすると量り売り（計量）商品として登録され、priceは100gあたりの単価として扱われます。省略時はfalseです。<br>
-          既存コードの商品は上書き更新されます。
+          「CSVで出力」したファイルを編集して取り込めます（UTF-8 / Shift_JIS、5MBまで）。必須の列は <strong>code, name, price</strong> です。<br>
+          使える列: <%= Product::CSV_HEADERS.join(", ") %><br>
+          tax_type は inclusive（内税）/ exclusive（外税）/ tax_free（非課税）、status は active / discontinued、category・supplier は名称で指定します。<br>
+          既存コードの商品は上書きし、空欄の列は変更しません。
         </p>
         <%= form_with(url: import_dashboard_products_path, multipart: true, local: true, class: "d-flex align-items-end") do |form| %>
           <div class="field me-3">
@@ -33,6 +33,12 @@
         <% end %>
       </div>
     </div>
+
+    <% if @imports.any? %>
+      <h3>取込の履歴</h3>
+      <%= data_table([ "日時", "ファイル", "状態", "登録", "更新", "エラー" ], @imports.map { |i| [ datetime(i.created_at), i.filename,
+            { "queued" => "待機中", "running" => "処理中", "completed" => "完了", "failed" => "失敗" }[i.status], i.imported_count, i.updated_count, safe_join(i.error_messages.first(10), tag.br) ] }) %>
+    <% end %>
 
     <%# 商品名・コード検索、ステータス、カテゴリによる絞り込みフォーム %>
     <div class="filters mb-3">
@@ -71,6 +77,7 @@
           <th>商品名</th>
           <th>カテゴリ</th>
           <th>基本価格</th>
+          <th>原価 / 粗利率</th>
           <th>税率</th>
           <th>ステータス</th>
           <th></th>
@@ -88,7 +95,8 @@
                 <span class="status-badge status-inactive">量り売り(100gあたり)</span>
               <% end %>
             </td>
-            <td><%= product.tax_rate %>%</td>
+            <td><%= product.cost_price ? "#{yen(product.cost_price)} / #{product.profit_rate}%" : "-" %></td>
+            <td><%= product.tax_rate %>%<%= " / 店内#{product.eat_in_tax_rate}%" if product.eat_in_tax_rate %> <%= Product.tax_type_label(product.tax_type) unless product.tax_inclusive? %></td>
             <td>
               <span class="status-badge <%= product.active? ? 'status-active' : 'status-inactive' %>">
                 <%= product.status_i18n %>

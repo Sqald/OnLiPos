@@ -16,7 +16,7 @@ class OrderDiscountApiTest < ActionDispatch::IntegrationTest
     )
     @store = @user.stores.create!(name: "割引テスト店舗", ascii_name: "odiscstore")
     @pos_token = @store.pos_tokens.create!(name: "POS1", ascii_name: "pos1", password: "PosPass1!", password_confirmation: "PosPass1!")
-    @pos_token.update_columns(token: SecureRandom.hex(32))
+    @pos_token.regenerate_token
     @auth = { "Authorization" => "Bearer #{@pos_token.token}" }
 
     @employee = @user.employees.create!(code: "E001", name: "田中一郎")
@@ -116,7 +116,7 @@ class OrderDiscountApiTest < ActionDispatch::IntegrationTest
       discount: { order_discount_type: "amount", order_discount_value: 200 },
       employee_id: @no_perm.id
     )
-    assert_response :unprocessable_entity
+    assert_response :forbidden
     assert_equal 0, Sale.count
   end
 

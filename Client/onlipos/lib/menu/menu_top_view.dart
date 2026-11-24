@@ -13,6 +13,12 @@ import 'package:onlipos/login/employee_auth_dialog.dart';
 import 'package:onlipos/login/operator_input_view.dart';
 import 'package:onlipos/inventory/inventory_inout_view.dart';
 import 'package:onlipos/inventory/stock_check_view.dart';
+import 'package:onlipos/operations/attendance_view.dart';
+import 'package:onlipos/operations/kitchen_view.dart';
+import 'package:onlipos/operations/receiving_view.dart';
+import 'package:onlipos/operations/reservation_view.dart';
+import 'package:onlipos/operations/stocktake_view.dart';
+import 'package:onlipos/operations/void_sale_view.dart';
 import 'package:onlipos/pop/pop_view.dart';
 import 'package:onlipos/price/price_edit_view.dart';
 import 'package:onlipos/refund/return_refund_view.dart';
@@ -121,6 +127,24 @@ class _MenuTopViewState extends State<MenuTopView> {
         ),
       ),
     );
+  }
+
+  void _open(Widget view) =>
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => view));
+
+  // 担当者を認証（権限をサーバーで確認）してから画面を開く
+  Future<void> _openWithAuth(
+    String title,
+    String permission,
+    Widget Function(int employeeId) builder,
+  ) async {
+    final operator = await showEmployeeAuthDialog(
+      context,
+      title: title,
+      permission: permission,
+    );
+    if (operator == null || !mounted) return;
+    _open(builder(operator.id));
   }
 
   bool get _canEditPrices => widget.permissions.contains('edit_prices');
@@ -302,6 +326,54 @@ class _MenuTopViewState extends State<MenuTopView> {
                         ),
                       );
                     },
+                  ),
+                  _MenuTile(
+                    title: '会計の取消',
+                    icon: Icons.cancel_presentation,
+                    color: const Color(0xFFB91D47), // Metro Dark Red
+                    onTap: () => _openWithAuth(
+                      '会計の取消 担当者認証',
+                      'view_sales',
+                      (id) => VoidSaleView(employeeId: id),
+                    ),
+                  ),
+                  _MenuTile(
+                    title: '入荷',
+                    icon: Icons.local_shipping,
+                    color: const Color(0xFF00ABA9), // Metro Teal
+                    onTap: () => _openWithAuth(
+                      '入荷 担当者認証',
+                      'inventory',
+                      (id) => ReceivingView(employeeId: id),
+                    ),
+                  ),
+                  _MenuTile(
+                    title: '棚卸',
+                    icon: Icons.fact_check,
+                    color: const Color(0xFF603CBA), // Metro Purple
+                    onTap: () => _openWithAuth(
+                      '棚卸 担当者認証',
+                      'inventory',
+                      (id) => StocktakeView(employeeId: id),
+                    ),
+                  ),
+                  _MenuTile(
+                    title: '勤怠',
+                    icon: Icons.badge,
+                    color: const Color(0xFF647687), // Metro Steel
+                    onTap: () => _open(const AttendanceView()),
+                  ),
+                  _MenuTile(
+                    title: '予約',
+                    icon: Icons.event,
+                    color: const Color(0xFF825A2C), // Metro Brown
+                    onTap: () => _open(const ReservationView()),
+                  ),
+                  _MenuTile(
+                    title: '厨房',
+                    icon: Icons.soup_kitchen,
+                    color: const Color(0xFFDA532C), // Metro Dark Orange
+                    onTap: () => _open(const KitchenView()),
                   ),
                   _MenuTile(
                     title: '領収書発行',

@@ -16,6 +16,13 @@ class PosApiClient {
   /// 個別指定がない場合のタイムアウト。応答がないままレジ操作が固まるのを防ぐ
   static const defaultTimeout = Duration(seconds: 15);
 
+  /// アプリのバージョン（pubspec.yaml の version と合わせる）。
+  /// サーバーは MIN_APP_VERSION より古い端末を拒否できる
+  static const appVersion = String.fromEnvironment(
+    'APP_VERSION',
+    defaultValue: '1.1.0',
+  );
+
   static const noUrlMessage = '接続先URLが設定されていません';
   static const noTokenMessage = '端末認証トークンが見つかりません';
   static const offlineMessage = 'ネットワークに接続できません';
@@ -54,9 +61,13 @@ class PosApiClient {
     var uri = Uri.parse('${creds.baseUrl}$path');
     if (query != null) uri = uri.replace(queryParameters: query);
 
+    final approvals = OperatorApprovals.headerValue();
     final headers = {
       'Authorization': 'Bearer ${creds.token}',
       'Accept': 'application/json',
+      'X-App-Version': appVersion,
+      'X-App-Platform': Platform.operatingSystem,
+      'X-Operator-Approval': ?approvals,
       if (body != null) 'Content-Type': 'application/json',
     };
     final encoded = body == null ? null : jsonEncode(body);
@@ -119,6 +130,53 @@ class PosApiClient {
     'success': false,
     'message': message,
   };
+}
+
+/// 担当者のPIN認証で発行された承認トークン。操作APIの呼び出しに自動で添付する。
+/// 端末には保存せず、メモリ上で有効期限まで保持する。
+class OperatorApprovals {
+  static final List<
+    ({int employeeId, String? permission, String token, DateTime expiresAt})
+  >
+  _approvals = [];
+
+  /// 認証APIの応答から承認を取り込む
+  static void addFromResponse(Map<String, dynamic> response) {
+    final token = response['approval_token'];
+    final employeeId = response['employee_id'];
+    if (response['success'] != true || token is! String || employeeId is! int) {
+      return;
+    }
+    final permission = response['approval_permission'] as String?;
+    final expiresAt =
+        DateTime.tryParse(response['approval_expires_at']?.toString() ?? '') ??
+        DateTime.now().add(const Duration(minutes: 5));
+    _approvals
+      ..removeWhere(
+        (a) => a.employeeId == employeeId && a.permission == permission,
+      )
+      ..add((
+        employeeId: employeeId,
+        permission: permission,
+        token: token,
+        expiresAt: expiresAt,
+      ));
+  }
+
+  static String? headerValue() {
+    _approvals.removeWhere((a) => a.expiresAt.isBefore(DateTime.now()));
+    return _approvals.isEmpty ? null : _approvals.map((a) => a.token).join(',');
+  }
+
+  static bool has(String permission) {
+    headerValue();
+    return _approvals.any((a) => a.permission == permission);
+  }
+
+  /// 一度きりの承認（返品・値引きなど）を破棄する
+  static void clear([String? permission]) => _approvals.removeWhere(
+    (a) => permission == null || a.permission == permission,
+  );
 }
 
 /// 接続先URL・端末認証トークンが未設定（未セットアップ）であることを表す例外

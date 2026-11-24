@@ -1,0 +1,22 @@
+<%# ダッシュボード: 棚卸の詳細 %>
+<div class="dashboard-container">
+  <%= render "dashboard/shared/menu" %>
+  <div class="dashboard-content card">
+    <div class="subtitle"><h2>棚卸の詳細</h2></div>
+    <%= detail_table([ [ "名称", @stocktake.name ], [ "店舗", @stocktake.store.name ], [ "状態", Stocktake::STATUS_LABELS[@stocktake.status] ], [ "差異金額の合計（原価）", yen(@items.sum { |i| i.difference_amount.to_i }) ] ]) %>
+    <% if can_write? && @stocktake.counting? %>
+      <%= form_with url: count_dashboard_stocktake_path(@stocktake) do |f| %>
+        <div class="filter-row">
+          <div class="filter-item"><%= f.label :code, "商品コード" %><br><%= f.text_field :code, required: true, autofocus: true %></div>
+          <div class="filter-item"><%= f.label :quantity, "数量" %><br><%= f.number_field :quantity, min: 0, required: true %></div>
+          <div class="filter-item"><br><label><%= f.check_box :add, {}, "1", nil %> 加算する</label></div>
+          <div class="filter-item"><br><%= f.submit "登録", class: "btn-signup" %></div>
+        </div>
+      <% end %>
+      <%= button_to "確定して在庫に反映", complete_dashboard_stocktake_path(@stocktake), class: "btn-signup", data: { turbo_confirm: "登録した商品の在庫数を実数に置き換えます。よろしいですか？" } %>
+      <%= button_to "中止", cancel_dashboard_stocktake_path(@stocktake), class: "btn-sm btn-danger-outline", data: { turbo_confirm: "中止しますか？" } %>
+    <% end %>
+    <p><%= link_to "CSVで出力", dashboard_stocktake_path(@stocktake, format: :csv), class: "btn-sm btn-outline" %></p>
+    <%= data_table([ "商品", "帳簿数", "実数", "差異", "差異金額" ], @items.map { |i| [ "#{i.product.code} #{i.product.name}", i.expected, i.counted_quantity, i.difference, yen(i.difference_amount) ] }) %>
+  </div>
+</div>

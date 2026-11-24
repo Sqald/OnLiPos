@@ -73,7 +73,11 @@
       <h3><%= t('.cancel_title') %></h3>
       <p><%= t('.cancel_text') %></p>
       <div class="actions" style="margin-top: 0;">
-        <%= button_to t('.cancel_button'), registration_path(resource_name), data: { confirm: t('.are_you_sure'), turbo_confirm: t('.are_you_sure') }, method: :delete, class: "btn-danger" %>
+        <%= form_with url: registration_path(resource_name), method: :delete, data: { turbo_confirm: t('.are_you_sure') } do |f| %>
+          <%= f.label :current_password, "現在のパスワード" %>
+          <%= f.password_field :current_password, autocomplete: "current-password", required: true, id: "cancel_current_password" %>
+          <%= f.submit t('.cancel_button'), class: "btn-danger" %>
+        <% end %>
       </div>
     </div>
 

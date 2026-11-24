@@ -149,6 +149,7 @@ ja:
     failure:
       already_authenticated: "すでにログインしています。"
       inactive: "アカウントが有効化されていません。"
+      suspended: "アカウントは利用停止中です。サービス管理者にお問い合わせください。"
       invalid: "%{authentication_keys}またはパスワードが違います。"
       locked: "アカウントが凍結されています。"
       last_attempt: "あなたのアカウントが凍結される前に、あと1回試行できます。"

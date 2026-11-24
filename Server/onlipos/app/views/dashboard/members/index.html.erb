@@ -1,0 +1,24 @@
+<%# ダッシュボード: メンバー管理 %>
+<div class="dashboard-container">
+  <%= render "dashboard/shared/menu" %>
+  <div class="dashboard-content card">
+    <div class="subtitle"><h2>メンバー管理</h2></div>
+    <% if flash[:member_password] %>
+      <div class="notice">初期パスワード: <code><%= flash[:member_password] %></code>（再表示されません。本人に安全な方法で伝えてください。初回ログイン時に2段階認証の登録が必要です）</div>
+    <% end %>
+    <p>ダッシュボードを使うメンバーを追加できます。1人に1つのアカウントを発行し、共用しないでください。</p>
+    <%= link_to "メンバーを追加", new_dashboard_member_path, class: "btn-signup" %>
+    <% rows = @members.map do |m|
+         [ m.display_name, m.email, role_label(m.role), m.mfa_enabled? ? "設定済み" : "未設定", datetime(m.try(:last_sign_in_at)),
+           capture do %>
+             <%= form_with model: m, url: dashboard_member_path(m), method: :patch, scope: :user, style: "display:inline" do |f| %>
+               <%= f.select :role, %w[manager viewer].map { |r| [ role_label(r), r ] } %>
+               <%= f.submit "変更", class: "btn-sm btn-outline" %>
+             <% end %>
+             <%= button_to "パスワード再発行", reset_password_dashboard_member_path(m), method: :post, class: "btn-sm btn-outline", data: { turbo_confirm: "#{m.display_name} のパスワードと2段階認証をリセットしますか？" } %>
+             <%= button_to "削除", dashboard_member_path(m), method: :delete, class: "btn-sm btn-danger-outline", data: { turbo_confirm: "#{m.display_name} を削除しますか？" } %>
+         <% end ]
+       end %>
+    <%= data_table([ "名前", "メールアドレス", "役割", "2段階認証", "最終ログイン", "操作" ], rows, empty: "メンバーはまだいません。") %>
+  </div>
+</div>

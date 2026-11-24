@@ -15,6 +15,9 @@ class SentToApi {
   static const _storage = FlutterSecureStorage();
   final OfflineSaleRepository _offlineRepo = OfflineSaleRepository();
 
+  /// 通信できるときだけ使える決済手段（ポイント・掛売）
+  static const onlineOnlyMethods = {4, 6};
+
   static const _noCredentialsMessage = '認証情報が見つかりません。ログインしてください。';
 
   // 接続情報が未設定の場合は「ログインしてください」の案内付きで例外にする
@@ -28,7 +31,6 @@ class SentToApi {
 
   // 会計ごとの冪等キー（UUID v4）。タイムアウト後の再送でも同じ値を送ることで、
   // サーバー側で登録済みの会計と照合され、二重計上されない。
-  @visibleForTesting
   static String newRequestId() {
     final random = Random.secure();
     final bytes = List<int>.generate(16, (_) => random.nextInt(256));
@@ -44,7 +46,14 @@ class SentToApi {
       response.statusCode == 201 || response.statusCode == 200;
 
   /// 会計をサーバーに送信する。通信不可時はオフラインキューに保存してフォールバックする。
+  ///
+  /// [requestId] は会計ごとに1つ（再試行でも同じ値）。サーバーが冪等キーとして照合するため、
+  /// 結果が分からないまま押し直しても二重計上されない。
   Future<Map<String, dynamic>> sendSale({
+    String? requestId,
+    Map<String, dynamic> saleOptions = const {},
+    String? customerCode,
+    bool ageVerified = false,
     required int totalAmount,
     int subtotalExTax = 0,
     int taxAmount = 0,
@@ -56,7 +65,7 @@ class SentToApi {
     String? customerAgeGroup,
   }) async {
     final Map<String, dynamic> requestBody = {
-      'client_request_id': newRequestId(),
+      'client_request_id': requestId ?? newRequestId(),
       'sale': {
         'total_amount': totalAmount,
         'subtotal_ex_tax': subtotalExTax,
@@ -68,7 +77,11 @@ class SentToApi {
         // 客層キー（性別・年代）。未選択の場合は送信しない
         'customer_gender': ?customerGender,
         'customer_age_group': ?customerAgeGroup,
+        // 小計割引・クーポン・まとめ買い割引
+        ...saleOptions,
       },
+      'customer_code': ?customerCode,
+      'age_verified': ageVerified,
       'employee_id': employeeId,
       'details': details,
       'payments': payments,
@@ -78,28 +91,38 @@ class SentToApi {
       final response = await _post('/api/v1/sales', requestBody);
 
       if (_isRegistered(response)) {
-        final responseData = jsonDecode(response.body);
+        final responseData = jsonDecode(response.body) as Map<String, dynamic>;
         if (responseData['success'] == true) {
-          // サーバーから返却されたシーケンス番号をローカルに保存（次回オフライン採番の基準）
-          if (responseData['next_receipt_sequence'] != null) {
-            await _storage.write(
-              key: 'NextReceiptSequence',
-              value: responseData['next_receipt_sequence'].toString(),
-            );
-          }
+          await _storeNextSequence(responseData['next_receipt_sequence']);
           // オンライン会計成功時にオフラインキューの送信も試みる（バックグラウンド）
           _tryDrainInBackground();
           return responseData;
-        } else {
-          throw Exception('API Error: ${responseData['errors']}');
         }
-      } else {
-        throw Exception('HTTP Error: ${response.statusCode} ${response.body}');
       }
+      // サーバー側の一時的な障害（502 等）は通信断と同じ扱いにする。
+      // 実は登録済みだった場合も、後送時に冪等キーで照合される
+      if (const {502, 503, 504}.contains(response.statusCode)) {
+        return await _saveOffline(requestBody);
+      }
+      throw SaleRejectedException.fromResponse(response);
     } on SocketException {
       return await _saveOffline(requestBody);
     } on TimeoutException {
       return await _saveOffline(requestBody);
+    } on http.ClientException {
+      return await _saveOffline(requestBody);
+    }
+  }
+
+  // 次回オフライン採番の基準を保存する。未送信の会計で採番済みの番号より前には戻さない
+  static Future<void> _storeNextSequence(Object? value) async {
+    final next = int.tryParse(value?.toString() ?? '');
+    if (next == null) return;
+    final current =
+        int.tryParse(await _storage.read(key: 'NextReceiptSequence') ?? '') ??
+        1;
+    if (next > current) {
+      await _storage.write(key: 'NextReceiptSequence', value: next.toString());
     }
   }
 
@@ -128,6 +151,18 @@ class SentToApi {
   Future<Map<String, dynamic>> _saveOffline(
     Map<String, dynamic> requestBody,
   ) async {
+    // 残高・利用回数をサーバーで確認する必要があるものは、通信できないときは受け付けない
+    final usesPoints = (requestBody['payments'] as List<dynamic>).any(
+      (p) => onlineOnlyMethods.contains((p as Map)['method']),
+    );
+    final sale = requestBody['sale'] as Map<String, dynamic>;
+    if (usesPoints || sale['coupon_code'] != null) {
+      throw const SaleRejectedException(
+        '通信できないため、ポイント・掛売・クーポンは利用できません。通信の回復後にもう一度「会計確定」を押すか、別の支払い方法に変更してください。',
+        code: 'offline',
+      );
+    }
+
     final receiptNumber = await _generateLocalReceiptNumber();
     (requestBody['sale'] as Map<String, dynamic>)['receipt_number'] =
         receiptNumber;
@@ -163,6 +198,19 @@ class SentToApi {
   ///   タイムアウトで結果が分からなかった会計を再送しても二重計上されない。
   /// - サーバーに拒否された会計（再送しても成功しない 4xx）は削除せず failed として残す。
   Future<int> drainOfflineQueue() async {
+    // 同時に2つの送信処理が走らないようにする
+    if (_draining) return 0;
+    _draining = true;
+    try {
+      return await _drain();
+    } finally {
+      _draining = false;
+    }
+  }
+
+  static bool _draining = false;
+
+  Future<int> _drain() async {
     final pending = await _offlineRepo.getPending();
     if (pending.isEmpty) return 0;
 
@@ -189,12 +237,7 @@ class SentToApi {
           final data = jsonDecode(response.body) as Map<String, dynamic>;
           if (data['success'] == true) {
             await _offlineRepo.delete(id);
-            if (data['next_receipt_sequence'] != null) {
-              await _storage.write(
-                key: 'NextReceiptSequence',
-                value: data['next_receipt_sequence'].toString(),
-              );
-            }
+            await _storeNextSequence(data['next_receipt_sequence']);
             sent++;
           }
         } else if (isPermanentFailure(response.statusCode)) {
@@ -209,6 +252,8 @@ class SentToApi {
       } on SocketException {
         break;
       } on TimeoutException {
+        break;
+      } on http.ClientException {
         break;
       } catch (_) {
         // その他のエラーはキューに残したまま次へ進む
@@ -233,4 +278,28 @@ class SentToApi {
     }
     return 'HTTP ${response.statusCode}: ${data['message'] ?? ''}';
   }
+}
+
+/// 会計がサーバーに受け付けられなかったことを表す例外。[code] で画面側の対応を分ける
+class SaleRejectedException implements Exception {
+  const SaleRejectedException(this.message, {this.code, this.status});
+
+  factory SaleRejectedException.fromResponse(http.Response response) {
+    final data = PosApiClient.parseJson(response);
+    final errors = data['errors'];
+    return SaleRejectedException(
+      errors is List && errors.isNotEmpty
+          ? errors.join('\n')
+          : data['message']?.toString() ?? 'サーバーエラー: ${response.statusCode}',
+      code: data['code'] as String?,
+      status: response.statusCode,
+    );
+  }
+
+  final String message;
+  final String? code;
+  final int? status;
+
+  @override
+  String toString() => message;
 }

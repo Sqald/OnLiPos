@@ -4,6 +4,10 @@
 class Dashboard::SecurityController < Dashboard::BaseController
   include WebauthnRelyingParty
 
+  # 自分自身の設定なので、閲覧のみのメンバーも変更できる。変更には直近のパスワード再入力が必要
+  requires_role read: "viewer", write: "viewer"
+  before_action :require_recent_authentication, except: [ :show, :recovery_codes ]
+
   # GET /dashboard/security
   def show
     @passkeys = current_user.passkeys.order(:created_at)
@@ -29,6 +33,7 @@ class Dashboard::SecurityController < Dashboard::BaseController
 
     current_user.enable_otp!(secret, timestep)
     session.delete(:mfa_setup_secret)
+    SecurityNotifier.notify(current_user, "認証アプリを登録しました")
     redirect_to dashboard_security_path, notice: "認証アプリを登録しました。"
   end
 
@@ -38,6 +43,7 @@ class Dashboard::SecurityController < Dashboard::BaseController
       return redirect_to dashboard_security_path, alert: "2段階認証の方法が無くなるため解除できません。先にパスキーを登録してください。", status: :see_other
     end
     current_user.disable_otp!
+    SecurityNotifier.notify(current_user, "認証アプリの登録を解除しました")
     redirect_to dashboard_security_path, notice: "認証アプリの登録を解除しました。", status: :see_other
   end
 
@@ -63,6 +69,7 @@ class Dashboard::SecurityController < Dashboard::BaseController
       external_id: credential.id, public_key: credential.public_key, sign_count: credential.sign_count,
       nickname: payload["nickname"].to_s.strip.presence&.slice(0, 50) || "パスキー"
     )
+    SecurityNotifier.notify(current_user, "パスキーを登録しました")
     flash[:notice] = "パスキーを登録しました。"
     render json: { redirect: dashboard_security_path }
   rescue WebAuthn::Error, ActiveRecord::RecordInvalid, ArgumentError, KeyError, NoMethodError => e
@@ -77,12 +84,22 @@ class Dashboard::SecurityController < Dashboard::BaseController
       return redirect_to dashboard_security_path, alert: "2段階認証の方法が無くなるため削除できません。先に別のパスキーか認証アプリを登録してください。", status: :see_other
     end
     passkey.destroy!
+    SecurityNotifier.notify(current_user, "パスキー「#{passkey.nickname}」を削除しました")
     redirect_to dashboard_security_path, notice: "パスキー「#{passkey.nickname}」を削除しました。", status: :see_other
+  end
+
+  # POST /dashboard/security/sign_out_everywhere — この端末を含む、すべてのログインを無効にする
+  def sign_out_everywhere
+    current_user.revoke_sessions!
+    SecurityNotifier.notify(current_user, "すべての端末からログアウトしました")
+    sign_out(:user)
+    redirect_to new_user_session_path, notice: "すべての端末からログアウトしました。", status: :see_other
   end
 
   # POST /dashboard/security/recovery_codes — リカバリーコードを作り直す（以前のコードは無効）
   def regenerate_recovery_codes
     session[:mfa_new_recovery_codes] = current_user.regenerate_recovery_codes!
+    SecurityNotifier.notify(current_user, "リカバリーコードを再発行しました")
     redirect_to dashboard_security_recovery_codes_path
   end
 

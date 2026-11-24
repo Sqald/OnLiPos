@@ -33,3 +33,6 @@
 # Ignore key files for decrypting credentials and more.
 /config/*.key
 
+
+# gem はイメージのビルド時にインストールする
+/vendor/bundle

@@ -71,29 +71,17 @@ class Api::V1::StoreStocksController < Api::V1::BaseController
         raise InvalidMovement, "JANコードに該当する商品が存在しません: #{jan_code}" unless product
 
         change_value = direction == "in" ? quantity : -quantity
-        store_stock = StoreStock.find_or_create_by!(store: store, product: product)
+        raise InvalidMovement, "在庫を管理しない商品です: #{product.name}" unless product.track_stock
 
-        store_stock.with_lock do
-          store_stock.update!(quantity: store_stock.quantity + change_value)
-
-          StockMovement.create!(
-            store: store,
-            product: product,
-            store_stock: store_stock,
-            employee: employee,
-            pos_token: @current_pos,
-            quantity_change: change_value,
-            reason: direction == "in" ? "manual_in" : "manual_out"
-          )
-
-          results << {
-            jan_code: jan_code,
-            product_name: product.name,
-            direction: direction,
-            quantity: quantity,
-            stock_quantity: store_stock.quantity
-          }
-        end
+        store_stock = StoreStock.adjust!(store: store, product: product, change: change_value, employee: employee, pos_token: @current_pos,
+                                         reason: direction == "in" ? "manual_in" : "manual_out")
+        results << {
+          jan_code: jan_code,
+          product_name: product.name,
+          direction: direction,
+          quantity: quantity,
+          stock_quantity: store_stock.quantity
+        }
       end
     end
 

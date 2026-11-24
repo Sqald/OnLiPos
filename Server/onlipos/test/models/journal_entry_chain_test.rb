@@ -55,7 +55,7 @@ class JournalEntryChainTest < ActiveSupport::TestCase
     create_entry
 
     # readonly を迂回するDB直接更新（改ざんのシミュレーション）
-    JournalEntry.where(id: target.id).update_all("payload = '{\"total_amount\":1}'::jsonb")
+    JournalProtection.allow { JournalEntry.where(id: target.id).update_all("payload = '{\"total_amount\":1}'::jsonb") }
 
     issues = JournalEntry.verify_chain(@pos_token)
     assert issues.any? { |i| i.include?("改ざん検知") }, "改ざんが検知されること: #{issues}"
@@ -67,7 +67,7 @@ class JournalEntryChainTest < ActiveSupport::TestCase
     create_entry
 
     # readonly を迂回するDB直接削除（抜き取りのシミュレーション）
-    JournalEntry.where(id: middle.id).delete_all
+    JournalProtection.allow { JournalEntry.where(id: middle.id).delete_all }
 
     issues = JournalEntry.verify_chain(@pos_token)
     assert issues.any? { |i| i.include?("連番不整合") || i.include?("チェーン切断") }, "欠番が検知されること: #{issues}"
@@ -86,7 +86,7 @@ class JournalEntryChainTest < ActiveSupport::TestCase
       entry_type: :sale, printed_at: Time.current, payload: { total_amount: 1 }
     )
     legacy.save!(validate: false)
-    JournalEntry.where(id: legacy.id).update_all(sequence_number: nil, previous_hash: nil, entry_hash: nil)
+    JournalProtection.allow { JournalEntry.where(id: legacy.id).update_all(sequence_number: nil, previous_hash: nil, entry_hash: nil) }
 
     entry = create_entry
     assert_equal 2, entry.sequence_number # 採番カウンタはレガシー行の分も消費済み

@@ -3,60 +3,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:onlipos/login/operator_input_view.dart';
+import 'package:onlipos/product/catalog_service.dart';
 import 'package:onlipos/product/product.dart';
+import 'package:onlipos/product/product_image.dart';
 import 'package:onlipos/product/product_repository.dart';
+import 'package:onlipos/sale/cart_pricing.dart';
+import 'package:onlipos/sale/option_select_dialog.dart';
 import 'package:onlipos/sale/payment_view.dart';
+import 'package:onlipos/sale/weight_input_dialog.dart';
 import 'package:onlipos/sale/sale_item.dart';
 import 'package:onlipos/sale/price_edit_dialog.dart';
 import 'package:onlipos/sale/transfer_order_api.dart';
-
-// ─── データモデル ─────────────────────────────────────────────────
-
-/// 一覧表示用の単品商品1行分（選択数量・税額を保持）。
-class _ProductItem {
-  final Product product;
-  // null の場合は product.price を使用。値引き・賞味期限値変更などで上書きする
-  final int? overridePrice;
-  // 値引き理由（手動値引き時のみ）
-  final String? discountReason;
-  int quantity;
-
-  _ProductItem({
-    required this.product,
-    this.overridePrice,
-    this.discountReason,
-    this.quantity = 0,
-  });
-
-  int get effectivePrice => overridePrice ?? product.price;
-  int get subtotal => effectivePrice * quantity;
-  int get taxAmount {
-    final taxRate = product.taxRate;
-    final exTax = (subtotal * 100 / (100 + taxRate)).floor();
-    return subtotal - exTax;
-  }
-}
-
-/// 一覧表示用のセット商品1行分（構成商品を事前展開した単価・税額を保持）。
-class _BundleItem {
-  final ProductBundle bundle;
-  int quantity = 0;
-
-  /// 1セット分の実際の合計価格（bundle.price > 0 ならそれ、0なら構成商品合計）
-  final int pricePerUnit;
-
-  /// 1セット分の消費税額
-  final int taxPerUnit;
-
-  _BundleItem({
-    required this.bundle,
-    this.pricePerUnit = 0,
-    this.taxPerUnit = 0,
-  });
-
-  int get subtotal => pricePerUnit * quantity;
-  int get taxAmount => taxPerUnit * quantity;
-}
 
 // ─── ウィジェット ─────────────────────────────────────────────────
 
@@ -79,10 +36,10 @@ class _SaleListViewState extends State<SaleListView>
   final ProductRepository _repo = ProductRepository();
   final TextEditingController _searchController = TextEditingController();
 
-  List<_ProductItem> _allProductItems = [];
-  List<_ProductItem> _filteredProductItems = [];
-  List<_BundleItem> _allBundleItems = [];
-  List<_BundleItem> _filteredBundleItems = [];
+  List<ScannedItem> _allProductItems = [];
+  List<ScannedItem> _filteredProductItems = [];
+  List<ScannedItem> _allBundleItems = [];
+  List<ScannedItem> _filteredBundleItems = [];
 
   bool _isLoading = true;
   late TabController _tabController;
@@ -90,17 +47,20 @@ class _SaleListViewState extends State<SaleListView>
 
   bool get _isClient => _posRole == 'client';
 
-  int get _totalItems =>
-      _allProductItems.fold(0, (s, i) => s + i.quantity) +
-      _allBundleItems.fold(0, (s, i) => s + i.quantity);
+  // 自動値引き・税の端数処理の設定
+  CartPricing _pricing = const CartPricing();
+  static const bool _eatIn = false;
 
-  int get _totalAmount =>
-      _allProductItems.fold(0, (s, i) => s + i.subtotal) +
-      _allBundleItems.fold(0, (s, i) => s + i.subtotal);
+  // 数量が1以上の行（これがそのままカートになる）
+  List<ScannedItem> get _cart => [
+    ..._allProductItems,
+    ..._allBundleItems,
+  ].where((i) => i.quantity > 0).toList();
 
-  int get _totalTax =>
-      _allProductItems.fold(0, (s, i) => s + i.taxAmount) +
-      _allBundleItems.fold(0, (s, i) => s + i.taxAmount);
+  CartQuote get _quote => _pricing.quote(_cart);
+  int get _totalItems => _quote.itemCount;
+  int get _totalAmount => _quote.total;
+  int get _totalTax => _quote.tax;
 
   @override
   void initState() {
@@ -129,36 +89,21 @@ class _SaleListViewState extends State<SaleListView>
     final products = await _repo.getAllProducts();
     final bundles = await _repo.getAllBundles();
 
-    // バンドルごとに構成商品を展開し、税額と合計価格を事前計算する
-    final List<_BundleItem> bundleItems = [];
+    final pricing = await CatalogService.instance.cartPricing();
+    final List<ScannedItem> bundleItems = [];
     for (final b in bundles) {
-      int taxPerUnit = 0;
-      int componentTotal = 0;
-      final expandedProducts = await _repo.expandBundle(b);
-      for (final ep in expandedProducts) {
-        final bItem = b.items.firstWhere(
-          (i) => i.productId == ep.id,
-          orElse: () => BundleItem(productId: ep.id, quantity: 1),
-        );
-        final qty = bItem.quantity;
-        final sub = ep.price * qty;
-        final exTax = (sub * 100 / (100 + ep.taxRate)).floor();
-        taxPerUnit += sub - exTax;
-        componentTotal += sub;
-      }
-      final pricePerUnit = b.price > 0 ? b.price : componentTotal;
-      bundleItems.add(
-        _BundleItem(
-          bundle: b,
-          pricePerUnit: pricePerUnit,
-          taxPerUnit: taxPerUnit,
-        ),
-      );
+      final item = await _repo.bundleItem(b, quantity: 0);
+      if (item != null) bundleItems.add(item);
     }
 
     if (!mounted) return;
     setState(() {
-      _allProductItems = products.map((p) => _ProductItem(product: p)).toList();
+      _pricing = pricing;
+      _allProductItems = products
+          .map((p) => ScannedItem(product: p, quantity: 0, eatIn: _eatIn))
+          .toList();
+      // タイムセールの価格を一覧に反映する
+      _pricing.quote(_allProductItems);
       _allBundleItems = bundleItems;
       _isLoading = false;
       _applyFilter();
@@ -170,31 +115,114 @@ class _SaleListViewState extends State<SaleListView>
     final q = _searchController.text.trim().toLowerCase();
     setState(() {
       if (q.isEmpty) {
-        _filteredProductItems = List.of(_allProductItems);
+        _filteredProductItems = _groupVariants(_allProductItems);
         _filteredBundleItems = List.of(_allBundleItems);
       } else {
-        _filteredProductItems = _allProductItems
+        _filteredProductItems = _groupVariants(
+          _allProductItems.where(
+            (i) =>
+                i.product.name.toLowerCase().contains(q) ||
+                i.product.code.toLowerCase().contains(q),
+          ),
+        );
+        _filteredBundleItems = _allBundleItems
             .where(
               (i) =>
                   i.product.name.toLowerCase().contains(q) ||
                   i.product.code.toLowerCase().contains(q),
             )
             .toList();
-        _filteredBundleItems = _allBundleItems
-            .where(
-              (i) =>
-                  i.bundle.name.toLowerCase().contains(q) ||
-                  i.bundle.code.toLowerCase().contains(q),
-            )
-            .toList();
       }
     });
   }
 
-  void _incrementProduct(int indexInFiltered) {
+  Future<void> _incrementProduct(int indexInFiltered) async {
+    var item = _filteredProductItems[indexInFiltered];
+    // バリエーション（色・サイズなど）のある商品は、選んでから登録する
+    if (!_isExtraRow(item) && item.product.variantGroup != null) {
+      final chosen = await _chooseVariant(item.product);
+      if (chosen == null || !mounted) return;
+      item = chosen;
+    }
+    // 量り売り・オプションのある商品は、入力内容ごとに別の行として加える
+    if (item.weightGrams == null && item.product.soldByWeight) {
+      final grams = await showDialog<int>(
+        context: context,
+        builder: (_) => WeightInputDialog(product: item.product),
+      );
+      if (grams == null) return;
+      return _insertRow(
+        ScannedItem(product: item.product, weightGrams: grams, eatIn: _eatIn),
+      );
+    }
+    if (item.options.isEmpty && item.product.optionGroups.isNotEmpty) {
+      final options = await showOptionSelectDialog(context, item.product);
+      if (options == null) return;
+      if (options.isNotEmpty) {
+        return _insertRow(
+          ScannedItem(product: item.product, options: options, eatIn: _eatIn),
+        );
+      }
+    }
+    if (!mounted) return;
+    setState(() => item.quantity++);
+  }
+
+  Future<ScannedItem?> _chooseVariant(Product product) {
+    final variants = _allProductItems
+        .where(
+          (i) =>
+              !_isExtraRow(i) && i.product.variantGroup == product.variantGroup,
+        )
+        .toList();
+    if (variants.length == 1) return Future.value(variants.first);
+    return showDialog<ScannedItem>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text(product.variantGroup!),
+        children: [
+          for (final v in variants)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, v),
+              child: Text(
+                '${v.product.variantName ?? v.product.name}  ¥${v.price}',
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // 同じバリエーショングループは1行にまとめる（数量のある行はすべて表示する）
+  List<ScannedItem> _groupVariants(Iterable<ScannedItem> items) {
+    final shown = <String>{};
+    return items.where((i) {
+      final group = i.product.variantGroup;
+      if (group == null || i.quantity > 0 || _isExtraRow(i)) return true;
+      return shown.add(group);
+    }).toList();
+  }
+
+  void _insertRow(ScannedItem item) {
+    if (!mounted) return;
+    _allProductItems.insert(0, item);
+    _applyFilter();
+  }
+
+  // 追加で作った行（価格変更・量り売り・オプション）か
+  bool _isExtraRow(ScannedItem item) =>
+      item.overridePrice != null ||
+      item.weightGrams != null ||
+      item.options.isNotEmpty;
+
+  void _clearCart() {
     setState(() {
-      _filteredProductItems[indexInFiltered].quantity++;
+      _allProductItems.removeWhere(_isExtraRow);
+      for (final item in [..._allProductItems, ..._allBundleItems]) {
+        item.quantity = 0;
+      }
     });
+    _applyFilter();
   }
 
   void _decrementProduct(int indexInFiltered) {
@@ -202,7 +230,7 @@ class _SaleListViewState extends State<SaleListView>
     if (item.quantity <= 0) return;
     item.quantity--;
     // カスタム価格アイテムは0になったらリストから削除する
-    if (item.quantity == 0 && item.overridePrice != null) {
+    if (item.quantity == 0 && _isExtraRow(item)) {
       _allProductItems.remove(item);
       _applyFilter();
     } else {
@@ -256,10 +284,11 @@ class _SaleListViewState extends State<SaleListView>
       // 新規カスタムアイテムを先頭に挿入し、フィルタ済みリストを再構築
       _allProductItems.insert(
         0,
-        _ProductItem(
+        ScannedItem(
           product: product,
           overridePrice: newPrice,
           discountReason: reason,
+          eatIn: _eatIn,
           quantity: 1,
         ),
       );
@@ -278,74 +307,8 @@ class _SaleListViewState extends State<SaleListView>
 
   // 選択中の商品・セットから明細を組み立て、決済画面へ遷移する
   Future<void> _subtotal() async {
-    final selectedProducts = _allProductItems
-        .where((i) => i.quantity > 0)
-        .toList();
-    final selectedBundles = _allBundleItems
-        .where((i) => i.quantity > 0)
-        .toList();
-
-    if (selectedProducts.isEmpty && selectedBundles.isEmpty) return;
-
-    // 商品明細の構築
-    final List<Map<String, dynamic>> details = [];
-    int totalAmount = 0;
-    int totalTax = 0;
-
-    for (final item in selectedProducts) {
-      final taxRate = item.product.taxRate;
-      final sub = item.subtotal;
-      final exTax = (sub * 100 / (100 + taxRate)).floor();
-      final taxAmt = sub - exTax;
-      totalAmount += sub;
-      totalTax += taxAmt;
-      final hasDiscount =
-          item.overridePrice != null &&
-          item.overridePrice! < item.product.price;
-      details.add({
-        'product_id': item.product.id,
-        'product_name': item.product.name,
-        'product_code': item.product.code,
-        'quantity': item.quantity,
-        'unit_price': item.effectivePrice,
-        'subtotal': sub,
-        'tax_rate': taxRate,
-        'tax_amount': taxAmt,
-        if (hasDiscount) 'original_unit_price': item.product.price,
-        if (hasDiscount && item.discountReason != null)
-          'discount_reason': item.discountReason,
-      });
-    }
-
-    // バンドル明細の展開：構成商品ごとに明細を作成し bundle_code を付与
-    for (final bundleItem in selectedBundles) {
-      final bundle = bundleItem.bundle;
-      final expandedProducts = await _repo.expandBundle(bundle);
-      for (final ep in expandedProducts) {
-        final bItem = bundle.items.firstWhere(
-          (i) => i.productId == ep.id,
-          orElse: () => BundleItem(productId: ep.id, quantity: 1),
-        );
-        final qty = bItem.quantity * bundleItem.quantity;
-        final taxRate = ep.taxRate;
-        final sub = ep.price * qty;
-        final exTax = (sub * 100 / (100 + taxRate)).floor();
-        final taxAmt = sub - exTax;
-        totalAmount += sub;
-        totalTax += taxAmt;
-        details.add({
-          'product_id': ep.id,
-          'product_name': ep.name,
-          'product_code': ep.code,
-          'quantity': qty,
-          'unit_price': ep.price,
-          'subtotal': sub,
-          'tax_rate': taxRate,
-          'tax_amount': taxAmt,
-          'bundle_code': bundle.code,
-        });
-      }
-    }
+    final cart = _cart;
+    if (cart.isEmpty) return;
 
     if (!mounted) return;
     final result = await Navigator.push(
@@ -354,37 +317,22 @@ class _SaleListViewState extends State<SaleListView>
         builder: (context) => PaymentView(
           operatorName: widget.operatorName,
           operatorId: widget.operatorId,
-          totalAmount: totalAmount,
-          subtotalExTax: totalAmount - totalTax,
-          taxAmount: totalTax,
-          saleDetails: details,
+          items: cart,
+          pricing: _pricing,
         ),
       ),
     );
 
-    if (result == true) {
-      setState(() {
-        for (final item in _allProductItems) {
-          item.quantity = 0;
-        }
-        for (final item in _allBundleItems) {
-          item.quantity = 0;
-        }
-        _applyFilter();
-      });
-    }
+    if (result == true) _clearCart();
+    // 商品マスタが更新されたら、新しい価格で選び直してもらう
+    if (result == 'master_updated') await _loadData();
   }
 
   // ─── クライアントモード：ホストへ転送 ────────────────────────
   Future<void> _transferToHost() async {
-    final selectedProducts = _allProductItems
-        .where((i) => i.quantity > 0)
-        .toList();
-    final selectedBundles = _allBundleItems
-        .where((i) => i.quantity > 0)
-        .toList();
+    final items = _cart;
 
-    if (selectedProducts.isEmpty && selectedBundles.isEmpty) {
+    if (items.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('転送する商品がありません'),
@@ -420,35 +368,6 @@ class _SaleListViewState extends State<SaleListView>
     );
     if (confirmed != true || !mounted) return;
 
-    // _ProductItem / _BundleItem → ScannedItem に変換
-    final List<ScannedItem> items = [];
-    for (final item in selectedProducts) {
-      items.add(
-        ScannedItem(
-          product: item.product,
-          quantity: item.quantity,
-          overridePrice: item.overridePrice,
-        ),
-      );
-    }
-    for (final bundleItem in selectedBundles) {
-      final expandedProducts = await _repo.expandBundle(bundleItem.bundle);
-      for (final ep in expandedProducts) {
-        final bItem = bundleItem.bundle.items.firstWhere(
-          (i) => i.productId == ep.id,
-          orElse: () => BundleItem(productId: ep.id, quantity: 1),
-        );
-        items.add(
-          ScannedItem(
-            product: ep,
-            bundleCode: bundleItem.bundle.code,
-            bundleName: bundleItem.bundle.name,
-            quantity: bItem.quantity * bundleItem.quantity,
-          ),
-        );
-      }
-    }
-
     final capturedTotal = _totalAmount;
 
     try {
@@ -458,15 +377,7 @@ class _SaleListViewState extends State<SaleListView>
         totalAmount: capturedTotal,
         items: items,
       );
-      setState(() {
-        for (final item in _allProductItems) {
-          item.quantity = 0;
-        }
-        for (final item in _allBundleItems) {
-          item.quantity = 0;
-        }
-        _applyFilter();
-      });
+      _clearCart();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -546,6 +457,9 @@ class _SaleListViewState extends State<SaleListView>
           margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           color: hasOverride ? Colors.red[50] : null,
           child: ListTile(
+            leading: item.product.imageVersion == null
+                ? null
+                : ProductImage(product: item.product),
             title: Text(
               item.product.name,
               style: const TextStyle(fontWeight: FontWeight.bold),
@@ -602,7 +516,7 @@ class _SaleListViewState extends State<SaleListView>
                 _quantityControl(
                   quantity: item.quantity,
                   subtotal: item.quantity > 0 ? item.subtotal : null,
-                  unitPrice: item.quantity == 0 ? item.effectivePrice : null,
+                  unitPrice: item.quantity == 0 ? item.price : null,
                   onDecrement: () => _decrementProduct(index),
                   onIncrement: () => _incrementProduct(index),
                 ),
@@ -641,17 +555,15 @@ class _SaleListViewState extends State<SaleListView>
               ),
             ),
             title: Text(
-              item.bundle.name,
+              item.product.name,
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             subtitle: Text(
-              '${item.bundle.code}  '
-              '${item.bundle.items.length}点セット'
-              '${item.bundle.price > 0 ? "  ¥${item.bundle.price}" : ""}',
+              '${item.product.code}  ${item.components.length}点セット',
             ),
             trailing: _quantityControl(
               quantity: item.quantity,
-              unitPrice: item.pricePerUnit,
+              unitPrice: item.price,
               subtotal: item.quantity > 0 ? item.subtotal : null,
               onDecrement: () => _decrementBundle(index),
               onIncrement: () => _incrementBundle(index),

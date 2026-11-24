@@ -8,7 +8,7 @@ class Dashboard::ReportsController < Dashboard::BaseController
   # 検索条件（店舗・期間）が指定された場合のみ各種集計を実行し、@daily_summary等の
   # インスタンス変数にセットする。未指定時は空の集計結果を返す（負荷軽減）。
   def index
-    @stores = current_user.stores.order(:name)
+    @stores = current_account.stores.order(:name)
     @allowed_store_ids = @stores.pluck(:id)
 
     unless search_performed?
@@ -69,10 +69,7 @@ class Dashboard::ReportsController < Dashboard::BaseController
       .map { |name, qty, amount| { name: name, quantity: qty, amount: amount } }
 
     # 支払い方法別集計（現金/カード/バーコード）
-    payment_method_labels = {
-      0 => "現金", 1 => "カード", 2 => "バーコード決済", 3 => "電子マネー",
-      "cash" => "現金", "card" => "カード", "barcode" => "バーコード決済", "emoney" => "電子マネー"
-    }
+    payment_method_labels = PaymentMethods::LABELS.merge(PaymentMethods::VALUES.to_h { |name, code| [ code, PaymentMethods.label(name) ] })
     @payment_summary = SalePayment
       .where(sale_id: sale_ids)
       .group(:method)
@@ -165,7 +162,7 @@ class Dashboard::ReportsController < Dashboard::BaseController
 
   # 集計対象の売上（Sale）スコープを組み立てる。status指定でVOID分の抽出にも流用する。
   def build_scope(status: :completed)
-    scope = Sale.where(user_id: current_user.id, status: Sale.statuses[status])
+    scope = Sale.where(user_id: current_account.id, status: Sale.statuses[status])
 
     if params[:store_id].present? && @allowed_store_ids.include?(params[:store_id].to_i)
       scope = scope.where(store_id: params[:store_id])
@@ -181,7 +178,7 @@ class Dashboard::ReportsController < Dashboard::BaseController
 
   # 集計対象の返金（Refund）スコープを組み立てる
   def build_refunds_scope
-    scope = Refund.where(user_id: current_user.id)
+    scope = Refund.where(user_id: current_account.id)
 
     if params[:store_id].present? && @allowed_store_ids.include?(params[:store_id].to_i)
       scope = scope.where(store_id: params[:store_id])
@@ -198,7 +195,8 @@ class Dashboard::ReportsController < Dashboard::BaseController
   # 各集計結果（@daily_summary等）をセクションごとにまとめたCSVを生成する。
   # Excel等での文字化け防止のためUTF-8 BOMを先頭に付与する。
   def generate_report_csv
-    csv = CSV.generate(encoding: "UTF-8") do |csv|
+    csv = CSV.generate(encoding: "UTF-8") do |raw|
+      csv = CsvExport::Writer.new(raw)
       csv << [ "--- 日次売上 ---" ]
       csv << [ "日付", "件数", "売上金額" ]
       @daily_summary.each { |r| csv << [ r[:day], r[:count], r[:amount] ] }

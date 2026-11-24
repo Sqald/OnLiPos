@@ -1,0 +1,20 @@
+<%# ダッシュボード: 操作履歴 %>
+<div class="dashboard-container">
+  <%= render "dashboard/shared/menu" %>
+  <div class="dashboard-content card">
+    <div class="subtitle"><h2>操作履歴</h2></div>
+    <%= form_with url: dashboard_audit_logs_path, method: :get do |f| %>
+      <div class="filter-row">
+        <div class="filter-item"><%= f.label :target_type, "対象" %><br><%= f.select :target_type, options_for_select(AuditLog::TARGET_LABELS.invert, params[:target_type]), { include_blank: "すべて" }, class: "form-control" %></div>
+        <div class="filter-item"><%= f.label :actor, "操作者" %><br><%= f.text_field :actor, value: params[:actor], class: "form-control" %></div>
+        <div class="filter-item"><%= f.label :from, "日付（自）" %><br><%= f.date_field :from, value: @from || params[:from], class: "form-control" %></div>
+        <div class="filter-item"><%= f.label :to, "日付（至）" %><br><%= f.date_field :to, value: @to || params[:to], class: "form-control" %></div>
+        <div class="filter-item"><br><%= f.submit "検索", class: "btn-signup" %></div>
+      </div>
+    <% end %>
+    <%= data_table([ "日時", "操作者", "操作", "対象", "内容", "IPアドレス" ],
+          @logs.map { |log| [ datetime(log.created_at), log.actor_name, log.action_label, "#{log.target_label} #{log.target_name}",
+                              safe_join(log.details.map { |k, v| "#{k}: #{v.is_a?(Array) ? v.map { |x| x.nil? ? "（なし）" : x }.join(" → ") : v}" }, tag.br), log.ip_address ] }) %>
+    <div class="pagination-wrapper"><%= paginate @logs %></div>
+  </div>
+</div>

@@ -18,7 +18,7 @@ class RefundsApiTest < ActionDispatch::IntegrationTest
     )
     @store = @user.stores.create!(name: "返品テスト店舗", ascii_name: "refundstore")
     @pos_token = @store.pos_tokens.create!(name: "POS1", ascii_name: "pos1", password: "PosPass1!", password_confirmation: "PosPass1!")
-    @pos_token.update_columns(token: SecureRandom.hex(32))
+    @pos_token.regenerate_token
 
     @employee1 = @user.employees.create!(code: "E001", name: "田中一郎")
     @employee2 = @user.employees.create!(code: "E002", name: "佐藤二郎")

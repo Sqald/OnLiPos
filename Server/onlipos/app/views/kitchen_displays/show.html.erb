@@ -1,0 +1,15 @@
+<%# 厨房画面 %>
+<% content_for :title, "厨房 | #{@store.name}" %>
+<% content_for :head do %><meta http-equiv="refresh" content="10"><% end %>
+<h1>厨房 <%= @store.name %>（<%= l(Time.current, format: "%H:%M:%S") %> 現在）</h1>
+<div class="kitchen-grid">
+  <% @orders.each do |o| %>
+    <div class="public-card <%= o.status %>">
+      <h2>卓 <%= o.table_number.presence || "-" %><%= "（セルフ）" if o.self_order? %></h2>
+      <p class="public-muted"><%= l(o.created_at.in_time_zone, format: "%H:%M") %>（<%= ((Time.current - o.created_at) / 60).floor %>分前） <%= KitchenOrder::STATUS_LABELS[o.status] %></p>
+      <% o.items.each do |i| %><p><strong><%= i["name"] %> ×<%= i["quantity"] %></strong><% if i["options"].present? %><br><%= Array(i["options"]).join("、") %><% end %><% if i["note"].present? %><br><%= i["note"] %><% end %></p><% end %>
+      <%= button_to o.waiting? ? "調理を始める" : "提供済みにする", kitchen_advance_path(params[:token], o), class: "public-button" %>
+    </div>
+  <% end %>
+</div>
+<% if @orders.empty? %><p>注文はありません。</p><% end %>

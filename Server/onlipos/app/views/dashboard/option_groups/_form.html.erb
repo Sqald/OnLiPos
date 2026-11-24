@@ -1,0 +1,16 @@
+<%# オプションの入力フォーム %>
+<%= form_errors(@group) %>
+<%= form_with model: [ :dashboard, @group ] do |f| %>
+  <div class="field"><%= f.label :name, "名称（例: トッピング）" %><%= f.text_field :name, required: true %></div>
+  <div class="field"><%= f.label :min_select, "最小選択数（0 = 選ばなくてもよい）" %><%= f.number_field :min_select, min: 0 %></div>
+  <div class="field"><%= f.label :max_select, "最大選択数" %><%= f.number_field :max_select, min: 1 %></div>
+  <table class="data-table">
+    <thead><tr><th>選択肢</th><th>追加料金（円）</th><th>並び順</th><th>削除</th></tr></thead>
+    <tbody>
+      <%= f.fields_for :option_items do |i| %>
+        <tr><td><%= i.text_field :name %></td><td><%= i.number_field :price, min: 0 %></td><td><%= i.number_field :position %></td><td><%= i.check_box :_destroy if i.object.persisted? %></td></tr>
+      <% end %>
+    </tbody>
+  </table>
+  <div class="actions"><%= f.submit "保存", class: "btn-signup" %> <%= link_to "戻る", dashboard_option_groups_path, class: "link-cancel" %></div>
+<% end %>

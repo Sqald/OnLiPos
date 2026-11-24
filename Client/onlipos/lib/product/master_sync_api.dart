@@ -7,7 +7,9 @@ import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:sqflite/sqflite.dart';
 import 'package:onlipos/api/pos_api_client.dart';
+import 'package:onlipos/product/catalog_service.dart';
 import 'package:onlipos/product/database_service.dart';
+import 'package:onlipos/product/product.dart';
 
 /// 商品マスタ同期サービス本体。1回の同期でローカルDBを一度リセットし、
 /// ページングされたAPIレスポンスを繰り返し取得してDBへ反映する。
@@ -25,9 +27,10 @@ class ProductSyncService {
   /// [onProgress] コールバックで現在の処理件数を通知します
   Future<void> syncProducts({Function(int count)? onProgress}) async {
     final db = await DatabaseService.instance.database;
-    // 1. ローカルDBをリセットして毎回フルフェッチする
-    //    （サーバー側で削除された商品がローカルに残り続けるのを防ぐ）
-    await db.delete('products');
+    // 1. 毎回フルフェッチする（サーバー側で削除された商品がローカルに残り続けるのを防ぐ）。
+    //    取得がすべて終わるまで端末のマスタは書き換えず、途中で通信が切れても今までのマスタで会計を続けられる
+    final List<Map<String, dynamic>> rows = [];
+    Map<String, dynamic> lastPage = {};
     String lastUpdatedAt = '';
     int lastId = 0;
 
@@ -35,7 +38,7 @@ class ProductSyncService {
     int totalProcessed = 0;
     List<dynamic> lastBundles = [];
 
-    developer.log('Start full product sync (DB reset)');
+    developer.log('Start full product sync');
 
     try {
       while (hasMore) {
@@ -72,30 +75,17 @@ class ProductSyncService {
 
         // データが空で続きもない場合は終了
         if (products.isEmpty && data['has_more'] == false) {
+          lastPage = data;
           break;
         }
 
-        // 3. 商品データをDBに保存（バンドルはループ完了後にまとめて処理）
-        await db.transaction((txn) async {
-          final batch = txn.batch();
-          for (var product in products) {
-            batch.insert('products', {
-              'id': product['id'],
-              'code': product['code'],
-              'name': product['name'],
-              'description': product['description'],
-              'price': product['price'],
-              'list_price': product['list_price'],
-              'tax_rate': product['tax_rate'] ?? 10,
-              'status': product['status'],
-              'updated_at': product['updated_at'],
-              'category_id': product['category_id'],
-              'category_name': product['category_name'],
-              'sold_by_weight': (product['sold_by_weight'] == true) ? 1 : 0,
-            }, conflictAlgorithm: ConflictAlgorithm.replace);
-          }
-          await batch.commit(noResult: true);
-        });
+        // 3. 商品データを貯める（保存は全ページの取得後にまとめて行う）
+        rows.addAll(
+          products
+              .map((p) => Product.fromMap(p as Map<String, dynamic>))
+              .map((p) => {...p.toMap(), 'status': p.status}),
+        );
+        lastPage = data;
 
         // 4. 進捗の更新と出力
         totalProcessed += products.length;
@@ -115,8 +105,20 @@ class ProductSyncService {
         }
       }
 
-      // 6. 全商品ページ取得完了後、バンドルを一括で更新
+      // 6. 全ページ取得完了後、商品・セット商品・その他のマスタを一括で入れ替える
       await db.transaction((txn) async {
+        await txn.delete('products');
+        final productBatch = txn.batch();
+        for (final row in rows) {
+          productBatch.insert(
+            'products',
+            row,
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+        await productBatch.commit(noResult: true);
+        await CatalogService.saveMeta(txn, lastPage);
+
         await txn.delete('product_bundle_items');
         await txn.delete('product_bundles');
         final bundleBatch = txn.batch();
@@ -139,6 +141,10 @@ class ProductSyncService {
         await bundleBatch.commit(noResult: true);
       });
 
+      CatalogService.instance.invalidate();
+      await CatalogService.saveSettings(
+        lastPage['settings'] as Map<String, dynamic>?,
+      );
       developer.log('Product sync completed. Total: $totalProcessed');
     } catch (e) {
       developer.log('Error during product sync: $e');

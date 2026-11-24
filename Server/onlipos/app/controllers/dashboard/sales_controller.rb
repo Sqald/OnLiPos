@@ -3,10 +3,10 @@ require "csv"
 # 売上一覧の閲覧画面。検索・HTML表示のほか、CSV形式でのダウンロードにも対応する。
 class Dashboard::SalesController < Dashboard::BaseController
   # 売上一覧は検索条件（店舗・期間）を指定して検索したときのみデータを取得する。
-  # 自ユーザー（current_user）の売上のみに厳格にスコープする。
+  # 自ユーザー（current_account）の売上のみに厳格にスコープする。
   def index
-    @stores = current_user.stores.order(:name)
-    @allowed_store_ids = current_user.stores.pluck(:id)
+    @stores = current_account.stores.order(:name)
+    @allowed_store_ids = current_account.stores.pluck(:id)
 
     unless search_performed?
       @sales = Sale.none.page(1).per(50)
@@ -36,7 +36,7 @@ class Dashboard::SalesController < Dashboard::BaseController
 
   # 検索条件（店舗・期間）から売上（Sale）のスコープを組み立てる
   def build_scope
-    scope = Sale.where(user_id: current_user.id)
+    scope = Sale.where(user_id: current_account.id)
 
     if params[:store_id].present? && @allowed_store_ids.include?(params[:store_id].to_i)
       scope = scope.where(store_id: params[:store_id])
@@ -65,7 +65,7 @@ class Dashboard::SalesController < Dashboard::BaseController
 
   # 売上一覧のCSVを生成する。Excel等での文字化け防止のためUTF-8 BOMを先頭に付与する
   def generate_sales_csv(scope)
-    payment_labels = { "cash" => "現金", "card" => "カード", "barcode" => "バーコード決済" }
+    payment_labels = PaymentMethods::LABELS
     output = StringIO.new
     output << "\xEF\xBB\xBF"
     csv = CSV.new(output)
@@ -87,7 +87,7 @@ class Dashboard::SalesController < Dashboard::BaseController
         sale.subtotal_ex_tax,
         sale.tax_amount,
         sale.total_discount
-      ]
+      ].map { |value| CsvExport.cell(value) }
     end
     output.string
   end

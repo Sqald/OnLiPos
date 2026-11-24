@@ -1,51 +1,52 @@
 <%# ダッシュボード共通サイドメニュー(各画面から render 'dashboard/shared/menu' で読み込まれる)
     現在のコントローラ名と一致するメニュー項目に active クラスを付与してハイライトする %>
+<% items = [
+     [ "ダッシュボード", dashboard_root_path, "dashboards" ],
+     [ "店舗管理", dashboard_stores_path, "stores" ],
+     [ "商品管理", dashboard_products_path, "products" ],
+     [ "セット商品", dashboard_product_bundles_path, "product_bundles" ],
+     [ "商品カテゴリ", dashboard_product_categories_path, "product_categories" ],
+     [ "オプション", dashboard_option_groups_path, "option_groups" ],
+     [ "価格・税率の予約", dashboard_scheduled_changes_path, "scheduled_changes" ],
+     [ "自動値引き", dashboard_promotions_path, "promotions" ],
+     [ "クーポン", dashboard_coupons_path, "coupons" ],
+     [ "会員", dashboard_customers_path, "customers" ],
+     [ "従業員管理", dashboard_employees_path, "employees" ],
+     [ "端末設定", dashboard_provisionings_path, "provisionings" ],
+     [ "売上一覧", dashboard_sales_path, "sales" ],
+     [ "要確認の会計", dashboard_sale_reviews_path, "sale_reviews" ],
+     [ "売上レポート", dashboard_reports_path, "reports" ],
+     [ "売上分析", dashboard_analytics_path, "analytics" ],
+     [ "返品一覧", dashboard_refunds_path, "refunds" ],
+     [ "レジ精算（Z）", dashboard_register_sessions_path, "register_sessions" ],
+     [ "レジ金履歴", dashboard_cash_logs_path, "cash_logs" ],
+     [ "電子ジャーナル", dashboard_journals_path, "journals" ],
+     [ "店舗在庫", dashboard_store_stocks_path, "store_stocks" ],
+     [ "入出庫履歴", dashboard_stock_movements_path, "stock_movements" ],
+     [ "在庫不足", dashboard_low_stocks_path, "low_stocks" ],
+     [ "棚卸", dashboard_stocktakes_path, "stocktakes" ],
+     [ "発注・入荷", dashboard_purchase_orders_path, "purchase_orders" ],
+     [ "仕入先", dashboard_suppliers_path, "suppliers" ],
+     [ "勤怠", dashboard_attendances_path, "attendances" ],
+     [ "予約", dashboard_reservations_path, "reservations" ],
+     [ "卓・セルフ注文", dashboard_table_codes_path, "table_codes" ],
+     [ "会計ソフト出力", dashboard_accounting_export_path, "accounting_exports" ],
+     ([ "APIキー", dashboard_api_keys_path, "api_keys" ] if role_at_least?(:owner)),
+     ([ "Webhook", dashboard_webhooks_path, "webhooks" ] if role_at_least?(:owner)),
+     ([ "契約設定", dashboard_account_settings_path, "account_settings" ] if role_at_least?(:manager)),
+     ([ "メンバー", dashboard_members_path, "members" ] if role_at_least?(:owner)),
+     ([ "操作履歴", dashboard_audit_logs_path, "audit_logs" ] if role_at_least?(:owner)),
+     [ "セキュリティ", dashboard_security_path, "security" ]
+   ].compact
+   pending_reviews = Sale.where(user: current_account).needing_review.count %>
 <div class="dashboard-menu">
   <ul>
-    <li>
-      <%= link_to "ダッシュボード", dashboard_root_path, class: "menu-item #{controller_name == 'dashboards' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "店舗管理", dashboard_stores_path, class: "menu-item #{controller_name == 'stores' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "商品管理", dashboard_products_path, class: "menu-item #{controller_name == 'products' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "セット商品", dashboard_product_bundles_path, class: "menu-item #{controller_name == 'product_bundles' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "商品カテゴリ", dashboard_product_categories_path, class: "menu-item #{controller_name == 'product_categories' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "従業員管理", dashboard_employees_path, class: "menu-item #{controller_name == 'employees' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "端末設定", dashboard_provisionings_path, class: "menu-item #{controller_name == 'provisionings' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "売上一覧", dashboard_sales_path, class: "menu-item #{controller_name == 'sales' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "売上レポート", dashboard_reports_path, class: "menu-item #{controller_name == 'reports' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "売上分析", dashboard_analytics_path, class: "menu-item #{controller_name == 'analytics' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "返品一覧", dashboard_refunds_path, class: "menu-item #{controller_name == 'refunds' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "レジ金履歴", dashboard_cash_logs_path, class: "menu-item #{controller_name == 'cash_logs' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "店舗在庫", dashboard_store_stocks_path, class: "menu-item #{controller_name == 'store_stocks' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "入出庫履歴", dashboard_stock_movements_path, class: "menu-item #{controller_name == 'stock_movements' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "セキュリティ", dashboard_security_path, class: "menu-item #{controller_name == 'security' ? 'active' : ''}" %>
-    </li>
+    <% items.each do |label, path, name| %>
+      <li>
+        <%= link_to path, class: "menu-item #{"active" if controller_name == name}" do %>
+          <%= label %><% if name == "sale_reviews" && pending_reviews.positive? %> (<%= pending_reviews %>)<% end %>
+        <% end %>
+      </li>
+    <% end %>
   </ul>
 </div>

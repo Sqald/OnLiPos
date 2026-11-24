@@ -1,5 +1,6 @@
 # 複数商品をまとめて販売するセット商品（バンドル）。構成品は ProductBundleItem 経由で参照する
 class ProductBundle < ApplicationRecord
+  include Auditable
   # アソシエーション
   belongs_to :user
   has_many :product_bundle_items, dependent: :destroy

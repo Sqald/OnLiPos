@@ -22,10 +22,10 @@ class Api::V1::RefundsController < Api::V1::BaseController
       return
     end
 
-    refunded_by_detail = refunded_quantities(sale)
+    calculator = RefundCalculator.new(sale)
 
     details = sale.saledetails.includes(:product).map do |d|
-      refunded_qty = refunded_by_detail[d.id] || 0
+      refundable_qty = calculator.remaining_quantity(d)
       {
         id: d.id,
         product_id: d.product_id,
@@ -34,8 +34,10 @@ class Api::V1::RefundsController < Api::V1::BaseController
         quantity: d.quantity,
         unit_price: d.unit_price,
         subtotal: d.subtotal,
-        refunded_quantity: refunded_qty,
-        refundable_quantity: d.quantity - refunded_qty
+        refunded_quantity: d.quantity - refundable_qty,
+        refundable_quantity: refundable_qty,
+        # 数量ごとの返金額（1個, 2個, …）。端末はこの額を表示する
+        refund_amounts: (1..[ refundable_qty, 200 ].min).map { |q| calculator.line_amount(d, q) }
       }
     end
 
@@ -51,6 +53,7 @@ class Api::V1::RefundsController < Api::V1::BaseController
         receipt_number: sale.receipt_number,
         total_amount: sale.total_amount,
         created_at: sale.created_at,
+        voided: sale.voided?,
         # 全明細の数量が返品済みの場合のみ true（部分返品後の残数は返品可能）
         refunded: details.all? { |d| d[:refundable_quantity] <= 0 }
       },
@@ -62,7 +65,7 @@ class Api::V1::RefundsController < Api::V1::BaseController
   # 返品・返金を登録。従業員2名以上の認証必須。一個単位で返品可能。
   def create
     receipt_number = params[:receipt_number].to_s.strip
-    employee_ids = Array(params[:employee_ids]).map(&:to_i).uniq
+    employee_ids = params[:employee_ids]
     details_param = params[:details]
 
     # 入力チェック: レシート番号必須
@@ -71,26 +74,8 @@ class Api::V1::RefundsController < Api::V1::BaseController
       return
     end
 
-    if employee_ids.size < 2
-      render json: { success: false, message: "返品には2名以上の従業員認証が必要です" }, status: :forbidden
-      return
-    end
-
-    # 認証された従業員が実在し、店舗権限・返品権限を持つか確認
-    owner = @current_pos.store.user
-    employees = owner.employees.where(id: employee_ids)
-    employees = employees.select { |e| e.can_access_store?(@current_pos.store) }
-    if employees.size < 2
-      render json: { success: false, message: "認証された従業員が不足しているか、店舗権限がありません" }, status: :forbidden
-      return
-    end
-
-    employees_without_permission = employees.reject { |e| e.permitted?("refund") }
-    if employees_without_permission.any?
-      names = employees_without_permission.map(&:name).join("、")
-      render json: { success: false, message: "返品権限がありません: #{names}" }, status: :forbidden
-      return
-    end
+    employees = require_dual_approval!(employee_ids, "refund", action_label: "返品")
+    return unless employees
 
     # 対象の売上を特定（自店舗のもののみ）
     sale = Sale.where(store_id: @current_pos.store_id, user_id: @current_pos.store.user_id)
@@ -98,6 +83,11 @@ class Api::V1::RefundsController < Api::V1::BaseController
                .find_by(receipt_number: receipt_number)
     unless sale
       render json: { success: false, message: "該当する会計が見つかりません" }, status: :not_found
+      return
+    end
+
+    if sale.voided?
+      render json: { success: false, message: "取消済みの会計は返品できません" }, status: :unprocessable_entity
       return
     end
 
@@ -129,39 +119,19 @@ class Api::V1::RefundsController < Api::V1::BaseController
 
     # 返品明細の妥当性確認・返金額計算・返品レコード作成・在庫戻しを1トランザクションで行う
     refund = nil
-    error_message = nil
     ActiveRecord::Base.transaction do
+      # ロック取得後に返品済み数量・取消状態を確認し、同時実行でも二重に返金しないようにする
       sale.lock!
+      raise RefundCalculator::Error, "取消済みの会計は返品できません" if sale.voided?
 
-      # 返品済み数量はロック取得後に集計し、同時実行でも残数を超えないようにする
-      refunded_by_detail = refunded_quantities(sale)
+      result = RefundCalculator.new(sale).calculate(
+        detail_items.map { |saledetail_id, quantity| [ saledetails_by_id[saledetail_id], quantity ] }
+      )
+      breakdowns = result.breakdowns
 
-      calculator = TaxCalculator.new(sale.user.tax_rounding_method)
-      refund_details_build = []
-
-      detail_items.each do |saledetail_id, return_qty|
-        sd = saledetails_by_id[saledetail_id]
-        remaining = sd.quantity - (refunded_by_detail[sd.id] || 0)
-        if return_qty > remaining
-          error_message = "返品数量が返品可能数量(#{remaining})を超えています: #{sd.product_name}"
-          raise ActiveRecord::Rollback
-        end
-
-        subtotal = sd.unit_price * return_qty
-        # 販売時点の税率・税区分で明細行の税額を計算する（確定値は内訳側で保持）
-        tax_amount = calculator.line_tax(subtotal, sd.tax_rate, sd.tax_type)
-
-        refund_details_build << {
-          saledetail: sd, quantity: return_qty, unit_price: sd.unit_price,
-          subtotal: subtotal, tax_rate: sd.tax_rate, tax_amount: tax_amount
-        }
+      unless consume_approvals(employees, "refund", "refund:#{sale.receipt_number}")
+        raise RefundCalculator::Error, "担当者の認証がすでに使用されています。もう一度認証してください"
       end
-
-      # 税率別内訳（返還インボイスの記載事項）。売上と同じく税率ごとに端数処理1回
-      breakdown_lines = refund_details_build.map do |row|
-        { amount: row[:subtotal], tax_rate: row[:tax_rate], tax_type: row[:saledetail].tax_type }
-      end
-      breakdowns = calculator.breakdowns(breakdown_lines)
 
       session = current_register_session
       refund = Refund.create!(
@@ -171,7 +141,7 @@ class Api::V1::RefundsController < Api::V1::BaseController
         pos_token: @current_pos,
         employee: employees.first,
         # 返金額は内訳の税込対価合計（外税明細は税額を加算した額を返金する）
-        total_amount: breakdowns.sum(&:taxable_amount),
+        total_amount: result.total_amount,
         subtotal_ex_tax: breakdowns.sum(&:amount_ex_tax),
         tax_amount: breakdowns.sum(&:tax_amount),
         register_session: session,
@@ -189,66 +159,97 @@ class Api::V1::RefundsController < Api::V1::BaseController
         )
       end
 
-      refund_details_build.each do |row|
+      result.lines.each do |line|
         refund.refund_details.create!(
-          saledetail: row[:saledetail],
-          product_id: row[:saledetail].product_id,
-          product_name: row[:saledetail].product_name,
-          quantity: row[:quantity],
-          unit_price: row[:unit_price],
-          subtotal: row[:subtotal],
-          tax_rate: row[:tax_rate],
-          tax_amount: row[:tax_amount]
+          saledetail: line.saledetail,
+          product_id: line.saledetail.product_id,
+          product_name: line.saledetail.product_name,
+          quantity: line.quantity,
+          unit_price: line.unit_price,
+          subtotal: line.subtotal,
+          tax_rate: line.saledetail.tax_rate,
+          tax_amount: line.tax_amount
         )
       end
 
+      save_refund_payments(refund, sale)
+
       # 在庫は返品された明細・数量分だけ戻す（返金額と在庫の対称性を保つ）
-      store = sale.store
-      refund_employee = employees.first
-      refund_details_build.each do |row|
-        product = row[:saledetail].product
-        next unless product
-        store_stock = StoreStock.find_or_create_by!(store: store, product: product)
-        store_stock.with_lock do
-          store_stock.increment!(:quantity, row[:quantity])
-          StockMovement.create!(
-            store: store,
-            product: product,
-            store_stock: store_stock,
-            sale: sale,
-            pos_token: @current_pos,
-            employee: refund_employee,
-            quantity_change: row[:quantity],
-            reason: "return"
-          )
-        end
+      result.lines.each do |line|
+        next unless line.saledetail.product
+
+        StoreStock.adjust!(store: sale.store, product: line.saledetail.product, change: line.quantity, reason: "return",
+                           employee: employees.first, pos_token: @current_pos, sale: sale)
       end
+      Loyalty.apply_refund!(refund)
 
       JournalEntry.create_from_refund!(refund, refund.refund_details)
     end
 
-    if error_message
-      render json: { success: false, message: error_message }, status: :unprocessable_entity
-      return
-    end
-
+    Webhook.publish(sale.user, "refund.created", SalePayload.refund(refund))
     render json: {
       success: true,
       refund_id: refund.id,
       refund_receipt_number: refund.refund_receipt_number,
-      total_refund_amount: refund.total_amount
+      total_refund_amount: refund.total_amount,
+      payments: refund.refund_payments.map { |p| { method: RefundPayment.defined_enums["method"][p.method], amount: p.amount } }
     }, status: :created
+  rescue RefundCalculator::Error => e
+    render json: { success: false, message: e.message }, status: :unprocessable_entity
   rescue ActiveRecord::RecordInvalid => e
     render json: { success: false, message: e.message }, status: :unprocessable_entity
   end
 
   private
 
-  # 売上明細ごとの返品済み数量（saledetail_id => 数量）
-  def refunded_quantities(sale)
-    RefundDetail.joins(:refund)
-                .where(refunds: { sale_id: sale.id })
-                .group(:saledetail_id)
-                .sum(:quantity)
+  # 返金の決済手段別内訳を保存する。
+  # 端末から payments が送られればそれを使い（元の会計の支払額を超えないこと）、
+  # なければ元の会計の支払比率で按分する（現金以外は残額をまとめて主たる手段に計上）。
+  def save_refund_payments(refund, sale)
+    return if refund.total_amount.zero?
+
+    paid = sale.sale_payments.group(:method).sum(:amount)
+    refunded = RefundPayment.joins(:refund).where(refunds: { sale_id: sale.id }).group(:method).sum(:amount)
+    remaining = paid.to_h { |method, amount| [ method, [ amount - refunded.fetch(method, 0), 0 ].max ] }
+
+    requested_refund_payments(refund, remaining) || allocate_refund_payments(refund, remaining, sale)
+  end
+
+  def requested_refund_payments(refund, remaining)
+    raw = params[:payments]
+    return unless raw.is_a?(Array) && raw.any?
+
+    rows = raw.map { |p| p.permit(:method, :amount, :external_reference) }
+    unless rows.sum { |p| p[:amount].to_i } == refund.total_amount
+      raise RefundCalculator::Error, "返金の内訳の合計が返金額と一致しません"
+    end
+
+    rows.group_by { |p| RefundPayment.defined_enums["method"].key(p[:method].to_i) }.each do |method, group|
+      # カード等への返金は元の支払額まで。現金での返金は、決済端末で取消できない場合のために上限を設けない
+      if method.nil? || (method != "cash" && group.sum { |p| p[:amount].to_i } > remaining.fetch(method, 0))
+        raise RefundCalculator::Error, "返金方法または返金額が元の会計の支払いと一致しません"
+      end
+    end
+
+    rows.each do |p|
+      refund.refund_payments.create!(method: p[:method].to_i, amount: p[:amount].to_i,
+                                     external_reference: p[:external_reference].presence&.slice(0, 100))
+    end
+  end
+
+  def allocate_refund_payments(refund, remaining, sale)
+    total = remaining.values.sum
+    if total.zero?
+      refund.refund_payments.create!(method: sale.payment_method_before_type_cast, amount: refund.total_amount)
+      return
+    end
+
+    methods = remaining.select { |_, amount| amount.positive? }.sort_by { |_, amount| amount }
+    left = refund.total_amount
+    methods.each_with_index do |(method, amount), index|
+      share = index == methods.size - 1 ? left : [ (Rational(refund.total_amount * amount, total)).round, left ].min
+      refund.refund_payments.create!(method: method, amount: share) if share.positive?
+      left -= share
+    end
   end
 end

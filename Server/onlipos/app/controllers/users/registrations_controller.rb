@@ -1,65 +1,22 @@
 # frozen_string_literal: true
 
-# Devise のユーザー登録（サインアップ・アカウント編集・退会）をカスタマイズするためのコントローラ。
-# 許可パラメータの追加設定は ApplicationController#configure_permitted_parameters で行っており、
-# 本ファイル自体は Devise::RegistrationsController の標準動作をそのまま利用している（オーバーライドなし）。
+# ユーザー登録・アカウント編集・退会。許可パラメータは ApplicationController#configure_permitted_parameters で設定する。
 class Users::RegistrationsController < Devise::RegistrationsController
-  # before_action :configure_sign_up_params, only: [:create]
-  # before_action :configure_account_update_params, only: [:update]
+  # DELETE /users — 退会。現在のパスワードを確認し、取引記録が残る契約は削除しない（法定保存のため）
+  def destroy
+    unless resource.valid_password?(params[:current_password].to_s)
+      return redirect_to edit_user_registration_path, alert: "退会するには現在のパスワードを入力してください。", status: :see_other
+    end
 
-  # GET /resource/sign_up
-  # def new
-  #   super
-  # end
-
-  # POST /resource
-  # def create
-  #   super
-  # end
-
-  # GET /resource/edit
-  # def edit
-  #   super
-  # end
-
-  # PUT /resource
-  # def update
-  #   super
-  # end
-
-  # DELETE /resource
-  # def destroy
-  #   super
-  # end
-
-  # GET /resource/cancel
-  # Forces the session data which is usually expired after sign
-  # in to be expired now. This is useful if the user wants to
-  # cancel oauth signing in/up in the middle of the process,
-  # removing all OAuth session data.
-  # def cancel
-  #   super
-  # end
-
-  # protected
-
-  # If you have extra params to permit, append them to the sanitizer.
-  # def configure_sign_up_params
-  #   devise_parameter_sanitizer.permit(:sign_up, keys: [:attribute])
-  # end
-
-  # If you have extra params to permit, append them to the sanitizer.
-  # def configure_account_update_params
-  #   devise_parameter_sanitizer.permit(:account_update, keys: [:attribute])
-  # end
-
-  # The path used after sign up.
-  # def after_sign_up_path_for(resource)
-  #   super(resource)
-  # end
-
-  # The path used after sign up for inactive accounts.
-  # def after_inactive_sign_up_path_for(resource)
-  #   super(resource)
-  # end
+    if resource.destroy
+      Devise.sign_out_all_scopes ? sign_out : sign_out(resource_name)
+      redirect_to root_path, notice: I18n.t("devise.registrations.destroyed"), status: :see_other
+    else
+      redirect_to edit_user_registration_path, status: :see_other,
+                  alert: "売上などの取引記録は法令により保存が必要なため、画面からは退会できません。サービス管理者へご連絡ください。"
+    end
+  rescue ActiveRecord::InvalidForeignKey, ActiveRecord::RecordNotDestroyed
+    redirect_to edit_user_registration_path, status: :see_other,
+                alert: "取引記録が残っているため退会できません。サービス管理者へご連絡ください。"
+  end
 end

@@ -1,0 +1,22 @@
+/* お客様向けの公開ページ（電子レシート・セルフ注文・厨房・客用表示） */
+body.public-page { margin: 0; background: #f5f5f4; color: #1c1917; font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.6; }
+.public-page main { max-width: 34rem; margin: 0 auto; padding: 1rem; }
+.public-page main.wide { max-width: none; }
+.public-card { background: #fff; border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgb(0 0 0 / 12%); }
+.public-page h1 { font-size: 1.25rem; margin: 0 0 .75rem; }
+.public-page h2 { font-size: 1.05rem; margin: 1rem 0 .5rem; }
+.public-page table { width: 100%; border-collapse: collapse; }
+.public-page td { padding: .3rem 0; vertical-align: top; }
+.public-page td.amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.public-total td { border-top: 2px solid #1c1917; font-weight: 700; font-size: 1.2rem; padding-top: .5rem; }
+.public-muted { color: #57534e; font-size: .85rem; }
+.public-notice, .public-alert { padding: .75rem 1rem; border-radius: 8px; }
+.public-notice { background: #dcfce7; } .public-alert { background: #fee2e2; }
+.public-button { display: inline-block; border: 0; border-radius: 8px; background: #1d4ed8; color: #fff; font-size: 1rem; padding: .75rem 1.25rem; cursor: pointer; width: 100%; }
+.public-menu-item { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .6rem 0; border-bottom: 1px solid #e7e5e4; }
+.public-menu-item input[type="number"] { width: 4rem; font-size: 1rem; padding: .4rem; }
+.public-menu-item label { display: block; }
+.kitchen-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 1rem; }
+.kitchen-grid .accepted { border-left: 6px solid #f59e0b; } .kitchen-grid .waiting { border-left: 6px solid #dc2626; }
+.display-total { font-size: 4rem; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+.display-items { font-size: 1.5rem; }

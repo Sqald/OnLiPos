@@ -5,5 +5,7 @@
 # See the ActiveSupport::ParameterFilter documentation for supported notations and behaviors.
 Rails.application.config.filter_parameters += [
   :passw, :email, :secret, :token, :_key, :crypt, :salt, :certificate, :otp, :ssn, :cvv, :cvc,
+  :recovery_code, :external_reference,
+  /\Acode\z/, # 2段階認証の確認コード
   /\Apin(_confirmation)?\z/ # 従業員PIN（部分一致だと shipping 等も伏せてしまうため完全一致）
 ]

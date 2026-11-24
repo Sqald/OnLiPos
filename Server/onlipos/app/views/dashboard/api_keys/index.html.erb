@@ -1,0 +1,16 @@
+<%# ダッシュボード: APIキー %>
+<div class="dashboard-container">
+  <%= render "dashboard/shared/menu" %>
+  <div class="dashboard-content card">
+    <div class="subtitle"><h2>APIキー</h2></div>
+    <% if flash[:api_key] %><div class="notice">APIキー: <code><%= flash[:api_key] %></code>（再表示されません）</div><% end %>
+    <p>外部システムから <code>/api/external/v1</code> を呼び出すためのキーです。<code>Authorization: Bearer キー</code> で送ります。</p>
+    <%= form_with url: dashboard_api_keys_path, scope: :api_key do |f| %>
+      <div class="field"><%= f.label :name, "用途" %><%= f.text_field :name, required: true %></div>
+      <% ApiKey::SCOPES.each do |scope, label| %><label class="checkbox-item"><%= check_box_tag "api_key[scopes][]", scope, false, id: "scope_#{scope.parameterize}" %> <%= label %></label><% end %>
+      <div class="actions"><%= f.submit "発行", class: "btn-signup" %></div>
+    <% end %>
+    <%= data_table([ "用途", "キー", "権限", "最終利用", "状態", "" ], @keys.map { |k| [ k.name, k.token_hint, k.scopes.map { |s| ApiKey::SCOPES[s] }.join("、"), datetime(k.last_used_at), k.revoked_at ? badge("無効", false) : badge("有効"),
+          k.revoked_at ? "" : button_to("無効にする", dashboard_api_key_path(k), method: :delete, class: "btn-sm btn-danger-outline", data: { turbo_confirm: "無効にしますか？" }) ] }) %>
+  </div>
+</div>

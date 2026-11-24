@@ -57,6 +57,9 @@ class ReceiptPrinter {
     // 適格簡易請求書の記載事項（税率別内訳）。
     // [{tax_rate:, tax_type:, taxable_amount:, tax_amount:}, ...]
     List<Map<String, int>>? taxBreakdown,
+    List<({String name, int amount})> discounts = const [],
+    String? receiptUrl,
+    String footer = '',
   }) async {
     const storage = FlutterSecureStorage();
 
@@ -176,6 +179,9 @@ class ReceiptPrinter {
 
       await addLine("");
       await addLine("--------------------------------", align: 1);
+      for (final d in discounts) {
+        await addLine("${d.name}  -¥${d.amount}", align: 2);
+      }
       if (subtotalExTax > 0) {
         await addLine("税抜小計  ¥$subtotalExTax", align: 2);
         await addLine("消費税    ¥$taxAmount", align: 2);
@@ -211,36 +217,23 @@ class ReceiptPrinter {
 
       await addLine("");
       await addLine("--------------------------------", align: 1);
+      for (final line in footer.split('\n').where((l) => l.isNotEmpty)) {
+        await addLine(line, align: 1);
+      }
       await addLine("ご利用ありがとうございます", align: 1);
+      if (receiptUrl != null) {
+        await addLine("電子レシート", align: 1);
+        buffer.addAll(_qrCode(receiptUrl));
+        await addLine("");
+        await addLine("返品用", align: 1);
+      }
 
       // --- レシート識別用 QRコード (長い文字列対応) ---
 
       buffer.addAll([0x0A, 0x0A]); // 前に余白を開ける
       buffer.addAll([0x1B, 0x61, 0x01]); // 中央揃え
 
-      // QRコードに埋め込むデータ
-      List<int> qrData = receiptNumber.codeUnits;
-
-      // データ長 + 3バイト (コマンド仕様)
-      int dataLen = qrData.length + 3;
-      int pL = dataLen % 256;
-      int pH = dataLen ~/ 256;
-
-      // 1. QRコードのモデル設定 (Model 2)
-      buffer.addAll([0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00]);
-
-      // 2. モジュールサイズ設定 (QRコードの大きさ。4ドット=適度な大きさ)
-      buffer.addAll([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x04]);
-
-      // 3. エラー訂正レベル設定 (48 = レベルL: 復元能力7%)
-      buffer.addAll([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x30]);
-
-      // 4. QRコードのデータをプリンタのメモリに格納
-      buffer.addAll([0x1D, 0x28, 0x6B, pL, pH, 0x31, 0x50, 0x30]);
-      buffer.addAll(qrData);
-
-      // 5. メモリに格納したQRコードを印字
-      buffer.addAll([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30]);
+      buffer.addAll(_qrCode(receiptNumber));
 
       buffer.addAll([0x1B, 0x61, 0x00]); // 一旦左揃えにリセット
       // ----------------------------------------------------
@@ -261,6 +254,21 @@ class ReceiptPrinter {
     } finally {
       socket?.destroy();
     }
+  }
+
+  /// QRコードの印字コマンド（GS ( k）。モデル2・モジュールサイズ4・誤り訂正レベルL
+  static List<int> _qrCode(String text) {
+    final data = text.codeUnits;
+    final length = data.length + 3; // データ長 + 3バイト (コマンド仕様)
+    return [
+      0x1B, 0x61, 0x01, // 中央揃え
+      0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00, // モデル
+      0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x04, // モジュールサイズ
+      0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x30, // 誤り訂正レベル
+      0x1D, 0x28, 0x6B, length % 256, length ~/ 256, 0x31, 0x50, 0x30, // データ
+      ...data,
+      0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30, // 印字
+    ];
   }
 
   /// 返品レシートを印刷する。元の会計が現金の場合は openDrawer を true にしキャッシュドロアを開く。

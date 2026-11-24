@@ -8,7 +8,7 @@ import 'package:sqflite/sqflite.dart';
 /// 同一DBファイルを別々にオープンすることによる "database is locked" を防ぐ。
 class DatabaseService {
   static const _dbName = 'pos_app.db';
-  static const _dbVersion = 8;
+  static const _dbVersion = 9;
 
   DatabaseService._();
   static final DatabaseService instance = DatabaseService._();
@@ -42,6 +42,10 @@ class DatabaseService {
     );
   }
 
+  // 商品以外のマスタ（自動値引き・予約変更・設定）をJSONで保存する
+  static const _catalogMetaTable =
+      'CREATE TABLE IF NOT EXISTS catalog_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)';
+
   // DB新規作成時に商品・セット商品・オフライン売上キューの各テーブルを作成する
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
@@ -57,9 +61,18 @@ class DatabaseService {
         updated_at TEXT,
         category_id INTEGER,
         category_name TEXT,
-        sold_by_weight INTEGER DEFAULT 0
+        sold_by_weight INTEGER DEFAULT 0,
+        tax_type INTEGER DEFAULT 0,
+        eat_in_tax_rate INTEGER,
+        eat_in_price INTEGER,
+        min_age INTEGER,
+        variant_group TEXT,
+        variant_name TEXT,
+        image_version INTEGER,
+        option_groups TEXT
       )
     ''');
+    await db.execute(_catalogMetaTable);
     await db.execute('''
       CREATE TABLE product_bundles (
         id INTEGER PRIMARY KEY,
@@ -158,6 +171,21 @@ class DatabaseService {
       await db.execute(
         'ALTER TABLE offline_sales_queue ADD COLUMN last_error TEXT',
       );
+    }
+    if (oldVersion < 9) {
+      for (final column in const [
+        'tax_type INTEGER DEFAULT 0',
+        'eat_in_tax_rate INTEGER',
+        'eat_in_price INTEGER',
+        'min_age INTEGER',
+        'variant_group TEXT',
+        'variant_name TEXT',
+        'image_version INTEGER',
+        'option_groups TEXT',
+      ]) {
+        await db.execute('ALTER TABLE products ADD COLUMN $column');
+      }
+      await db.execute(_catalogMetaTable);
     }
   }
 }

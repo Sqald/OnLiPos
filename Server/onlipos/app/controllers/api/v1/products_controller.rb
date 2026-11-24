@@ -15,20 +15,16 @@ class Api::V1::ProductsController < Api::V1::BaseController
 
     price = Price.find_by(store_id: current_store.id, product_id: product.id)&.amount || product.price
 
-    render json: {
-      success: true,
-      product: {
-        id: product.id,
-        code: product.code,
-        name: product.name,
-        price: price,
-        list_price: product.price,
-        tax_rate: product.tax_rate,
-        sold_by_weight: product.sold_by_weight,
-        category_id: product.product_category_id,
-        category_name: product.product_category&.name
-      }
-    }, status: :ok
+    render json: { success: true, product: product_json(product, price) }, status: :ok
+  end
+
+  # GET /api/v1/products/:id/image — 商品画像
+  def image
+    product = @current_pos.store.products.find(params[:id])
+    return head :not_found unless product.image.attached?
+
+    response.set_header("Cache-Control", "private, max-age=86400")
+    send_data product.image.download, type: product.image.content_type, disposition: "inline"
   end
 
   # POST /api/v1/products/sync — 商品・セット商品カタログの差分同期。
@@ -42,6 +38,9 @@ class Api::V1::ProductsController < Api::V1::BaseController
     last_updated_at = last_updated_at_param.present? ? (Time.zone.parse(last_updated_at_param) || Time.at(0)) : Time.at(0)
     last_id = (sync_params[:last_id] || 0).to_i
 
+    # 適用日を迎えた価格・税率の変更を反映してから配布する
+    ScheduledProductChange.apply_due!(@current_pos.store.user)
+
     # サーバーの「現在時刻」を取得（同期開始時にFlutterに教えるため）
     server_time = Time.current
 
@@ -50,7 +49,7 @@ class Api::V1::ProductsController < Api::V1::BaseController
 
     # 「しおり」以降のデータを1000件取得する（updated_at順、同じ時刻ならid順）
     products = current_store.products
-                            .includes(:product_category)
+                            .includes(:product_category, :image_attachment, option_groups: :option_items)
                             .where("(products.updated_at > ?) OR (products.updated_at = ? AND products.id > ?)", last_updated_at, last_updated_at, last_id)
                             .order(updated_at: :asc, id: :asc)
                             .limit(limit)
@@ -72,21 +71,7 @@ class Api::V1::ProductsController < Api::V1::BaseController
       # 店舗ごとの価格設定があればそれを優先し、なければ基本価格を使用
       current_price = prices[product.id]&.amount || product.price
 
-      {
-        id: product.id,
-        code: product.code,
-        name: product.name,
-        description: product.description,
-        status: product.status,
-        price: current_price,
-        list_price: product.price,
-        tax_rate: product.tax_rate,
-        tax_type: product.tax_type_before_type_cast,
-        sold_by_weight: product.sold_by_weight,
-        updated_at: product.updated_at,
-        category_id: product.product_category_id,
-        category_name: product.product_category&.name
-      }
+      product_json(product, current_price)
     end
 
     # セット商品の同期（全件、カーソルなし）
@@ -116,11 +101,72 @@ class Api::V1::ProductsController < Api::V1::BaseController
       last_updated_at: next_updated_at,
       last_id: next_id,
       products: response_products,
-      bundles: response_bundles
+      bundles: response_bundles,
+      promotions: promotions_json,
+      scheduled_changes: scheduled_changes_json,
+      settings: settings_json
     }, status: :ok
   end
 
   private
+
+  def product_json(product, price)
+    {
+      id: product.id,
+      code: product.code,
+      name: product.name,
+      description: product.description,
+      status: product.status,
+      price: price,
+      list_price: product.price,
+      tax_rate: product.tax_rate,
+      tax_type: Product.tax_types[product.tax_type],
+      eat_in_tax_rate: product.eat_in_tax_rate,
+      eat_in_price: product.eat_in_price,
+      min_age: product.min_age,
+      sold_by_weight: product.sold_by_weight,
+      variant_group: product.variant_group,
+      variant_name: product.variant_name,
+      image_version: product.image_attachment&.blob_id,
+      updated_at: product.updated_at,
+      category_id: product.product_category_id,
+      category_name: product.product_category&.name,
+      option_groups: product.option_groups.map { |g|
+        { id: g.id, name: g.name, min_select: g.min_select, max_select: g.max_select,
+          items: g.option_items.map { |i| { id: i.id, name: i.name, price: i.price } } }
+      }
+    }
+  end
+
+  def promotions_json
+    @current_pos.store.user.promotions.where(active: true).includes(:products).order(:id).map do |p|
+      { id: p.id, name: p.name, kind: p.kind, category_id: p.product_category_id, product_ids: p.product_ids, percent_off: p.percent_off,
+        fixed_price: p.fixed_price, set_quantity: p.set_quantity, starts_on: p.starts_on, ends_on: p.ends_on,
+        start_minute: p.start_minute, end_minute: p.end_minute, weekdays: p.weekdays }
+    end
+  end
+
+  # 端末がオフラインでも適用日から新しい価格・税率で会計できるよう、予約中の変更を配布する
+  def scheduled_changes_json
+    store = @current_pos.store
+    store.user.scheduled_product_changes.pending.where(store_id: [ nil, store.id ]).where(effective_on: ..90.days.from_now.to_date)
+         .order(:effective_on, :id).map do |c|
+      { product_id: c.product_id, store_price: c.store_id.present?, effective_on: c.effective_on, price: c.price, tax_rate: c.tax_rate,
+        tax_type: c.tax_type && ScheduledProductChange.tax_types[c.tax_type], eat_in_price: c.eat_in_price, eat_in_tax_rate: c.eat_in_tax_rate }
+    end
+  end
+
+  # 会計に必要な契約の設定
+  def settings_json
+    account = @current_pos.store.user
+    {
+      invoice_registration_number: account.invoice_registration_number,
+      tax_rounding_method: account.tax_rounding_method,
+      point_yen_per_point: account.point_yen_per_point,
+      receipt_footer: account.receipt_footer,
+      digital_receipt_enabled: account.digital_receipt_enabled
+    }
+  end
 
   # sync アクション用のストロングパラメータ（ページングの「しおり」）
   def sync_params

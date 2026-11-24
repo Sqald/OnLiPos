@@ -6,26 +6,38 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:onlipos/api/pos_api_client.dart';
 import 'package:onlipos/login/login_api.dart';
 
 /// 認証に成功した担当者を返す。キャンセル時は null。
+/// [allowOffline] の場合、通信できないときに認証なしで続行できる（id は 0。サーバーでは要確認として記録される）。
 Future<({int id, String name})?> showEmployeeAuthDialog(
   BuildContext context, {
   required String title,
   required String permission,
+  bool allowOffline = false,
 }) {
   return showDialog<({int id, String name})>(
     context: context,
     barrierDismissible: false,
-    builder: (_) => _EmployeeAuthDialog(title: title, permission: permission),
+    builder: (_) => _EmployeeAuthDialog(
+      title: title,
+      permission: permission,
+      allowOffline: allowOffline,
+    ),
   );
 }
 
 class _EmployeeAuthDialog extends StatefulWidget {
-  const _EmployeeAuthDialog({required this.title, required this.permission});
+  const _EmployeeAuthDialog({
+    required this.title,
+    required this.permission,
+    required this.allowOffline,
+  });
 
   final String title;
   final String permission;
+  final bool allowOffline;
 
   @override
   State<_EmployeeAuthDialog> createState() => _EmployeeAuthDialogState();
@@ -35,6 +47,7 @@ class _EmployeeAuthDialogState extends State<_EmployeeAuthDialog> {
   final _codeController = TextEditingController();
   final _pinController = TextEditingController();
   bool _loading = false;
+  bool _offline = false;
   String? _error;
 
   @override
@@ -74,6 +87,10 @@ class _EmployeeAuthDialogState extends State<_EmployeeAuthDialog> {
 
     setState(() {
       _loading = false;
+      _offline = const {
+        PosApiClient.offlineMessage,
+        PosApiClient.timeoutMessage,
+      }.contains(result['message']);
       _error = result['message']?.toString() ?? '認証に失敗しました';
     });
   }
@@ -108,6 +125,11 @@ class _EmployeeAuthDialogState extends State<_EmployeeAuthDialog> {
         ),
       ),
       actions: [
+        if (widget.allowOffline && _offline)
+          TextButton(
+            onPressed: () => Navigator.of(context).pop((id: 0, name: '')),
+            child: const Text('認証せずに続行（要確認として記録）'),
+          ),
         TextButton(
           onPressed: _loading ? null : () => Navigator.of(context).pop(),
           child: const Text('キャンセル'),

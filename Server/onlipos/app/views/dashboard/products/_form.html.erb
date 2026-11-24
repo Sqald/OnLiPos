@@ -45,9 +45,67 @@
   </div>
 
   <div class="field">
+    <%= f.label :tax_type, "税区分" %>
+    <%= f.select :tax_type, Product::TAX_TYPE_LABELS.map { |k, v| [ v, k ] }, {}, class: "form-control" %>
+    <p class="text-sm-muted">外税の場合、基本価格は税抜価格として扱われます。</p>
+  </div>
+
+  <%# 店内飲食で税率・価格が変わる商品（テイクアウト併用の飲食店向け） %>
+  <div class="field">
+    <%= f.label :eat_in_tax_rate, "店内飲食の消費税率 (%)（空欄 = 同じ）" %>
+    <%= f.number_field :eat_in_tax_rate, min: 0, max: 100 %>
+  </div>
+  <div class="field">
+    <%= f.label :eat_in_price, "店内飲食の価格（空欄 = 同じ）" %>
+    <%= f.number_field :eat_in_price, min: 0 %>
+  </div>
+
+  <div class="field">
+    <%= f.label :cost_price, "原価（税抜、粗利の計算に使用）" %>
+    <%= f.number_field :cost_price, min: 0 %>
+  </div>
+  <div class="field">
+    <%= f.label :supplier_id, "仕入先" %>
+    <%= f.collection_select :supplier_id, current_account.suppliers.order(:name), :id, :name, { include_blank: "指定なし" }, class: "form-control" %>
+  </div>
+  <div class="field">
+    <label><%= f.check_box :track_stock %> 在庫を管理する</label>
+  </div>
+  <div class="field">
+    <%= f.label :low_stock_threshold, "在庫の警告数（この数以下で警告）" %>
+    <%= f.number_field :low_stock_threshold, min: 0 %>
+  </div>
+  <div class="field">
+    <%= f.label :min_age, "年齢確認（この年齢以上。酒・たばこ等は20）" %>
+    <%= f.number_field :min_age, min: 1, max: 100 %>
+  </div>
+  <div class="field">
+    <%= f.label :variant_group, "バリエーションのグループ名（例: Tシャツ）" %>
+    <%= f.text_field :variant_group %>
+    <%= f.label :variant_name, "バリエーション名（例: 赤 / M）" %>
+    <%= f.text_field :variant_name %>
+    <p class="text-sm-muted">同じグループ名の商品は、レジの一覧で1つにまとまり、色・サイズなどを選んで登録できます。</p>
+  </div>
+  <% option_groups = current_account.option_groups.order(:name) %>
+  <% if option_groups.any? %>
+    <div class="field">
+      <p>オプション（トッピングなど）</p>
+      <% option_groups.each do |g| %>
+        <label class="checkbox-item"><%= check_box_tag "product[option_group_ids][]", g.id, product.option_group_ids.include?(g.id), id: "option_group_#{g.id}" %> <%= g.name %></label>
+      <% end %>
+      <%= hidden_field_tag "product[option_group_ids][]", "", id: nil %>
+    </div>
+  <% end %>
+  <div class="field">
+    <%= f.label :image, "商品画像（PNG / JPEG / WebP、3MBまで）" %>
+    <% if product.persisted? && product.image.attached? %><br><%= image_tag image_dashboard_product_path(product), alt: "", style: "max-width:160px" %><br><% end %>
+    <%= f.file_field :image, accept: Product::IMAGE_TYPES.join(",") %>
+  </div>
+
+  <div class="field">
     <%= f.label :product_category_id, "カテゴリ" %>
     <%= f.collection_select :product_category_id,
-          current_user.product_categories.order(:display_order, :name), :id, :name,
+          current_account.product_categories.order(:display_order, :name), :id, :name,
           { include_blank: "カテゴリなし" }, class: "form-control" %>
   </div>
 

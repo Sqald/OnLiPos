@@ -1,0 +1,21 @@
+<%# 発注の入力フォーム %>
+<%= form_errors(@order) %>
+<%= form_with model: [ :dashboard, @order ] do |f| %>
+  <div class="field"><%= f.label :store_id, "店舗" %><%= f.collection_select :store_id, @stores, :id, :name, {}, class: "form-select" %></div>
+  <div class="field"><%= f.label :supplier_id, "仕入先" %><%= f.collection_select :supplier_id, @suppliers, :id, :name, {}, class: "form-select" %></div>
+  <div class="field"><%= f.label :expected_on, "入荷予定日" %><%= f.date_field :expected_on %></div>
+  <div class="field"><%= f.label :note, "備考" %><%= f.text_field :note %></div>
+  <table class="data-table">
+    <thead><tr><th>商品</th><th>数量</th><th>原価（円）</th><th>削除</th></tr></thead>
+    <tbody>
+      <%= f.fields_for :items do |i| %>
+        <tr>
+          <td><%= i.select :product_id, @products.map { |p| [ "#{p.code} #{p.name}", p.id ] }, { include_blank: true } %></td>
+          <td><%= i.number_field :quantity, min: 0 %></td><td><%= i.number_field :unit_cost, min: 0 %></td>
+          <td><%= i.check_box :_destroy if i.object.persisted? %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+  <div class="actions"><%= f.submit "保存", class: "btn-signup" %> <%= link_to "戻る", dashboard_purchase_orders_path, class: "link-cancel" %></div>
+<% end %>
