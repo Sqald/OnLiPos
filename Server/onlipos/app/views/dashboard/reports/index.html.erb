@@ -1,280 +1,34 @@
-<%# ダッシュボード: 売上レポート画面
-    店舗・期間で集計した売上サマリー、支払方法別・税率別・日次/月次・担当者別・商品別ランキングの各種集計表を表示する %>
-<div class="dashboard-container">
-  <%= render 'dashboard/shared/menu' %>
+<%# ダッシュボード: 売上レポート（合計・支払方法・税率・日別・月別・担当者・商品・客層）。初期表示は今月 %>
+<%= page_header "売上レポート" do %>
+  <%= link_to dashboard_reports_path(format: :csv, store_id: params[:store_id], from: params[:from], to: params[:to]), class: "btn btn-secondary", data: { turbo: false } do %><%= icon(:download, size: 18) %>CSVで出力<% end %>
+<% end %>
+<%= render layout: "dashboard/shared/filter", locals: { url: dashboard_reports_path, stores: @stores, submit: "集計する" } do |f| %><% end %>
 
-  <div class="dashboard-content card">
-    <div class="subtitle d-flex justify-content-between align-items-center">
-      <h2>売上レポート</h2>
-      <% if search_performed? && (@daily_summary.any? || @product_ranking.any?) %>
-        <%= link_to "CSVダウンロード",
-              dashboard_reports_path(format: :csv, store_id: params[:store_id], from: params[:from], to: params[:to]),
-              class: "btn-signup" %>
-      <% end %>
-    </div>
+<% if @daily_summary.empty? && @product_ranking.empty? %>
+  <%= empty_message("この条件の売上はありません。期間を広げてみてください。") %>
+<% end %>
 
-    <%# 検索条件フォーム(店舗・期間) %>
-    <div class="filters mb-3">
-      <%= form_with url: dashboard_reports_path, method: :get, local: true do |f| %>
-        <div class="filter-row">
-          <div class="filter-item">
-            <%= f.label :store_id, "店舗" %><br>
-            <%= f.select :store_id,
-                  options_from_collection_for_select(@stores, :id, :name, params[:store_id]),
-                  { include_blank: "すべて" }, class: "form-control" %>
-          </div>
-          <div class="filter-item">
-            <%= f.label :from, "期間（自）" %><br>
-            <%= f.date_field :from, value: params[:from], class: "form-control" %>
-          </div>
-          <div class="filter-item">
-            <%= f.label :to, "期間（至）" %><br>
-            <%= f.date_field :to, value: params[:to], class: "form-control" %>
-          </div>
-          <div class="filter-item">
-            <br>
-            <%= f.submit "集計", class: "btn-signup" %>
-          </div>
-        </div>
-      <% end %>
-    </div>
-
-    <%# 検索が未実行の場合は集計を行わず案内メッセージのみ表示 %>
-    <% unless search_performed? %>
-      <div class="empty-message">
-        <p>店舗または期間を指定して集計してください。</p>
-      </div>
-    <% else %>
-
-      <%# サマリーカード %>
-      <div class="d-flex gap-3 mb-4" style="flex-wrap: wrap;">
-        <div class="card" style="padding: 16px 24px; min-width: 180px;">
-          <div style="color: #888; font-size: 13px;">売上合計</div>
-          <div style="font-size: 28px; font-weight: bold; color: #e53935;"><%= number_to_currency(@total_sales_amount, unit: "¥") %></div>
-        </div>
-        <div class="card" style="padding: 16px 24px; min-width: 180px;">
-          <div style="color: #888; font-size: 13px;">取引件数</div>
-          <div style="font-size: 28px; font-weight: bold;"><%= @total_sales_count %> 件</div>
-        </div>
-        <% if @total_sales_count > 0 %>
-        <div class="card" style="padding: 16px 24px; min-width: 180px;">
-          <div style="color: #888; font-size: 13px;">客単価</div>
-          <div style="font-size: 28px; font-weight: bold;"><%= number_to_currency(@total_sales_amount / @total_sales_count, unit: "¥") %></div>
-        </div>
-        <% end %>
-        <% if @total_discount > 0 %>
-        <div class="card" style="padding: 16px 24px; min-width: 180px;">
-          <div style="color: #888; font-size: 13px;">値引き合計</div>
-          <div style="font-size: 28px; font-weight: bold; color: #e53935;">-<%= number_to_currency(@total_discount, unit: "¥") %></div>
-        </div>
-        <% end %>
-      </div>
-
-      <%# 支払い方法別集計 %>
-      <% if @payment_summary.any? %>
-        <h3>支払い方法別集計</h3>
-        <table class="data-table mb-4">
-          <thead>
-            <tr>
-              <th>支払い方法</th>
-              <th class="text-right">件数</th>
-              <th class="text-right">金額</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% @payment_summary.each do |row| %>
-              <tr>
-                <td><%= row[:label] %></td>
-                <td class="text-right"><%= row[:count] %> 件</td>
-                <td class="text-right"><%= number_to_currency(row[:amount], unit: "¥") %></td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      <% end %>
-
-      <%# 税率別売上（インボイス確定値ベース） %>
-      <% if @tax_summary.any? %>
-        <h3>税率別売上</h3>
-        <table class="data-table mb-4">
-          <thead>
-            <tr>
-              <th>税率</th>
-              <th class="text-right">売上(税込)</th>
-              <th class="text-right">うち消費税</th>
-              <th class="text-right">返品(税込)</th>
-              <th class="text-right">純売上(税込)</th>
-              <th class="text-right">純消費税</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% @tax_summary.each do |row| %>
-              <tr>
-                <td><%= row[:tax_rate] %>%</td>
-                <td class="text-right"><%= number_to_currency(row[:sales_amount], unit: "¥") %></td>
-                <td class="text-right"><%= number_to_currency(row[:sales_tax], unit: "¥") %></td>
-                <td class="text-right"><%= number_to_currency(row[:refund_amount], unit: "¥") %></td>
-                <td class="text-right"><%= number_to_currency(row[:net_amount], unit: "¥") %></td>
-                <td class="text-right"><%= number_to_currency(row[:net_tax], unit: "¥") %></td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      <% end %>
-
-      <%# 返品・取消 %>
-      <% if (@refund_count.to_i + @void_count.to_i) > 0 %>
-        <h3>返品・取消</h3>
-        <table class="data-table mb-4">
-          <thead>
-            <tr>
-              <th>区分</th>
-              <th class="text-right">件数</th>
-              <th class="text-right">金額</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>返品</td>
-              <td class="text-right"><%= @refund_count %> 件</td>
-              <td class="text-right"><%= number_to_currency(@refund_total, unit: "¥") %></td>
-            </tr>
-            <tr>
-              <td>取消(VOID)</td>
-              <td class="text-right"><%= @void_count %> 件</td>
-              <td class="text-right"><%= number_to_currency(@void_total, unit: "¥") %></td>
-            </tr>
-          </tbody>
-        </table>
-      <% end %>
-
-      <%# 日次売上 %>
-      <% if @daily_summary.any? %>
-        <h3>日次売上</h3>
-        <table class="data-table mb-4">
-          <thead>
-            <tr>
-              <th>日付</th>
-              <th class="text-right">件数</th>
-              <th class="text-right">売上金額</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% @daily_summary.each do |row| %>
-              <tr>
-                <td><%= row[:day] %></td>
-                <td class="text-right"><%= row[:count] %> 件</td>
-                <td class="text-right"><%= number_to_currency(row[:amount], unit: "¥") %></td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      <% end %>
-
-      <%# 月次売上 %>
-      <% if @monthly_summary.any? %>
-        <h3>月次売上</h3>
-        <table class="data-table mb-4">
-          <thead>
-            <tr>
-              <th>年月</th>
-              <th class="text-right">件数</th>
-              <th class="text-right">売上金額</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% @monthly_summary.each do |row| %>
-              <tr>
-                <td><%= row[:month] %></td>
-                <td class="text-right"><%= row[:count] %> 件</td>
-                <td class="text-right"><%= number_to_currency(row[:amount], unit: "¥") %></td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      <% end %>
-
-      <%# 担当者別売上 %>
-      <% if @employee_summary.any? %>
-        <h3>担当者別売上</h3>
-        <table class="data-table mb-4">
-          <thead>
-            <tr>
-              <th>コード</th>
-              <th>担当者名</th>
-              <th class="text-right">件数</th>
-              <th class="text-right">売上金額</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% @employee_summary.each do |row| %>
-              <tr>
-                <td><%= row[:code] %></td>
-                <td><%= row[:name] %></td>
-                <td class="text-right"><%= row[:count] %> 件</td>
-                <td class="text-right"><%= number_to_currency(row[:amount], unit: "¥") %></td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      <% end %>
-
-      <%# 商品別売上ランキング %>
-      <% if @product_ranking.any? %>
-        <h3>商品別売上ランキング（上位20件）</h3>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>順位</th>
-              <th>商品名</th>
-              <th class="text-right">販売数</th>
-              <th class="text-right">売上金額</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% @product_ranking.each_with_index do |row, idx| %>
-              <tr>
-                <td><%= idx + 1 %></td>
-                <td><%= row[:name] %></td>
-                <td class="text-right"><%= row[:quantity] %> 個</td>
-                <td class="text-right"><%= number_to_currency(row[:amount], unit: "¥") %></td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      <% end %>
-
-      <%# 客層キー別売上（性別・年代） %>
-      <% if @customer_segment_summary.any? %>
-        <h3>客層キー別売上</h3>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>性別</th>
-              <th>年代</th>
-              <th class="text-right">件数</th>
-              <th class="text-right">売上金額</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% @customer_segment_summary.each do |row| %>
-              <tr>
-                <td><%= row[:gender] %></td>
-                <td><%= row[:age_group] %></td>
-                <td class="text-right"><%= row[:count] %> 件</td>
-                <td class="text-right"><%= number_to_currency(row[:amount], unit: "¥") %></td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      <% end %>
-
-      <% if @daily_summary.empty? && @product_ranking.empty? %>
-        <div class="empty-message">
-          <p>該当する売上データがありません。</p>
-        </div>
-      <% end %>
-
-    <% end %>
-  </div>
+<div class="kpis">
+  <div class="kpi"><div class="kpi-label">売上の合計</div><div class="kpi-value"><%= yen(@total_sales_amount) %></div></div>
+  <div class="kpi"><div class="kpi-label">会計の件数</div><div class="kpi-value"><%= number_with_delimiter(@total_sales_count) %><small>件</small></div></div>
+  <div class="kpi"><div class="kpi-label">客単価</div><div class="kpi-value"><%= @total_sales_count.positive? ? yen(@total_sales_amount / @total_sales_count) : "-" %></div></div>
+  <div class="kpi"><div class="kpi-label">値引きの合計</div><div class="kpi-value"><%= @total_discount.positive? ? "-#{yen(@total_discount)}" : yen(0) %></div></div>
 </div>
+
+<%# 見出し → 列名 → 行。行がないものは表示しない %>
+<% sections = [
+     [ "日次売上", [ "日付", "件数", "売上金額" ], @daily_summary.map { |r| [ l(r[:day], format: :long), "#{r[:count]}件", yen(r[:amount]) ] } ],
+     [ "月次売上", [ "年月", "件数", "売上金額" ], (@monthly_summary.size > 1 ? @monthly_summary : []).map { |r| [ r[:month], "#{r[:count]}件", yen(r[:amount]) ] } ],
+     [ "支払い方法別集計", [ "支払い方法", "件数", "金額" ], @payment_summary.map { |r| [ r[:label], "#{r[:count]}件", yen(r[:amount]) ] } ],
+     [ "税率別売上", [ "税率", "売上（税込）", "うち消費税", "返品（税込）", "差引の売上（税込）", "差引の消費税" ], @tax_summary.map { |r| [ "#{r[:tax_rate]}%", *r.values_at(:sales_amount, :sales_tax, :refund_amount, :net_amount, :net_tax).map { |v| yen(v) } ] } ],
+     [ "返品・取消", [ "区分", "件数", "金額" ], (@refund_count.to_i + @void_count.to_i).positive? ? [ [ "返品", "#{@refund_count}件", yen(@refund_total) ], [ "会計の取消", "#{@void_count}件", yen(@void_total) ] ] : [] ],
+     [ "担当者別売上", [ "従業員番号", "担当者名", "件数", "売上金額" ], @employee_summary.map { |r| [ r[:code], r[:name], "#{r[:count]}件", yen(r[:amount]) ] } ],
+     [ "商品別売上ランキング（上位20件）", [ "順位", "商品名", "販売数", "売上金額" ], @product_ranking.each_with_index.map { |r, i| [ i + 1, r[:name], "#{r[:quantity]}個", yen(r[:amount]) ] } ],
+     [ "客層キー別売上", [ "性別", "年代", "件数", "売上金額" ], @customer_segment_summary.map { |r| [ r[:gender], r[:age_group], "#{r[:count]}件", yen(r[:amount]) ] } ]
+   ].select { |_, _, rows| rows.any? } %>
+<% if sections.size > 1 %>
+  <nav class="chips" aria-label="このページの目次" style="margin-bottom: 0.5rem"><% sections.each_with_index do |(title, *), i| %><%= link_to title, "#report-#{i}", class: "chip" %><% end %></nav>
+<% end %>
+<% sections.each_with_index do |(title, headers, rows), i| %>
+  <section id="report-<%= i %>"><h3><%= title %></h3><%= data_table(headers, rows) %></section>
+<% end %>

@@ -7,10 +7,7 @@ class Dashboard::CashLogsController < Dashboard::BaseController
     @allowed_store_ids = current_account.stores.pluck(:id)
     @allowed_pos_token_ids = PosToken.joins(:store).where(stores: { user_id: current_account.id }).pluck(:id)
 
-    unless search_performed?
-      @cash_logs = CashLog.none.page(1).per(50)
-      return
-    end
+    default_period(Date.current - 6) unless search_performed?
 
     scope = CashLog
       .joins(pos_token: :store)

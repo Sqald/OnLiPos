@@ -1,5 +1,7 @@
 // 量り売り商品の重量(g)入力ダイアログ
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/num_pad.dart';
+import 'package:onlipos/ui/common.dart';
 import 'package:flutter/services.dart';
 import 'package:onlipos/product/product.dart';
 
@@ -47,40 +49,54 @@ class _WeightInputDialogState extends State<WeightInputDialog> {
       title: Text(widget.product.name),
       content: SizedBox(
         width: 320,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('100gあたり ¥${widget.product.price}（量り売り）'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _controller,
-              focusNode: _fieldFocus,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: '重量 (g)',
-                border: OutlineInputBorder(),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('100gあたり ${yen(widget.product.price)}'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _controller,
+                focusNode: _fieldFocus,
+                keyboardType: TextInputType.none,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                autofocus: true,
+                textAlign: TextAlign.right,
+                decoration: const InputDecoration(
+                  labelText: '重さ',
+                  suffixText: 'g',
+                  border: OutlineInputBorder(),
+                ),
+                style: const TextStyle(fontSize: 24),
+                onChanged: (_) => setState(() {}),
+                onSubmitted: (_) => _confirm(),
               ),
-              style: const TextStyle(fontSize: 24),
-              onChanged: (_) => setState(() {}),
-              onSubmitted: (_) => _confirm(),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '金額: ¥$_amount',
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-          ],
+              const SizedBox(height: 8),
+              NumPad(
+                controller: _controller,
+                maxLength: 6,
+                keyHeight: 52,
+                onChanged: () => setState(() {}),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '金額 ${yen(_amount)}',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       actions: [
-        TextButton(
+        OutlinedButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('キャンセル'),
+          child: const Text('やめる'),
         ),
-        ElevatedButton(onPressed: _confirm, child: const Text('確定')),
+        ElevatedButton(onPressed: _confirm, child: const Text('登録する')),
       ],
     );
   }

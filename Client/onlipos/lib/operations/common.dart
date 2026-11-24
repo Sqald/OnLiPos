@@ -1,18 +1,17 @@
 // 店舗運営の画面（勤怠・棚卸・入荷・予約・厨房など）で共通に使う部品
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_header.dart';
 
 extension ResultMessage on State {
   /// APIの結果を画面下に表示する
   void showResult(Map<String, dynamic> result, String successMessage) {
     if (!mounted) return;
     final ok = result['success'] == true;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok ? successMessage : result['message']?.toString() ?? '処理に失敗しました',
-        ),
-        backgroundColor: ok ? Colors.green : Colors.red,
-      ),
+    showMessage(
+      context,
+      ok ? successMessage : result['message']?.toString() ?? 'うまくいきませんでした',
+      ok ? MessageType.success : MessageType.error,
     );
   }
 }
@@ -35,6 +34,7 @@ class ReloadableList extends StatefulWidget {
     required this.itemBuilder,
     this.header,
     this.emptyMessage = 'データがありません',
+    this.emptyIcon = Icons.inbox_outlined,
   });
 
   final String title;
@@ -48,6 +48,7 @@ class ReloadableList extends StatefulWidget {
   itemBuilder;
   final Widget Function(VoidCallback reload)? header;
   final String emptyMessage;
+  final IconData emptyIcon;
 
   @override
   State<ReloadableList> createState() => _ReloadableListState();
@@ -79,27 +80,59 @@ class _ReloadableListState extends State<ReloadableList> {
   Widget build(BuildContext context) {
     final items = _items;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
+      appBar: AppHeader(
+        widget.title,
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
-        ],
-      ),
-      body: Column(
-        children: [
-          if (widget.header != null) widget.header!(_load),
-          Expanded(
-            child: items == null
-                ? const Center(child: CircularProgressIndicator())
-                : _error != null || items.isEmpty
-                ? Center(child: Text(_error ?? widget.emptyMessage))
-                : ListView.builder(
-                    itemCount: items.length,
-                    itemBuilder: (context, i) =>
-                        widget.itemBuilder(context, items[i], _load),
-                  ),
+          OutlinedButton.icon(
+            onPressed: _load,
+            icon: const Icon(Icons.refresh, size: 20),
+            label: const Text('最新にする'),
+            style: OutlinedButton.styleFrom(minimumSize: const Size(64, 44)),
           ),
         ],
+      ),
+      body: LayoutBuilder(
+        builder: (context, box) {
+          final header = widget.header?.call(_load);
+          final content = _content(items);
+          if (header == null) return content;
+          // 画面が低いときは、入力欄と一覧をまとめてスクロールする
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                header,
+                SizedBox(
+                  height: (box.maxHeight - 260).clamp(260, double.infinity),
+                  child: content,
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _content(List<Map<String, dynamic>>? items) {
+    if (items == null) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return EmptyState(
+        icon: Icons.cloud_off,
+        title: '読み込めませんでした',
+        message: _error,
+        action: ElevatedButton(onPressed: _load, child: const Text('もう一度読み込む')),
+      );
+    }
+    if (items.isEmpty) {
+      return EmptyState(icon: widget.emptyIcon, title: widget.emptyMessage);
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: items.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (context, i) => Card(
+        clipBehavior: Clip.antiAlias,
+        child: widget.itemBuilder(context, items[i], _load),
       ),
     );
   }

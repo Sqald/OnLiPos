@@ -60,7 +60,7 @@ class PosPasswordExpiryTest < ActionDispatch::IntegrationTest
     sign_in @user
     travel 20.days do
       patch dashboard_pos_device_update_password_path(@pos)
-      assert_redirected_to dashboard_root_path
+      assert_redirected_to dashboard_pos_devices_path
       new_password = flash[:notice][/新パスワード: (\d{6})/, 1]
       assert new_password
       assert_in_delta 14.days.from_now.to_i, @pos.reload.password_expires_at.to_i, 5

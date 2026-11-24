@@ -1,32 +1,37 @@
 <%# ダッシュボード: 価格・税率の予約変更 %>
-<div class="dashboard-container">
-  <%= render "dashboard/shared/menu" %>
-  <div class="dashboard-content card">
-    <div class="subtitle"><h2>価格・税率の予約変更</h2></div>
-    <p>適用日の0時から新しい価格・税率になります。端末がオフラインでも、同期済みの予約は適用日から有効です。</p>
-    <p><%= link_to "税率をまとめて変更する", tax_change_dashboard_scheduled_changes_path, class: "btn-signup" %>
-       <%= params[:applied] ? link_to("予約中を表示", dashboard_scheduled_changes_path) : link_to("反映済みを表示", dashboard_scheduled_changes_path(applied: 1)) %></p>
-    <% if can_write? %>
+<%= page_header "価格・税率の予約", lead: "指定した日の0時から、新しい価格や税率に切り替わります。端末がオフラインでも、読み込み済みの予約は切り替わります。" do %>
+  <%= link_to "税率をまとめて変更する", tax_change_dashboard_scheduled_changes_path, class: "btn btn-primary" %>
+<% end %>
+<nav class="tabs" aria-label="表示の切り替え">
+  <%= link_to "予約中", dashboard_scheduled_changes_path, class: ("active" unless params[:applied]) %>
+  <%= link_to "反映済み", dashboard_scheduled_changes_path(applied: 1), class: ("active" if params[:applied]) %>
+</nav>
+<% if can_write? && !params[:applied] %>
+  <details class="help-note" <%= "open" if @changes.none? %>>
+    <summary><%= icon(:plus, size: 18) %>1つの商品の変更を予約する</summary>
+    <div class="help-note-body">
+      <p>変えたい項目だけ入力してください。</p>
       <%= form_with url: dashboard_scheduled_changes_path, scope: :change do |f| %>
         <div class="filter-row">
-          <div class="filter-item"><%= f.label :code, "商品コード" %><br><%= f.text_field :code, required: true %></div>
-          <div class="filter-item"><%= f.label :store_id, "店舗（価格のみ）" %><br><%= f.select :store_id, current_account.stores.pluck(:name, :id), include_blank: "商品マスタ" %></div>
-          <div class="filter-item"><%= f.label :effective_on, "適用日" %><br><%= f.date_field :effective_on, required: true, min: Date.tomorrow %></div>
-          <div class="filter-item"><%= f.label :price, "価格" %><br><%= f.number_field :price, min: 0 %></div>
-          <div class="filter-item"><%= f.label :tax_rate, "税率" %><br><%= f.number_field :tax_rate, min: 0, max: 100 %></div>
-          <div class="filter-item"><%= f.label :eat_in_price, "店内価格" %><br><%= f.number_field :eat_in_price, min: 0 %></div>
-          <div class="filter-item"><%= f.label :eat_in_tax_rate, "店内税率" %><br><%= f.number_field :eat_in_tax_rate, min: 0, max: 100 %></div>
-          <div class="filter-item"><br><%= f.submit "予約する", class: "btn-signup" %></div>
+          <div class="filter-item"><label for="change_code">商品コード<%= required_mark %></label><%= f.text_field :code, required: true %></div>
+          <div class="filter-item"><label for="change_effective_on">いつから<%= required_mark %></label><%= f.date_field :effective_on, required: true, min: Date.tomorrow %></div>
+          <div class="filter-item"><%= f.label :price, "新しい価格（円）" %><%= f.number_field :price, min: 0 %></div>
+          <div class="filter-item"><%= f.label :tax_rate, "新しい税率（%）" %><%= f.number_field :tax_rate, min: 0, max: 100 %></div>
+          <div class="filter-item"><%= f.label :eat_in_price, "店内の価格（円）" %><%= f.number_field :eat_in_price, min: 0 %></div>
+          <div class="filter-item"><%= f.label :eat_in_tax_rate, "店内の税率（%）" %><%= f.number_field :eat_in_tax_rate, min: 0, max: 100 %></div>
+          <div class="filter-item"><%= f.label :store_id, "対象（価格のみ店舗指定可）" %><%= f.select :store_id, current_account.stores.pluck(:name, :id), include_blank: "全店舗（基本価格）" %></div>
+          <div class="filter-item"><%= f.submit "予約する", class: "btn btn-primary" %></div>
         </div>
       <% end %>
-    <% end %>
-    <% @changes.map(&:batch).compact.uniq.each do |batch| %>
-      <% if can_write? && !params[:applied] %>
-        <%= button_to "一括予約（#{@changes.find { |c| c.batch == batch }.note}）をまとめて取り消す", destroy_batch_dashboard_scheduled_changes_path(batch: batch), method: :delete, class: "btn-sm btn-danger-outline", data: { turbo_confirm: "まとめて取り消しますか？" } %>
-      <% end %>
-    <% end %>
-    <%= data_table([ "適用日", "商品", "店舗", "変更内容", "備考", "" ], @changes.map { |c| [ c.effective_on, "#{c.product.code} #{c.product.name}", c.store&.name || "商品マスタ", c.changes_summary, c.note,
-          c.applied_at ? "反映 #{datetime(c.applied_at)}" : (can_write? ? button_to("取消", dashboard_scheduled_change_path(c), method: :delete, class: "btn-sm btn-outline") : "") ] }) %>
-    <div class="pagination-wrapper"><%= paginate @changes %></div>
-  </div>
-</div>
+    </div>
+  </details>
+<% end %>
+<% @changes.map(&:batch).compact.uniq.each do |batch| %>
+  <% if can_write? && !params[:applied] %>
+    <div style="margin-bottom: 1rem"><%= button_to "一括予約（#{@changes.find { |c| c.batch == batch }.note}）をまとめて取り消す", destroy_batch_dashboard_scheduled_changes_path(batch: batch), method: :delete, class: "btn btn-sm btn-danger-outline", form: { data: { turbo_confirm: "この一括予約をまとめて取り消しますか？" } } %></div>
+  <% end %>
+<% end %>
+<%= data_table([ "いつから", "商品", "対象", "変更内容", "メモ", "" ], @changes.map { |c| [ l(c.effective_on), "#{c.product.name}（#{c.product.code}）", c.store&.name || "全店舗", c.changes_summary, c.note,
+      c.applied_at ? "#{datetime(c.applied_at)} に反映" : (can_write? ? row_actions(button_to("取り消す", dashboard_scheduled_change_path(c), method: :delete, class: "btn btn-sm btn-danger-outline", form: { data: { turbo_confirm: "この予約を取り消しますか？" } })) : "") ] },
+      empty: params[:applied] ? "反映済みの変更はありません。" : "予約中の変更はありません。") %>
+<div class="pagination-wrapper"><%= paginate @changes %></div>

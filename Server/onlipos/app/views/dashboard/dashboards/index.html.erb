@@ -1,131 +1,90 @@
-<%# ダッシュボード: トップページ(店舗一覧・POS端末一覧)
-    ログイン企業ID表示、店舗の一覧、店舗ごとのPOS端末一覧と稼働状況を表示する %>
-<div class="dashboard-container">
-  <%= render 'dashboard/shared/menu' %>
+<%# ダッシュボード: ホーム（今日の売上・やること・よく使う機能・店舗とPOS端末の状態） %>
+<% content_for :title, "ホーム" %>
+<div class="home-greeting">
+  <h1>ホーム</h1>
+  <p><%= l(Date.current, format: :long) %></p>
+</div>
 
-  <%# POS端末ログイン時に入力する企業ID(=login_name)の案内カード %>
-  <div class="card login-id-card">
-    <h3 class="login-id-label">POS端末ログインID (企業ID)</h3>
-    <p class="login-id-value"><%= current_account.login_name %></p>
-    <p class="login-id-note">※ POS端末でログインする際は、このIDと各端末のID,パスワードを入力してください。</p>
+<% if @steps.any? %>
+  <% next_step = @steps.find { |s| !s.done } %>
+  <section class="card home-card" aria-labelledby="setup-title">
+    <h2 id="setup-title">はじめの準備（<%= @steps.count(&:done) %> / <%= @steps.size %> 完了）</h2>
+    <ol class="setup-steps">
+      <% @steps.each do |step| %>
+        <li class="<%= step.done ? "done" : ("next" if step == next_step) %>">
+          <div><strong><%= step.title %></strong><span><%= step.detail %></span></div>
+          <% if !step.done && can_write? %><%= link_to step == next_step ? "はじめる" : "開く", step.path, class: step == next_step ? "btn btn-primary" : "btn btn-sm btn-secondary" %><% end %>
+        </li>
+      <% end %>
+    </ol>
+  </section>
+<% end %>
+
+<div class="kpis">
+  <div class="kpi">
+    <div class="kpi-label">今日の売上</div>
+    <div class="kpi-value"><%= yen(@today_total) %></div>
+    <div class="kpi-sub">昨日は <%= yen(@yesterday_total) %></div>
   </div>
+  <div class="kpi"><div class="kpi-label">今日の会計</div><div class="kpi-value"><%= number_with_delimiter(@today_count) %><small>件</small></div><div class="kpi-sub">客単価 <%= @today_count.positive? ? yen(@today_total / @today_count) : "-" %></div></div>
+  <div class="kpi"><div class="kpi-label">今日の返品</div><div class="kpi-value"><%= yen(@today_refund) %></div></div>
+  <div class="kpi"><div class="kpi-label">今月の売上</div><div class="kpi-value"><%= yen(@month_total) %></div><div class="kpi-sub"><%= Date.current.month %>月1日から今日まで</div></div>
+</div>
 
-  <%# 店舗一覧 %>
-  <section class="dashboard-section">
-    <div class="section-header">
-      <h2>店舗一覧</h2>
-      <%= link_to "店舗を追加", new_dashboard_store_path, class: "btn-signup" %>
-    </div>
-
-    <div class="card card-table">
-      <% if @stores.any? %>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>店舗名</th>
-              <th>店舗ID</th>
-              <th>登録日</th>
-              <th>POS台数</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% @stores.each do |store| %>
-              <tr>
-                <td><%= store.name %></td>
-                <td><%= store.ascii_name %></td>
-                <td><%= store.created_at.strftime('%Y/%m/%d') %></td>
-                <td><%= store.pos_tokens.size %>台</td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      <% else %>
-        <div class="empty-message">
-          <p>店舗がまだ登録されていません。</p>
+<div class="home-grid">
+  <section class="card" aria-labelledby="week-title">
+    <div class="section-header"><h2 id="week-title">最近7日間の売上</h2><%= link_to "くわしく見る", dashboard_analytics_path %></div>
+    <% max = [ @week.map(&:last).max, 1 ].max %>
+    <div class="week-bars">
+      <% @week.each do |date, amount| %>
+        <div class="week-bar <%= "today" if date == Date.current %>">
+          <span><%= amount >= 10_000 ? "#{(amount / 10_000.0).round(1)}万" : number_with_delimiter(amount) %></span>
+          <i style="height: <%= (amount * 70.0 / max).round(1) %>%" title="<%= l(date, format: :long) %> <%= yen(amount) %>"></i>
+          <span><%= l(date, format: "%-m/%-d") %>（<%= l(date, format: "%a") %>）</span>
         </div>
       <% end %>
     </div>
   </section>
 
-  <%# POS端末一覧(店舗ごとにグループ化して表示) %>
-  <section class="dashboard-section">
-    <div class="section-header">
-      <h2>POS端末一覧</h2>
-      <%= link_to "POS端末を追加", new_dashboard_pos_device_path, class: "btn-signup" %>
-    </div>
-
-    <% if @stores.any? { |s| s.pos_tokens.any? } %>
-      <% @stores.each do |store| %>
-        <% if store.pos_tokens.any? %>
-          <div class="store-pos-group">
-            <h3 class="store-pos-title"><%= store.name %> (<%= store.ascii_name %>)</h3>
-            <div class="card card-table">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>端末名</th>
-                    <th>端末ID</th>
-                    <th>ステータス</th>
-                    <th>最終利用</th>
-                    <th>アプリ</th>
-                    <th>端末認証</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <% store.pos_tokens.each do |pos| %>
-                    <tr>
-                      <td><%= pos.name %></td>
-                      <td><%= pos.ascii_name %></td>
-                      <%# 直近1時間以内に利用があれば「稼働中」とみなす %>
-                      <td>
-                        <% if pos.last_used_at && pos.last_used_at > 1.hour.ago %>
-                          <span class="status-badge status-active">稼働中</span>
-                        <% else %>
-                          <span class="status-badge status-inactive">停止中</span>
-                        <% end %>
-                      </td>
-                      <td><%= pos.last_used_at ? pos.last_used_at.strftime('%Y/%m/%d %H:%M') : '-' %></td>
-                      <td><%= [ pos.app_version, pos.platform ].compact_blank.join(" / ").presence || "-" %></td>
-                      <%# 初期パスワードは2週間で失効。認証済みの端末は期限なし %>
-                      <td>
-                        <% case pos.password_status %>
-                        <% when :authenticated %>
-                          <span class="status-badge status-active">認証済み</span>
-                        <% when :disabled %>
-                          <span class="status-badge status-inactive">停止中</span><br><small><%= pos.disabled_reason %></small>
-                        <% when :pending %>
-                          <span class="status-badge status-inactive">未認証</span>
-                          <% if pos.password_expires_at %><br><small>PW期限 <%= pos.password_expires_at.strftime('%Y/%m/%d %H:%M') %></small><% end %>
-                        <% else %>
-                          <span class="status-badge status-inactive">PW期限切れ</span><br><small>PW再設定が必要です</small>
-                        <% end %>
-                      </td>
-                      <%# パスワード再設定・端末削除ボタン(いずれも確認ダイアログあり) %>
-                      <td>
-                        <%= button_to "PW再設定", dashboard_pos_device_update_password_path(pos), method: :patch, data: { turbo_confirm: "パスワードを再設定しますか？\n新しいパスワードが画面に表示されます。" }, class: "btn-sm btn-outline" %>
-                        <% if pos.disabled? %>
-                          <%= button_to "停止を解除", enable_dashboard_pos_device_path(pos), method: :patch, data: { turbo_confirm: "「#{pos.name}」の停止を解除しますか？" }, class: "btn-sm btn-outline" %>
-                        <% else %>
-                          <%= button_to "停止", disable_dashboard_pos_device_path(pos), method: :patch, data: { turbo_confirm: "「#{pos.name}」を停止しますか？\nこの端末はすぐにAPIを使えなくなります（後から解除できます）。" }, class: "btn-sm btn-danger-outline" %>
-                        <% end %>
-                        <%= button_to "削除", dashboard_pos_device_path(pos), method: :delete, data: { turbo_confirm: "「#{pos.name}」を削除しますか？\nこの端末は以後ログインできなくなります。この操作は取り消せません。" }, class: "btn-sm btn-danger-outline" %>
-                      </td>
-                    </tr>
-                  <% end %>
-                </tbody>
-              </table>
-            </div>
-          </div>
+  <section class="card" aria-labelledby="todo-title">
+    <h2 id="todo-title">やること・お知らせ</h2>
+    <% if @todos.any? %>
+      <ul class="todo-list">
+        <% @todos.each do |todo| %>
+          <li class="<%= "todo-info" if todo.info %>">
+            <%= link_to todo.path do %><%= icon(todo.info ? :info : :alert, size: 22) %><span class="todo-text"><strong><%= todo.title %></strong><span><%= todo.detail %></span></span><%= icon(:next, size: 18) %><% end %>
+          </li>
         <% end %>
-      <% end %>
+      </ul>
     <% else %>
-      <div class="card">
-        <div class="empty-message">
-          <p>POS端末がまだ登録されていません。</p>
-        </div>
-      </div>
+      <p class="todo-none"><%= icon(:check) %>いま対応が必要なことはありません。</p>
     <% end %>
   </section>
-
 </div>
+
+<h2 class="visually-hidden">よく使う機能</h2>
+<div class="tiles">
+  <% [ [ "売上を見る", dashboard_sales_path, :receipt ], [ "売上レポート", dashboard_reports_path, :chart ], [ "商品を探す", dashboard_products_path, :tag ],
+       ([ "商品を登録", new_dashboard_product_path, :plus ] if can_write?), [ "在庫を見る", dashboard_store_stocks_path, :box ], [ "レジ精算", dashboard_register_sessions_path, :register ],
+       [ "従業員", dashboard_employees_path, :people ], [ "POS端末", dashboard_pos_devices_path, :tablet ] ].compact.each do |label, path, name| %>
+    <%= link_to path, class: "tile" do %><%= icon(name, size: 28) %><span><%= label %></span><% end %>
+  <% end %>
+</div>
+
+<% if @stores.any? %>
+  <section class="dashboard-section">
+    <div class="section-header"><h2>店舗の状態</h2><%= link_to "店舗を管理する", dashboard_stores_path %></div>
+    <%= data_table([ "店舗", "店舗ID", "POS端末", "稼働中" ], @stores.map { |s|
+          active = s.pos_tokens.count { |p| p.last_used_at && p.last_used_at > 1.hour.ago }
+          [ s.name, s.ascii_name, "#{s.pos_tokens.size}台", active.positive? ? badge("#{active}台が稼働中") : badge("稼働中の端末なし", false) ] }) %>
+  </section>
+<% end %>
+
+<section class="card">
+  <div class="company-id" data-controller="clipboard" data-clipboard-text-value="<%= current_account.login_name %>">
+    <span class="kpi-label">POS端末で入力する企業ID</span>
+    <span class="company-id-value"><%= current_account.login_name %></span>
+    <button type="button" class="btn btn-sm btn-secondary" data-clipboard-target="button" data-action="clipboard#copy">コピー</button>
+    <p class="text-sm-muted">端末をはじめて使うときに、店舗ID・端末ID・パスワードと一緒に入力します。</p>
+  </div>
+</section>

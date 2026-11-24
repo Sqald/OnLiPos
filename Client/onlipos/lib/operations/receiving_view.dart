@@ -1,5 +1,8 @@
 // 発注に対する入荷の登録（在庫操作の権限を持つ担当者）
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_theme.dart';
+import 'package:onlipos/ui/app_header.dart';
 import 'package:flutter/services.dart';
 import 'package:onlipos/operations/common.dart';
 import 'package:onlipos/sale/sale_extras_api.dart';
@@ -15,7 +18,8 @@ class ReceivingView extends StatelessWidget {
       title: '入荷',
       load: SaleExtrasApi.purchaseOrders,
       listKey: 'purchase_orders',
-      emptyMessage: '入荷待ちの発注はありません',
+      emptyMessage: '入荷を待っている発注はありません',
+      emptyIcon: Icons.local_shipping_outlined,
       itemBuilder: (context, item, reload) => ListTile(
         title: Text('${item['supplier_name']}（${item['number']}）'),
         subtitle: Text(
@@ -85,6 +89,10 @@ class _ReceiveViewState extends State<_ReceiveView> {
   }
 
   Future<void> _submit() async {
+    if (!_quantities.values.any((c) => (int.tryParse(c.text) ?? 0) > 0)) {
+      showMessage(context, '届いた数を入力してください', MessageType.error);
+      return;
+    }
     setState(() => _busy = true);
     final result = await SaleExtrasApi.receive(
       orderId: widget.orderId,
@@ -104,32 +112,49 @@ class _ReceiveViewState extends State<_ReceiveView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('入荷の登録')),
+      appBar: const AppHeader('入荷の登録', subtitle: '届いた数を入力してください'),
       body: ListView(
+        padding: const EdgeInsets.all(16),
         children: [
           for (final item in _items)
-            ListTile(
-              title: Text('${item['product_code']} ${item['product_name']}'),
-              subtitle: Text(
-                '発注 ${item['quantity']} / 入荷済み ${item['received_quantity']}',
-              ),
-              trailing: SizedBox(
-                width: 80,
-                child: TextField(
-                  controller: _quantities[item['id'] as int],
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Card(
+                child: ListTile(
+                  title: Text('${item['product_name']}'),
+                  subtitle: Text(
+                    '${item['product_code']}　発注 ${item['quantity']}　入荷済み ${item['received_quantity']}',
+                  ),
+                  trailing: SizedBox(
+                    width: 120,
+                    child: TextField(
+                      controller: _quantities[item['id'] as int],
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      decoration: const InputDecoration(suffixText: '個'),
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    ),
+                  ),
                 ),
               ),
             ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: ElevatedButton(
-              onPressed: _busy || _items.isEmpty ? null : _submit,
-              child: const Text('入荷を登録'),
-            ),
-          ),
         ],
+      ),
+      bottomNavigationBar: Container(
+        color: AppColors.surface,
+        padding: const EdgeInsets.all(12),
+        child: SizedBox(
+          height: 60,
+          child: ElevatedButton.icon(
+            onPressed: _busy || _items.isEmpty ? null : _submit,
+            icon: const Icon(Icons.check),
+            label: const Text('入荷を登録する', style: TextStyle(fontSize: 20)),
+          ),
+        ),
       ),
     );
   }

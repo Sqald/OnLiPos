@@ -1,6 +1,6 @@
 # 会員（ポイント・掛売）
 class Dashboard::CustomersController < Dashboard::ResourceController
-  manages Customer, title: "会員", order: { id: :desc },
+  manages Customer, title: "会員", order: { id: :desc }, search: "会員番号・名前・電話番号",
     columns: { "会員番号" => ->(r, v) { v.link_to(r.code, v.dashboard_customer_path(r)) }, "名前" => :name, "電話" => :phone, "ポイント" => :points,
                "掛売残高" => ->(r, v) { v.yen(r.receivable) }, "来店" => :visits_count, "最終来店" => ->(r, v) { v.datetime(r.last_visited_at) } },
     fields: [ field(:code, "会員番号（空欄で自動採番）", maxlength: 32), field(:name, "名前"), field(:phone, "電話番号"), field(:email, "メールアドレス"),

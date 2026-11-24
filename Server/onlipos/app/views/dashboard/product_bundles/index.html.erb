@@ -1,49 +1,9 @@
-<div class="dashboard-container">
-  <%= render 'dashboard/shared/menu' %>
-
-<%# ダッシュボード: セット商品(バンドル)一覧画面
-    登録済みのセット商品を一覧表示し、編集/削除への導線を提供する %>
-  <div class="dashboard-content card">
-    <div class="subtitle d-flex justify-content-between align-items-center">
-      <h2>セット商品管理</h2>
-      <%= link_to "新規登録", new_dashboard_product_bundle_path, class: "btn-signup" %>
-    </div>
-
-    <% if @bundles.empty? %>
-      <div class="empty-message">
-        <p>セット商品が登録されていません。</p>
-      </div>
-    <% else %>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>コード</th>
-            <th>セット名</th>
-            <th class="text-right">価格</th>
-            <th>ステータス</th>
-            <th>構成商品数</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <% @bundles.each do |bundle| %>
-            <tr>
-              <td><%= bundle.code %></td>
-              <td><%= bundle.name %></td>
-              <td class="text-right"><%= number_to_currency(bundle.price, unit: "¥") %></td>
-              <td><%= bundle.status_i18n %></td>
-              <td class="text-right"><%= bundle.product_bundle_items.size %> 商品</td>
-              <td>
-                <%= link_to "編集", edit_dashboard_product_bundle_path(bundle), class: "link" %>
-                &nbsp;
-                <%= button_to "削除", dashboard_product_bundle_path(bundle), method: :delete,
-                      data: { confirm: "#{bundle.name} を削除しますか？" },
-                      class: "btn-sm btn-danger" %>
-              </td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    <% end %>
-  </div>
-</div>
+<%# ダッシュボード: セット商品一覧 %>
+<%= page_header "セット商品", lead: "複数の商品をまとめて、1つのコードで販売できます。" do %>
+  <% if can_write? %><%= link_to new_dashboard_product_bundle_path, class: "btn btn-primary" do %><%= icon(:plus, size: 18) %>セット商品を登録<% end %><% end %>
+<% end %>
+<%= data_table([ "コード", "セット名", "価格", "状態", "中身", "操作" ], @bundles.map { |b|
+      [ tag.span(b.code), b.name, b.price.to_i.zero? ? "構成商品の合計" : yen(b.price), badge(b.active? ? "販売中" : "廃盤", b.active?), "#{b.product_bundle_items.size}商品",
+        can_write? ? row_actions(link_to("編集", edit_dashboard_product_bundle_path(b), class: "btn btn-sm btn-secondary"),
+          button_to("削除", dashboard_product_bundle_path(b), method: :delete, class: "btn btn-sm btn-danger-outline", form: { data: { turbo_confirm: "「#{b.name}」を削除しますか？" } })) : "" ] },
+      empty: "セット商品がまだ登録されていません。", action: (link_to("セット商品を登録する", new_dashboard_product_bundle_path, class: "btn btn-primary") if can_write?)) %>

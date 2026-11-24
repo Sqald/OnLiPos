@@ -8,10 +8,7 @@ class Dashboard::SalesController < Dashboard::BaseController
     @stores = current_account.stores.order(:name)
     @allowed_store_ids = current_account.stores.pluck(:id)
 
-    unless search_performed?
-      @sales = Sale.none.page(1).per(50)
-      return
-    end
+    default_period(Date.current - 6) unless search_performed?
 
     scope = build_scope
 

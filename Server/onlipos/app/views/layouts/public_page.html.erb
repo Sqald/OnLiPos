@@ -9,13 +9,16 @@
     <%= yield :head %>
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
+    <link rel="icon" href="/icon.png" type="image/png">
     <%= stylesheet_link_tag "pages/public_page" %>
+    <%= javascript_importmap_tags if content_for?(:interactive) %>
   </head>
-  <body class="public-page">
+  <body class="public-page <%= content_for(:body_class) %>">
     <main>
-      <% if flash[:notice] %><p class="public-notice"><%= flash[:notice] %></p><% end %>
-      <% if flash[:alert] %><p class="public-alert"><%= flash[:alert] %></p><% end %>
+      <% if flash[:notice] %><p class="public-notice" role="status"><%= flash[:notice] %></p><% end %>
+      <% if flash[:alert] %><p class="public-alert" role="alert"><%= flash[:alert] %></p><% end %>
       <%= yield %>
     </main>
+    <%= render "shared/confirm_dialog" if content_for?(:interactive) %>
   </body>
 </html>

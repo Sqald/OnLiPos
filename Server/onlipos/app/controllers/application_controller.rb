@@ -14,6 +14,11 @@ class ApplicationController < ActionController::Base
 
   protected
 
+  # ログイン後は、直前に開こうとしていたページ、なければ管理画面のホームへ移動する
+  def after_sign_in_path_for(resource)
+    stored_location_for(resource) || dashboard_root_path
+  end
+
   # Devise のストロングパラメータに、標準では許可されていない独自カラムを追加する
   def configure_permitted_parameters
     # 新規登録時 (sign_up) に許可するキーを追加

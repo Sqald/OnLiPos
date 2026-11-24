@@ -4,8 +4,12 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_theme.dart';
+import 'package:onlipos/ui/app_header.dart';
+import 'package:onlipos/sale/cart_panel.dart';
+import 'package:onlipos/login/employee_auth_dialog.dart';
 import 'package:onlipos/api/pos_api_client.dart';
-import 'package:onlipos/login/login_api.dart';
 import 'package:onlipos/refund/refund_api.dart';
 import 'package:onlipos/refund/qr_scan_receipt_view.dart';
 import 'package:onlipos/sale/escpos/lan_recipt_api.dart';
@@ -25,18 +29,9 @@ class ReturnRefundView extends StatefulWidget {
 }
 
 class _ReturnRefundViewState extends State<ReturnRefundView> {
-  // 従業員認証（2名以上）
-  final List<TextEditingController> _codeControllers = [
-    TextEditingController(),
-    TextEditingController(),
-  ];
-  final List<TextEditingController> _pinControllers = [
-    TextEditingController(),
-    TextEditingController(),
-  ];
+  // 従業員認証（2名）
   final List<int?> _employeeIds = [null, null];
   final List<String?> _employeeNames = [null, null];
-  final List<bool> _authLoading = [false, false];
 
   final TextEditingController _receiptNumberController =
       TextEditingController();
@@ -49,12 +44,6 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
 
   @override
   void dispose() {
-    for (final c in _codeControllers) {
-      c.dispose();
-    }
-    for (final c in _pinControllers) {
-      c.dispose();
-    }
     _receiptNumberController.dispose();
     super.dispose();
   }
@@ -62,68 +51,22 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
   bool get _twoAuthenticated =>
       _employeeIds[0] != null && _employeeIds[1] != null;
 
-  // index番目の担当者枠を担当者コード・PINで認証し、返品権限と重複認証を確認する
+  // 返品できる担当者を1人確認する（権限はサーバーで確認。同じ人は2回使えない）
   Future<void> _authenticate(int index) async {
-    final code = _codeControllers[index].text.trim();
-    final pin = _pinControllers[index].text.trim();
-    if (code.isEmpty || pin.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('担当者コードとパスワードを入力してください'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-    setState(() => _authLoading[index] = true);
-    final result = await LoginApi.verifyEmployee(
-      code: code,
-      pin: pin,
+    final operator = await showEmployeeAuthDialog(
+      context,
+      title: '返品の確認（${index + 1}人目）',
       permission: 'refund',
     );
-    if (!mounted) return;
-    setState(() => _authLoading[index] = false);
-
-    if (result['success'] == true) {
-      final newId = result['employee_id'] as int?;
-      // 同一担当者による二重認証を防ぐ
-      final otherIndex = 1 - index;
-      if (newId != null && _employeeIds[otherIndex] == newId) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('同一の担当者による2名認証はできません'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-      // 返品権限チェック
-      final permissions =
-          (result['permissions'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [];
-      if (!permissions.contains('refund')) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('この操作の権限がありません（返品）'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-      setState(() {
-        _employeeIds[index] = newId;
-        _employeeNames[index] = result['employee_name'] as String?;
-      });
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message']?.toString() ?? '認証に失敗しました'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    if (operator == null || !mounted) return;
+    if (_employeeIds[1 - index] == operator.id) {
+      showMessage(context, '2人目は、別の人が確認してください', MessageType.error);
+      return;
     }
+    setState(() {
+      _employeeIds[index] = operator.id;
+      _employeeNames[index] = operator.name;
+    });
   }
 
   // QRスキャン画面を開き、読み取ったレシート番号を入力欄に反映する
@@ -140,12 +83,7 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
   Future<void> _loadSale() async {
     final receipt = _receiptNumberController.text.trim();
     if (receipt.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('レシート番号を入力するかQRで読み取ってください'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showMessage(context, 'レシート番号を入力するかQRで読み取ってください', MessageType.error);
       return;
     }
     setState(() {
@@ -160,22 +98,12 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
       final sale = result['sale'] as Map<String, dynamic>?;
       final alreadyRefunded = sale?['refunded'] == true;
       if (sale?['voided'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('この会計は取消済みのため返品できません'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        showMessage(context, 'この会計は取消済みのため返品できません', MessageType.error);
         return;
       }
       if (alreadyRefunded) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('この会計はすでに返品済みです'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          showMessage(context, 'この会計はすでに返品済みです', MessageType.error);
         }
         return;
       }
@@ -188,11 +116,10 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
         }
       });
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message']?.toString() ?? '会計を取得できませんでした'),
-          backgroundColor: Colors.red,
-        ),
+      showMessage(
+        context,
+        result['message']?.toString() ?? '会計を取得できませんでした',
+        MessageType.error,
       );
     }
   }
@@ -225,21 +152,11 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
   // 入力内容を検証したうえで返品をサーバーに登録し、返品レシートを印字する
   Future<void> _submitRefund() async {
     if (!_twoAuthenticated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('2名以上の従業員認証が必要です'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showMessage(context, '2名以上の従業員認証が必要です', MessageType.error);
       return;
     }
     if (_saleData == null || !_hasReturnQuantity) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('返品する数量を1以上指定してください'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showMessage(context, '返品する数量を1以上指定してください', MessageType.error);
       return;
     }
     final details = <Map<String, dynamic>>[];
@@ -248,6 +165,14 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
         details.add({'saledetail_id': entry.key, 'quantity': entry.value});
       }
     }
+    final ok = await confirm(
+      context,
+      title: '${yen(_totalRefundAmount)} を返金しますか？',
+      message: '返品を登録し、返品レシートを印刷します。',
+      okLabel: '返金する',
+      danger: true,
+    );
+    if (!ok || !mounted) return;
     setState(() => _submitLoading = true);
     final result = await RefundApi.createRefund(
       receiptNumber: _receiptNumberController.text.trim(),
@@ -263,9 +188,6 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
       setState(() {
         _employeeIds.fillRange(0, _employeeIds.length, null);
         _employeeNames.fillRange(0, _employeeNames.length, null);
-        for (final c in _pinControllers) {
-          c.clear();
-        }
       });
     }
     if (result['success'] == true) {
@@ -321,13 +243,10 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '返品・返金を登録しました。返金: ${paymentSummary.map((p) => '${p['method']} ¥${p['amount']}').join('、')}',
-          ),
-          backgroundColor: Colors.green,
-        ),
+      showMessage(
+        context,
+        '返品・返金を登録しました。返金: ${paymentSummary.map((p) => '${p['method']} ${yen(p['amount'] as num?)}').join('、')}',
+        MessageType.success,
       );
 
       // サーバーが返品数量分だけ在庫・売上を調整するため、
@@ -338,11 +257,10 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
         _returnQuantities.clear();
       });
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message']?.toString() ?? 'エラーが発生しました'),
-          backgroundColor: Colors.red,
-        ),
+      showMessage(
+        context,
+        result['message']?.toString() ?? 'エラーが発生しました',
+        MessageType.error,
       );
     }
   }
@@ -398,226 +316,220 @@ class _ReturnRefundViewState extends State<ReturnRefundView> {
     }
   }
 
-  // 「1.従業員認証 → 2.レシート検索 → 3.返品数量入力」の3ステップを縦に並べる
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('返品・返金')),
-      body: SingleChildScrollView(
+  // 手順の見出し（番号・題名・終わったかどうか）
+  Widget _step(int number, String title, bool done, Widget child) => Padding(
+    padding: const EdgeInsets.only(bottom: 14),
+    child: Card(
+      child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              '1. 従業員2名以上で認証してください',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            ...List.generate(2, (i) {
-              return Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '従業員${i + 1}',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      if (_employeeIds[i] != null)
-                        Text(
-                          '認証済み: ${_employeeNames[i] ?? ''} (ID: ${_employeeIds[i]})',
-                          style: const TextStyle(color: Colors.green),
-                        )
-                      else
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _codeControllers[i],
-                                decoration: const InputDecoration(
-                                  labelText: '担当者コード',
-                                  border: OutlineInputBorder(),
-                                  isDense: true,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextField(
-                                controller: _pinControllers[i],
-                                obscureText: true,
-                                decoration: const InputDecoration(
-                                  labelText: 'パスワード',
-                                  border: OutlineInputBorder(),
-                                  isDense: true,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            ElevatedButton(
-                              onPressed: _authLoading[i]
-                                  ? null
-                                  : () => _authenticate(i),
-                              child: _authLoading[i]
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Text('認証'),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-            const SizedBox(height: 24),
-            const Text(
-              '2. レシート番号を入力するかQRで読み取ってください',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
             Row(
               children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: done ? AppColors.success : AppColors.primary,
+                  foregroundColor: Colors.white,
+                  child: done
+                      ? const Icon(Icons.check, size: 20)
+                      : Text('$number'),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
-                  flex: 2,
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            child,
+          ],
+        ),
+      ),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final sale = _saleData?['sale'] as Map?;
+    return Scaffold(
+      appBar: const AppHeader('返品・返金', subtitle: '2人で確認してから返金します'),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _step(
+            1,
+            '返品できる人が2人で確認します',
+            _twoAuthenticated,
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                for (var i = 0; i < 2; i++)
+                  _employeeIds[i] != null
+                      ? Chip(
+                          avatar: const Icon(
+                            Icons.check_circle,
+                            color: AppColors.success,
+                          ),
+                          label: Text('${i + 1}人目: ${_employeeNames[i] ?? ''}'),
+                          onDeleted: () => setState(() {
+                            _employeeIds[i] = null;
+                            _employeeNames[i] = null;
+                          }),
+                          deleteButtonTooltipMessage: 'やり直す',
+                        )
+                      : ElevatedButton.icon(
+                          onPressed: () => _authenticate(i),
+                          icon: const Icon(Icons.person_add),
+                          label: Text('${i + 1}人目を確認する'),
+                        ),
+              ],
+            ),
+          ),
+          _step(
+            2,
+            'レシートを探します',
+            _saleData != null,
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SizedBox(
+                  width: 360,
                   child: TextField(
                     controller: _receiptNumberController,
                     decoration: const InputDecoration(
                       labelText: 'レシート番号',
-                      border: OutlineInputBorder(),
-                      hintText: '例: Test-Store-1-00000001',
+                      hintText: '例: shop-store-1-00000001',
                     ),
+                    onSubmitted: (_) => _twoAuthenticated ? _loadSale() : null,
                   ),
                 ),
-                const SizedBox(width: 8),
-                IconButton.filled(
+                OutlinedButton.icon(
                   onPressed: _openQrScanner,
                   icon: const Icon(Icons.qr_code_scanner),
-                  tooltip: 'QRで読み取る',
+                  label: const Text('QRを読み取る'),
                 ),
-                const SizedBox(width: 8),
-                ElevatedButton(
+                ElevatedButton.icon(
                   onPressed: _saleLoading || !_twoAuthenticated
                       ? null
                       : _loadSale,
-                  child: _saleLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('検索'),
+                  icon: const Icon(Icons.search),
+                  label: Text(_saleLoading ? '探しています…' : '探す'),
                 ),
+                if (!_twoAuthenticated)
+                  const Text(
+                    '先に2人の確認をしてください',
+                    style: TextStyle(color: AppColors.secondary),
+                  ),
               ],
             ),
-            if (_saleData != null) ...[
-              const SizedBox(height: 16),
-              const Text(
-                '3. 返品する数量を入力（1個単位）',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'レシート: ${_saleData!['sale']?['receipt_number'] ?? ''}  合計: ¥${_saleData!['sale']?['total_amount'] ?? 0}',
-                style: const TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 8),
-              ...((_saleData!['details'] as List<dynamic>).map((d) {
-                final m = d as Map;
-                final id = m['id'] as int?;
-                final name = m['product_name'] as String? ?? '';
-                final soldQty = (m['quantity'] as num?)?.toInt() ?? 0;
-                final unitPrice = (m['unit_price'] as num?)?.toInt() ?? 0;
-                // 返品可能数量（部分返品済みの場合は残数）。旧サーバーは販売数にフォールバック
-                final refundableQty =
-                    (m['refundable_quantity'] as num?)?.toInt() ?? soldQty;
-                if (id == null) return const SizedBox.shrink();
-                final returnQty = _returnQuantities[id] ?? 0;
-                return Card(
-                  child: ListTile(
-                    title: Text(name),
-                    subtitle: Text(
-                      refundableQty < soldQty
-                          ? '販売: $soldQty 個 (返品可能: $refundableQty 個)  @ ¥$unitPrice'
-                          : '販売: $soldQty 個  @ ¥$unitPrice',
-                    ),
-                    trailing: SizedBox(
-                      width: 120,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.remove),
-                            onPressed: returnQty <= 0
-                                ? null
-                                : () {
-                                    setState(
-                                      () =>
-                                          _returnQuantities[id] = returnQty - 1,
-                                    );
-                                  },
-                          ),
-                          Text(
-                            '$returnQty',
-                            style: const TextStyle(fontSize: 18),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.add),
-                            onPressed: returnQty >= refundableQty
-                                ? null
-                                : () {
-                                    setState(
-                                      () =>
-                                          _returnQuantities[id] = returnQty + 1,
-                                    );
-                                  },
-                          ),
-                        ],
+          ),
+          if (_saleData != null)
+            _step(
+              3,
+              '返品する数を選びます',
+              _hasReturnQuantity,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'レシート ${sale?['receipt_number'] ?? ''}　合計 ${yen(sale?['total_amount'] as num?)}',
+                    style: const TextStyle(color: AppColors.secondary),
+                  ),
+                  const SizedBox(height: 8),
+                  for (final d in _saleData!['details'] as List<dynamic>)
+                    _detailRow(d as Map),
+                  const Divider(height: 24),
+                  LabelValue(
+                    '返金する金額',
+                    yen(_totalRefundAmount),
+                    size: 30,
+                    bold: true,
+                    color: AppColors.danger,
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 64,
+                    child: ElevatedButton.icon(
+                      onPressed: _submitLoading || !_hasReturnQuantity
+                          ? null
+                          : _submitRefund,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.danger,
+                      ),
+                      icon: const Icon(Icons.replay),
+                      label: Text(
+                        _submitLoading ? '処理しています…' : '返品・返金する',
+                        style: const TextStyle(fontSize: 20),
                       ),
                     ),
                   ),
-                );
-              })),
-              const SizedBox(height: 8),
-              Text(
-                '返金合計: ¥$_totalRefundAmount',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                ],
               ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _submitLoading || !_hasReturnQuantity
-                      ? null
-                      : _submitRefund,
-                  icon: _submitLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.check_circle),
-                  label: Text(_submitLoading ? '処理中...' : '返品・返金する'),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(Map<dynamic, dynamic> m) {
+    final id = m['id'] as int?;
+    if (id == null) return const SizedBox.shrink();
+    final soldQty = (m['quantity'] as num?)?.toInt() ?? 0;
+    final unitPrice = (m['unit_price'] as num?)?.toInt() ?? 0;
+    // 返品可能数量（部分返品済みの場合は残数）。旧サーバーは販売数にフォールバック
+    final refundable = (m['refundable_quantity'] as num?)?.toInt() ?? soldQty;
+    final quantity = _returnQuantities[id] ?? 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  m['product_name'] as String? ?? '',
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-            ],
-          ],
-        ),
+                Text(
+                  '${yen(unitPrice)} × $soldQty'
+                  '${refundable < soldQty ? '（あと$refundable個まで返品できます）' : ''}',
+                  style: const TextStyle(color: AppColors.secondary),
+                ),
+              ],
+            ),
+          ),
+          QuantityStepper(
+            quantity: quantity,
+            onMinus: quantity <= 0
+                ? null
+                : () => setState(() => _returnQuantities[id] = quantity - 1),
+            onPlus: quantity >= refundable
+                ? null
+                : () => setState(() => _returnQuantities[id] = quantity + 1),
+          ),
+          SizedBox(
+            width: 96,
+            child: Text(
+              quantity == 0 ? '' : yen(_refundAmount(m, quantity)),
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
     );
   }

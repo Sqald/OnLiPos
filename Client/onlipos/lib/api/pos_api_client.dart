@@ -9,6 +9,7 @@ import 'dart:io';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:onlipos/ui/app_session.dart';
 
 class PosApiClient {
   static const _storage = FlutterSecureStorage();
@@ -80,7 +81,14 @@ class PosApiClient {
       'DELETE' => http.delete(uri, headers: headers, body: encoded),
       _ => throw ArgumentError.value(method, 'method'),
     };
-    return response.timeout(timeout);
+    try {
+      final result = await response.timeout(timeout);
+      AppSession.instance.reportConnection(true);
+      return result;
+    } on Exception {
+      AppSession.instance.reportConnection(false);
+      rethrow;
+    }
   }
 
   /// 結果を `{'success': ..., 'message': ...}` 形式の Map で扱うAPI向けの呼び出し。

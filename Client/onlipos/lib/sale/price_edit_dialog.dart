@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/common.dart';
 import 'package:flutter/services.dart';
 import 'package:onlipos/product/product.dart';
 
@@ -51,71 +52,77 @@ class _PriceEditDialogState extends State<PriceEditDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('価格変更'),
+      title: const Text('値段を変える'),
       content: SizedBox(
-        width: 340,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              _product.name,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 12),
-            if (_product.hasStorePrice)
+        width: 360,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                _product.name,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (_product.hasStorePrice)
+                OutlinedButton(
+                  onPressed: () => _select(_product.listPrice),
+                  child: Text('基本価格 ${yen(_product.listPrice)} にする'),
+                ),
+              if (_product.hasStorePrice) const SizedBox(height: 6),
               OutlinedButton(
-                onPressed: () => _select(_product.listPrice),
-                child: Text('定価  ¥${_product.listPrice}'),
-              ),
-            if (_product.hasStorePrice) const SizedBox(height: 6),
-            OutlinedButton(
-              onPressed: () => _select(_product.price),
-              child: Text(
-                _product.hasStorePrice
-                    ? '店舗売価  ¥${_product.price}'
-                    : '元の価格  ¥${_product.price}',
-              ),
-            ),
-            const Divider(height: 24),
-            CheckboxListTile(
-              value: _isManual,
-              onChanged: (v) => setState(() => _isManual = v ?? false),
-              title: const Text('手動値引き'),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-            ),
-            if (_isManual) ...[
-              TextField(
-                controller: _priceController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(
-                  labelText: '値引き後の価格',
-                  prefixText: '¥',
-                  border: OutlineInputBorder(),
-                ),
-                autofocus: true,
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _reasonController,
-                decoration: const InputDecoration(
-                  labelText: '理由（例: 賞味期限値引き）',
-                  border: OutlineInputBorder(),
+                onPressed: () => _select(_product.price),
+                child: Text(
+                  _product.hasStorePrice
+                      ? 'この店舗の価格 ${yen(_product.price)} にする'
+                      : '元の値段 ${yen(_product.price)} にする',
                 ),
               ),
+              const Divider(height: 24),
+              CheckboxListTile(
+                value: _isManual,
+                onChanged: (v) => setState(() => _isManual = v ?? false),
+                title: const Text('金額を入力して変える'),
+                subtitle: const Text('会計のときに、値引きできる人の確認が必要です'),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+              ),
+              if (_isManual) ...[
+                TextField(
+                  controller: _priceController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(
+                    labelText: '新しい値段',
+                    prefixText: '¥',
+                    border: OutlineInputBorder(),
+                  ),
+                  autofocus: true,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _reasonController,
+                  decoration: const InputDecoration(
+                    labelText: '理由（例: 賞味期限値引き）',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
       actions: [
-        TextButton(
+        OutlinedButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('キャンセル'),
+          child: const Text('やめる'),
         ),
         if (_isManual)
-          ElevatedButton(onPressed: _applyManual, child: const Text('適用')),
+          ElevatedButton(onPressed: _applyManual, child: const Text('この値段にする')),
       ],
     );
   }

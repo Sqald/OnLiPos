@@ -1,114 +1,57 @@
-<%# ダッシュボード: 商品一覧画面
-    商品のCSV一括登録・検索絞り込み・一覧表示を提供する %>
-<div class="dashboard-container">
-  <%= render 'dashboard/shared/menu' %>
+<%# ダッシュボード: 商品一覧（検索・絞り込み・CSVでの一括登録） %>
+<%= page_header "商品" do %>
+  <%= link_to export_dashboard_products_path, class: "btn btn-secondary" do %><%= icon(:download, size: 18) %>CSVで出力<% end %>
+  <% if can_write? %><%= link_to new_dashboard_product_path, class: "btn btn-primary" do %><%= icon(:plus, size: 18) %>商品を登録<% end %><% end %>
+<% end %>
 
-  <div class="dashboard-content card">
-    <div class="subtitle d-flex justify-content-between align-items-center mb-3">
-      <h2>商品一覧</h2>
-      <div class="d-flex gap-2">
-        <%= link_to "CSVで出力", export_dashboard_products_path, class: "btn-sm btn-outline" %>
-        <%= link_to "商品登録", new_dashboard_product_path, class: "btn-signup" %>
-      </div>
+<div class="filters">
+  <%= form_with url: dashboard_products_path, method: :get do |f| %>
+    <div class="filter-row">
+      <div class="filter-item wide"><%= f.label :q, "商品名・商品コード" %><%= f.search_field :q, value: params[:q], placeholder: "例: おにぎり / 4901234567890" %></div>
+      <div class="filter-item"><%= f.label :category_id, "カテゴリ" %><%= f.select :category_id, options_from_collection_for_select(@categories, :id, :name, params[:category_id]), { include_blank: "すべて" } %></div>
+      <div class="filter-item"><%= f.label :status, "状態" %><%= f.select :status, options_for_select([ [ "すべて", "" ], [ "販売中", "active" ], [ "廃盤", "discontinued" ] ], params[:status]) %></div>
+      <div class="filter-item"><%= f.submit "探す", class: "btn btn-primary", name: nil %></div>
     </div>
+  <% end %>
+</div>
 
-    <%# CSVファイルによる商品の一括登録・更新フォーム %>
-    <div class="card my-4">
-      <div class="card-body">
-        <h3 class="card-title">CSVで一括登録・更新</h3>
-        <p class="text-muted">
-          「CSVで出力」したファイルを編集して取り込めます（UTF-8 / Shift_JIS、5MBまで）。必須の列は <strong>code, name, price</strong> です。<br>
-          使える列: <%= Product::CSV_HEADERS.join(", ") %><br>
-          tax_type は inclusive（内税）/ exclusive（外税）/ tax_free（非課税）、status は active / discontinued、category・supplier は名称で指定します。<br>
-          既存コードの商品は上書きし、空欄の列は変更しません。
-        </p>
-        <%= form_with(url: import_dashboard_products_path, multipart: true, local: true, class: "d-flex align-items-end") do |form| %>
-          <div class="field me-3">
-            <%= form.label :file, "CSVファイル", class: "form-label" %>
-            <%= form.file_field :file, accept: 'text/csv', class: "form-control" %>
-          </div>
-          <div class="actions">
-            <%= form.submit "インポート", class: "btn-signup" %>
-          </div>
-        <% end %>
-      </div>
-    </div>
+<%= result_count(@products) %>
+<% rows = @products.map do |p|
+     [ p.code, p.name, p.product_category&.name || "-",
+       p.sold_by_weight? ? safe_join([ yen(p.price), tag.small("100gあたり") ], " ") : yen(p.price),
+       p.cost_price ? "#{yen(p.cost_price)} / #{p.profit_rate}%" : "-",
+       safe_join([ "#{p.tax_rate}%", ("店内#{p.eat_in_tax_rate}%" if p.eat_in_tax_rate), (Product.tax_type_label(p.tax_type) unless p.tax_inclusive?) ].compact, " / "),
+       badge(p.active? ? "販売中" : "廃盤", p.active?),
+       can_write? ? row_actions(link_to("編集", edit_dashboard_product_path(p), class: "btn btn-sm btn-secondary", aria: { label: "#{p.name}を編集" })) : "" ]
+   end %>
+<% filtered = params.values_at(:q, :status, :category_id).any?(&:present?) %>
+<%= data_table([ "商品コード", "商品名", "カテゴリ", "価格", "原価 / 粗利率", "税率", "状態", "" ], rows,
+      empty: filtered ? "条件に合う商品はありません。" : "商品がまだ登録されていません。",
+      action: filtered ? link_to("条件をクリア", dashboard_products_path, class: "btn btn-secondary") : (link_to("はじめの商品を登録する", new_dashboard_product_path, class: "btn btn-primary") if can_write?)) %>
+<div class="pagination-wrapper"><%= paginate @products %></div>
 
-    <% if @imports.any? %>
-      <h3>取込の履歴</h3>
-      <%= data_table([ "日時", "ファイル", "状態", "登録", "更新", "エラー" ], @imports.map { |i| [ datetime(i.created_at), i.filename,
-            { "queued" => "待機中", "running" => "処理中", "completed" => "完了", "failed" => "失敗" }[i.status], i.imported_count, i.updated_count, safe_join(i.error_messages.first(10), tag.br) ] }) %>
-    <% end %>
-
-    <%# 商品名・コード検索、ステータス、カテゴリによる絞り込みフォーム %>
-    <div class="filters mb-3">
-      <%= form_with url: dashboard_products_path, method: :get, local: true do |f| %>
-        <div class="filter-row">
-          <div class="filter-item">
-            <%= f.label :q, "商品名・コード検索" %><br>
-            <%= f.text_field :q, value: params[:q], class: "form-control", placeholder: "商品名またはコード" %>
-          </div>
-          <div class="filter-item">
-            <%= f.label :status, "ステータス" %><br>
-            <%= f.select :status,
-                  [["すべて", ""], ["有効", "active"], ["廃盤", "discontinued"]],
-                  { selected: params[:status] },
-                  class: "form-control" %>
-          </div>
-          <div class="filter-item">
-            <%= f.label :category_id, "カテゴリ" %><br>
-            <%= f.select :category_id,
-                  options_from_collection_for_select(@categories, :id, :name, params[:category_id]),
-                  { include_blank: "すべて" }, class: "form-control" %>
-          </div>
-          <div class="filter-item">
-            <br>
-            <%= f.submit "検索", class: "btn-signup" %>
-          </div>
-        </div>
+<% if can_write? %>
+  <details class="help-note" style="margin-top: 1.5rem" <%= "open" if @imports.any? { |i| %w[queued running failed].include?(i.status) } %>>
+    <summary><%= icon(:download, size: 18) %>CSVファイルでまとめて登録・更新する</summary>
+    <div class="help-note-body">
+      <ol>
+        <li>「CSVで出力」したファイルを表計算ソフトで編集します（UTF-8 / Shift_JIS、5MBまで）。</li>
+        <li>下からファイルを選んで「取り込む」を押します。同じ商品コードは上書きし、空欄の列は変更しません。</li>
+      </ol>
+      <%= form_with(url: import_dashboard_products_path, multipart: true, class: "filter-row", style: "margin: 1rem 0") do |form| %>
+        <div class="filter-item wide"><%= form.label :file, "CSVファイル" %><%= form.file_field :file, accept: "text/csv", required: true %></div>
+        <div class="filter-item"><%= form.submit "取り込む", class: "btn btn-primary" %></div>
+      <% end %>
+      <%= help_note("使える列（くわしい説明）") do %>
+        <p>必須の列は <code>code</code>（商品コード）<code>name</code>（商品名）<code>price</code>（価格）です。</p>
+        <p>使える列: <code><%= Product::CSV_HEADERS.join(", ") %></code></p>
+        <p>tax_type は inclusive（内税）/ exclusive（外税）/ tax_free（非課税）、status は active（販売中）/ discontinued（廃盤）、category・supplier は名称で指定します。</p>
+      <% end %>
+      <% if @imports.any? %>
+        <h3>取り込みの履歴</h3>
+        <%= data_table([ "日時", "ファイル", "状態", "登録", "更新", "エラー" ], @imports.map { |i| [ datetime(i.created_at), i.filename,
+              { "queued" => badge("待機中", false), "running" => badge("処理中", :warning), "completed" => badge("完了"), "failed" => badge("失敗", :danger) }[i.status], "#{i.imported_count}件", "#{i.updated_count}件", safe_join(i.error_messages.first(10), tag.br) ] }) %>
       <% end %>
     </div>
-
-    <%# 商品一覧テーブル %>
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>商品コード</th>
-          <th>商品名</th>
-          <th>カテゴリ</th>
-          <th>基本価格</th>
-          <th>原価 / 粗利率</th>
-          <th>税率</th>
-          <th>ステータス</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <% @products.each do |product| %>
-          <tr>
-            <td><%= product.code %></td>
-            <td><%= product.name %></td>
-            <td><%= product.product_category&.name || "-" %></td>
-            <td>
-              <%= number_to_currency(product.price) %>
-              <% if product.sold_by_weight? %>
-                <span class="status-badge status-inactive">量り売り(100gあたり)</span>
-              <% end %>
-            </td>
-            <td><%= product.cost_price ? "#{yen(product.cost_price)} / #{product.profit_rate}%" : "-" %></td>
-            <td><%= product.tax_rate %>%<%= " / 店内#{product.eat_in_tax_rate}%" if product.eat_in_tax_rate %> <%= Product.tax_type_label(product.tax_type) unless product.tax_inclusive? %></td>
-            <td>
-              <span class="status-badge <%= product.active? ? 'status-active' : 'status-inactive' %>">
-                <%= product.status_i18n %>
-              </span>
-            </td>
-            <td>
-              <%= link_to "編集", edit_dashboard_product_path(product), class: "btn-sm btn-outline" %>
-            </td>
-          </tr>
-        <% end %>
-      </tbody>
-    </table>
-    <%= paginate @products %>
-  </div>
-</div>
+  </details>
+<% end %>

@@ -2,7 +2,9 @@
 # Devise によるセッション認証を必須化し、メンバーの役割（role）による操作制限と、
 # レコード未検出時の共通ハンドリングを提供する。
 class Dashboard::BaseController < ApplicationController
-  ROLE_LEVELS = { "viewer" => 0, "manager" => 1, "owner" => 2 }.freeze
+  include DashboardAccess
+
+  layout "dashboard"
 
   # 参照・変更それぞれに必要な役割。コントローラごとに requires_role で上書きする
   class_attribute :read_role, default: "viewer"
@@ -13,7 +15,7 @@ class Dashboard::BaseController < ApplicationController
   before_action :enforce_role
   rescue_from ActiveRecord::RecordNotFound, with: :record_not_found
 
-  helper_method :current_account, :can_write?, :role_at_least?
+  helper_method :can_write?
 
   def self.requires_role(read: read_role, write: write_role)
     self.read_role = read
@@ -21,15 +23,6 @@ class Dashboard::BaseController < ApplicationController
   end
 
   private
-
-  # 操作対象の契約アカウント（メンバーの場合は契約者本体）
-  def current_account
-    @current_account ||= current_user.account
-  end
-
-  def role_at_least?(role)
-    ROLE_LEVELS.fetch(current_user.role) >= ROLE_LEVELS.fetch(role.to_s)
-  end
 
   def can_write? = role_at_least?(write_role)
 
@@ -60,6 +53,12 @@ class Dashboard::BaseController < ApplicationController
       format.json { render json: { error: "パスワードの再入力が必要です。", redirect: new_dashboard_reauthentication_path }, status: :unauthorized }
       format.any { redirect_to new_dashboard_reauthentication_path, alert: "安全のため、パスワードを再入力してください。", status: :see_other }
     end
+  end
+
+  # 検索条件が無いときの初期表示の期間。一覧を開いてすぐ中身が見えるようにする
+  def default_period(from, to = Date.current)
+    params[:from] = from.to_s
+    params[:to] = to.to_s
   end
 
   def parse_date(value)

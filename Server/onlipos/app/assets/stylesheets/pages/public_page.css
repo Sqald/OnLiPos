@@ -1,22 +1,82 @@
-/* お客様向けの公開ページ（電子レシート・セルフ注文・厨房・客用表示） */
-body.public-page { margin: 0; background: #f5f5f4; color: #1c1917; font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.6; }
-.public-page main { max-width: 34rem; margin: 0 auto; padding: 1rem; }
-.public-page main.wide { max-width: none; }
-.public-card { background: #fff; border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgb(0 0 0 / 12%); }
-.public-page h1 { font-size: 1.25rem; margin: 0 0 .75rem; }
-.public-page h2 { font-size: 1.05rem; margin: 1rem 0 .5rem; }
+/* お客様向けの公開ページ（電子レシート・セルフ注文・厨房・客用表示）。このファイルだけを読み込む */
+body.public-page { margin: 0; background: #f4f6fa; color: #1b2430; font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", "Noto Sans CJK JP", "Yu Gothic UI", Meiryo, sans-serif; line-height: 1.6; }
+.public-page *, .public-page *::before { box-sizing: border-box; }
+.public-page main { max-width: 36rem; margin: 0 auto; padding: 1rem; }
+.public-page.wide main { max-width: none; }
+.public-page.with-order-bar main { padding-bottom: 7rem; }
+.public-page :focus-visible { outline: 3px solid #f5a524; outline-offset: 2px; }
+.public-card { background: #fff; border: 1px solid #dde3ec; border-radius: 12px; padding: 1.1rem 1.25rem; margin-bottom: 1rem; scroll-margin-top: 4rem; }
+.public-card > summary { font-weight: 700; cursor: pointer; }
+.public-page h1 { font-size: 1.3rem; margin: 0 0 .75rem; }
+.public-page h2 { font-size: 1.1rem; margin: 0 0 .5rem; }
 .public-page table { width: 100%; border-collapse: collapse; }
-.public-page td { padding: .3rem 0; vertical-align: top; }
+.public-page td { padding: .4rem 0; vertical-align: top; }
 .public-page td.amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.public-total td { border-top: 2px solid #1c1917; font-weight: 700; font-size: 1.2rem; padding-top: .5rem; }
-.public-muted { color: #57534e; font-size: .85rem; }
-.public-notice, .public-alert { padding: .75rem 1rem; border-radius: 8px; }
-.public-notice { background: #dcfce7; } .public-alert { background: #fee2e2; }
-.public-button { display: inline-block; border: 0; border-radius: 8px; background: #1d4ed8; color: #fff; font-size: 1rem; padding: .75rem 1.25rem; cursor: pointer; width: 100%; }
-.public-menu-item { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .6rem 0; border-bottom: 1px solid #e7e5e4; }
-.public-menu-item input[type="number"] { width: 4rem; font-size: 1rem; padding: .4rem; }
-.public-menu-item label { display: block; }
-.kitchen-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 1rem; }
-.kitchen-grid .accepted { border-left: 6px solid #f59e0b; } .kitchen-grid .waiting { border-left: 6px solid #dc2626; }
-.display-total { font-size: 4rem; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
-.display-items { font-size: 1.5rem; }
+.public-total td { border-top: 2px solid #1b2430; font-weight: 700; font-size: 1.3rem; padding-top: .6rem; }
+.public-muted { color: #5b6677; font-size: .88rem; }
+.public-notice, .public-alert { padding: .85rem 1.1rem; border-radius: 10px; font-weight: 600; }
+.public-notice { background: #e3f5ec; color: #146c43; } .public-alert { background: #fdebec; color: #8f1a20; }
+.public-button { display: inline-flex; align-items: center; justify-content: center; min-height: 52px; border: 0; border-radius: 10px; background: #1d5fd1; color: #fff; font: inherit; font-size: 1.08rem; font-weight: 700; padding: .7rem 1.5rem; cursor: pointer; width: 100%; }
+.public-button:hover { background: #174ea9; }
+.public-button:disabled { background: #a7b3c6; cursor: not-allowed; }
+
+/* セルフ注文 */
+.order-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+.order-header p { margin: 0; }
+.order-store { font-size: 1.25rem; font-weight: 800; }
+.order-table { background: #1b2430; color: #fff; border-radius: 999px; padding: .25rem .9rem; white-space: nowrap; }
+.order-categories { position: sticky; top: 0; z-index: 5; display: flex; gap: .5rem; overflow-x: auto; margin: 0 -1rem 1rem; padding: .6rem 1rem; background: #f4f6fa; }
+.order-categories a { flex: none; padding: .45rem 1rem; border: 1px solid #b9c3d2; border-radius: 999px; background: #fff; color: #1b2430; font-weight: 600; text-decoration: none; }
+.public-menu-item { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: .5rem 1rem; padding: .9rem 0; border-top: 1px solid #e6eaf1; }
+.public-menu-item.selected { background: #eef4fe; margin: 0 -1.25rem; padding-left: 1.25rem; padding-right: 1.25rem; }
+.public-price { font-variant-numeric: tabular-nums; color: #4a5566; }
+.public-options { grid-column: 1 / -1; }
+.public-options p { margin: .25rem 0; }
+.public-options label { display: flex; align-items: center; gap: .6rem; min-height: 44px; }
+.public-options input { width: 1.3rem; height: 1.3rem; accent-color: #1d5fd1; }
+.stepper { display: flex; align-items: center; gap: .35rem; }
+.stepper button { width: 44px; height: 44px; border: 1px solid #b9c3d2; border-radius: 50%; background: #fff; font-size: 1.3rem; line-height: 1; color: #1d5fd1; cursor: pointer; }
+.stepper input { width: 3rem; height: 44px; border: 0; background: none; text-align: center; font: inherit; font-size: 1.15rem; font-weight: 700; appearance: textfield; -moz-appearance: textfield; }
+.stepper input::-webkit-inner-spin-button { appearance: none; }
+.order-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .8rem 1.1rem calc(.8rem + env(safe-area-inset-bottom)); background: #fff; border-top: 1px solid #dde3ec; box-shadow: 0 -4px 16px rgb(20 30 50 / 10%); }
+.order-bar strong { font-size: 1.4rem; margin-left: .4rem; font-variant-numeric: tabular-nums; }
+.order-bar .public-button { width: auto; min-width: 9rem; }
+
+/* 厨房 */
+.kitchen-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .5rem 1.5rem; margin-bottom: 1rem; }
+.kitchen-header h1, .kitchen-header p { margin: 0; }
+.kitchen-header h1 { font-size: 1.6rem; }
+.kitchen-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 1rem; align-items: start; }
+.kitchen-grid .public-card { margin: 0; border-top: 8px solid #f5a524; }
+.kitchen-grid .waiting { border-top-color: #c0262d; }
+.kitchen-grid .late { background: #fff3f3; }
+.kitchen-title { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
+.kitchen-title h2 { font-size: 1.6rem; margin: 0; }
+.kitchen-status { border-radius: 999px; background: #eef1f6; padding: .1rem .8rem; font-weight: 700; white-space: nowrap; }
+.kitchen-items { list-style: none; margin: 0 0 1rem; padding: 0; font-size: 1.25rem; }
+.kitchen-items li { display: flex; justify-content: space-between; gap: 1rem; padding: .45rem 0; border-top: 1px solid #e6eaf1; }
+.kitchen-items small { display: block; color: #8a5300; font-size: .95rem; }
+.public-button.done { background: #146c43; }
+.kitchen-empty { text-align: center; font-size: 1.3rem; color: #5b6677; padding: 4rem 1rem; }
+
+/* 客用表示 */
+.public-page.display { background: #fff; }
+.public-page.display main { max-width: none; min-height: 100dvh; display: flex; flex-direction: column; padding: 2.5vw; }
+.display-lines { flex: 1; overflow: hidden; }
+.display-items { font-size: clamp(1.3rem, 2.8vw, 2.4rem); }
+.display-items td { border-bottom: 1px solid #e6eaf1; }
+.display-items span { color: #5b6677; }
+.display-total-row { display: flex; justify-content: space-between; align-items: baseline; gap: 2rem; border-top: 4px solid #1b2430; padding-top: 1.5vw; font-size: clamp(1.6rem, 4vw, 3.4rem); font-weight: 700; }
+.display-total { font-size: clamp(3rem, 10vw, 8rem); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.display-idle { flex: 1; display: grid; place-content: center; text-align: center; }
+.display-idle h1 { font-size: clamp(2rem, 6vw, 5rem); margin: 0; }
+.display-idle p { font-size: clamp(1.4rem, 4vw, 3rem); color: #4a5566; }
+
+/* 確認ダイアログ */
+.public-page .confirm-dialog { border: 0; border-radius: 14px; padding: 1.5rem; width: min(420px, calc(100vw - 2rem)); box-shadow: 0 24px 60px rgb(10 20 40 / 35%); }
+.public-page .confirm-dialog::backdrop { background: rgb(15 22 35 / 50%); }
+.public-page .confirm-message { margin: 0 0 1.5rem; font-size: 1.1rem; white-space: pre-line; }
+.public-page .confirm-actions { display: flex; gap: .6rem; }
+.public-page .confirm-actions .btn { flex: 1; min-height: 50px; border: 1px solid #b9c3d2; border-radius: 10px; background: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.public-page .confirm-actions .btn-primary { background: #1d5fd1; border-color: #1d5fd1; color: #fff; }
+.public-page .confirm-actions .btn-danger { background: #c0262d; border-color: #c0262d; }

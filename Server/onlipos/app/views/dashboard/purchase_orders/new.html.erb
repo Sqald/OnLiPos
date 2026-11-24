@@ -1,14 +1,16 @@
 <%# ダッシュボード: 発注の作成 %>
-<div class="dashboard-container">
-  <%= render "dashboard/shared/menu" %>
-  <div class="dashboard-content card">
-    <div class="subtitle"><h2>発注の作成</h2></div>
+<%= page_header "発注を作成", back: true %>
+<% if @suppliers.none? %>
+  <p class="callout warning"><%= icon(:alert) %><span>先に<%= link_to "仕入先を登録", new_dashboard_supplier_path %>してください。</span></p>
+<% else %>
+  <div class="filters">
     <%= form_with url: new_dashboard_purchase_order_path, method: :get do |f| %>
-      <p>店舗と仕入先を選ぶと、在庫が不足している商品を初期値にできます。
-      <%= f.select :store_id, options_from_collection_for_select(@stores, :id, :name, @order.store_id) %>
-      <%= f.select :supplier_id, options_from_collection_for_select(@suppliers, :id, :name, @order.supplier_id) %>
-      <%= f.submit "不足商品を読み込む", class: "btn-sm btn-outline" %></p>
+      <div class="filter-row">
+        <div class="filter-item"><%= f.label :store_id, "店舗" %><%= f.select :store_id, options_from_collection_for_select(@stores, :id, :name, @order.store_id) %></div>
+        <div class="filter-item"><%= f.label :supplier_id, "仕入先" %><%= f.select :supplier_id, options_from_collection_for_select(@suppliers, :id, :name, @order.supplier_id) %></div>
+        <div class="filter-item wide"><%= f.submit "在庫が少ない商品を読み込む", class: "btn btn-secondary", name: nil %></div>
+      </div>
     <% end %>
-    <%= render "form" %>
   </div>
-</div>
+  <div class="dashboard-content"><%= render "form" %></div>
+<% end %>

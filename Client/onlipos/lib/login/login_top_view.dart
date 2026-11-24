@@ -4,6 +4,9 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/credential_pad.dart';
+import 'package:onlipos/ui/app_theme.dart';
+import 'package:onlipos/ui/app_session.dart';
 import 'package:onlipos/login/login_api.dart';
 import 'package:onlipos/setup/setup_view.dart';
 import 'package:onlipos/startup/open_view.dart';
@@ -31,6 +34,10 @@ class _LoginTopViewState extends State<LoginTopView> {
 
   // 従業員コード・PIN・営業日でログインAPIを呼び出す
   Future<void> _handleLogin() async {
+    if (_codeController.text.trim().isEmpty || _pinController.text.isEmpty) {
+      setState(() => _errorMessage = '従業員番号とPINを入力してください');
+      return;
+    }
     setState(() {
       _isLoading = true;
       _errorMessage = '';
@@ -66,6 +73,7 @@ class _LoginTopViewState extends State<LoginTopView> {
       // 失敗時：エラーメッセージを更新
       setState(() {
         _errorMessage = result['message'] ?? '認証に失敗しました';
+        _pinController.clear();
       });
     }
   }
@@ -73,6 +81,10 @@ class _LoginTopViewState extends State<LoginTopView> {
   // ログイン成功後、レジ開設画面(OpenView)へ遷移する
   void _proceedToNextStep() {
     if (!mounted) return;
+    AppSession.instance.startBusiness(
+      operatorName: _employeeName!,
+      date: _selectedDate,
+    );
 
     Navigator.pushReplacement(
       context,
@@ -102,122 +114,88 @@ class _LoginTopViewState extends State<LoginTopView> {
     }
   }
 
-  // 営業日選択・コード/PIN入力欄・業務開始ボタンを含むログインカードを表示する
+  // 営業日・従業員番号・PINの入力と、業務開始ボタンを表示する
   @override
   Widget build(BuildContext context) {
+    const weekdays = ['月', '火', '水', '木', '金', '土', '日'];
+    final d = _selectedDate;
     final dateStr =
-        "${_selectedDate.year}年${_selectedDate.month}月${_selectedDate.day}日";
+        '${d.year}年${d.month}月${d.day}日（${weekdays[d.weekday - 1]}）';
 
     return Scaffold(
-      backgroundColor: Colors.grey[200],
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 400),
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 10,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
+          padding: const EdgeInsets.all(20),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  '業務開始・ログイン',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 24),
-                if (_errorMessage.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16.0),
-                    child: Text(
-                      _errorMessage,
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  ),
-                InkWell(
-                  onTap: () => _selectDate(context),
-                  child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: '営業日 (開設日)',
-                      border: OutlineInputBorder(),
-                      suffixIcon: Icon(Icons.calendar_today),
-                    ),
-                    child: Text(dateStr, style: const TextStyle(fontSize: 16)),
+                const Text(
+                  'OnLiPos',
+                  style: TextStyle(
+                    fontSize: 34,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
                   ),
                 ),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: _codeController,
-                  decoration: const InputDecoration(
-                    labelText: '従業員コード',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person),
-                  ),
+                const Text(
+                  '業務を始めます。従業員番号とPINを入力してください。',
+                  style: TextStyle(fontSize: 16, color: AppColors.secondary),
                 ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _pinController,
-                  decoration: const InputDecoration(
-                    labelText: 'PINコード',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock),
-                  ),
-                  obscureText: true,
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _handleLogin,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
+                const SizedBox(height: 20),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: CredentialPad(
+                      codeController: _codeController,
+                      pinController: _pinController,
+                      loading: _isLoading,
+                      error: _errorMessage,
+                      submitLabel: '業務を始める',
+                      onSubmit: _handleLogin,
+                      leading: InkWell(
+                        onTap: () => _selectDate(context),
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: '営業日',
+                            prefixIcon: Icon(Icons.calendar_today),
+                            suffixIcon: Icon(Icons.edit),
+                          ),
+                          child: Text(
+                            dateStr,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
                             ),
-                          )
-                        : const Text('業務開始'),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 12,
+                  alignment: WrapAlignment.center,
                   children: [
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const SetupPage(title: 'サーバー設定'),
-                          ),
-                        );
-                      },
-                      child: const Text('サーバー設定'),
+                    TextButton.icon(
+                      icon: const Icon(Icons.sync),
+                      label: const Text('商品データを更新'),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const ProvisioningPage(),
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 16),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => const ProvisioningPage(),
-                          ),
-                        );
-                      },
-                      child: const Text('マスタ同期'),
+                    TextButton.icon(
+                      icon: const Icon(Icons.settings_ethernet),
+                      label: const Text('接続先・端末の設定'),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const SetupPage(title: '接続先・端末の設定'),
+                        ),
+                      ),
                     ),
                   ],
                 ),

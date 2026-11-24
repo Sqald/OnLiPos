@@ -4,8 +4,6 @@ class Dashboard::MembersController < Dashboard::BaseController
   before_action :require_recent_authentication, except: [ :index ]
   before_action :set_member, only: [ :update, :destroy, :reset_password ]
 
-  ROLE_LABELS = { "owner" => "契約者", "manager" => "管理者（店舗運営全般）", "viewer" => "閲覧のみ" }.freeze
-  helper_method :role_label
 
   def index
     @members = current_account.members.order(:created_at)
@@ -63,6 +61,4 @@ class Dashboard::MembersController < Dashboard::BaseController
   end
 
   def generated_password = SecureRandom.base58(16)
-
-  def role_label(role) = ROLE_LABELS.fetch(role.to_s, role)
 end

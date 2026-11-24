@@ -1,22 +1,24 @@
 <%# ダッシュボード: 発注の詳細 %>
-<div class="dashboard-container">
-  <%= render "dashboard/shared/menu" %>
-  <div class="dashboard-content card">
-    <div class="subtitle"><h2>発注の詳細</h2></div>
-    <%= detail_table([ [ "番号", @order.number ], [ "店舗", @order.store.name ], [ "仕入先", @order.supplier.name ], [ "状態", PurchaseOrder::STATUS_LABELS[@order.status] ], [ "発注日", @order.ordered_on ], [ "入荷予定", @order.expected_on ], [ "合計", yen(@order.total_amount) ], [ "備考", @order.note ] ]) %>
-    <%= form_with url: receive_dashboard_purchase_order_path(@order), method: :post do |f| %>
-      <%= data_table([ "商品", "発注数", "入荷済み", "原価", "今回の入荷" ], @order.items.includes(:product).map { |i| [ "#{i.product.code} #{i.product.name}", i.quantity, i.received_quantity, yen(i.unit_cost),
-            can_write? && @order.receivable? ? number_field_tag("received[#{i.id}]", i.remaining, min: 0, max: i.remaining) : "-" ] }) %>
-      <% if can_write? && @order.receivable? %><%= f.submit "入荷を登録", class: "btn-signup" %><% end %>
-    <% end %>
-    <% if can_write? %>
-      <% if @order.draft? %>
-        <%= button_to "発注を確定", place_dashboard_purchase_order_path(@order), class: "btn-signup" %>
-        <%= link_to "編集", edit_dashboard_purchase_order_path(@order), class: "btn-sm btn-outline" %>
-        <%= button_to "削除", dashboard_purchase_order_path(@order), method: :delete, class: "btn-sm btn-danger-outline", data: { turbo_confirm: "削除しますか？" } %>
-      <% elsif @order.ordered? %>
-        <%= button_to "発注を取り消す", cancel_dashboard_purchase_order_path(@order), class: "btn-sm btn-danger-outline", data: { turbo_confirm: "取り消しますか？" } %>
-      <% end %>
+<%= page_header "発注 #{@order.number}", back: true do %>
+  <% if can_write? && @order.draft? %>
+    <%= link_to "編集", edit_dashboard_purchase_order_path(@order), class: "btn btn-secondary" %>
+    <%= button_to "発注を確定する", place_dashboard_purchase_order_path(@order), class: "btn btn-primary", form: { data: { turbo_confirm: "この内容で発注を確定しますか？" } } %>
+  <% end %>
+<% end %>
+<%= detail_table([ [ "状態", PurchaseOrder::STATUS_LABELS[@order.status] ], [ "店舗", @order.store.name ], [ "仕入先", @order.supplier.name ], [ "発注日", @order.ordered_on && l(@order.ordered_on) ], [ "入荷の予定日", @order.expected_on && l(@order.expected_on) ], [ "合計", yen(@order.total_amount) ], [ "メモ", @order.note ] ]) %>
+<h3>商品</h3>
+<%= form_with url: receive_dashboard_purchase_order_path(@order), method: :post do |f| %>
+  <% receivable = can_write? && @order.receivable? %>
+  <%= data_table([ "商品", "発注した数", "入荷済み", "原価", "今回入荷した数" ], @order.items.includes(:product).map { |i| [ "#{i.product.name}（#{i.product.code}）", i.quantity, i.received_quantity, yen(i.unit_cost),
+        receivable ? number_field_tag("received[#{i.id}]", i.remaining, min: 0, max: i.remaining, style: "max-width: 130px", "aria-label": "#{i.product.name} の今回入荷した数") : "-" ] }) %>
+  <% if receivable %><div class="actions"><%= f.submit "入荷を登録する" %></div><% end %>
+<% end %>
+<% if can_write? && (@order.draft? || @order.ordered?) %>
+  <div class="row-actions" style="margin-top: 1.5rem">
+    <% if @order.draft? %>
+      <%= button_to "この発注を削除", dashboard_purchase_order_path(@order), method: :delete, class: "btn btn-sm btn-danger-outline", form: { data: { turbo_confirm: "この発注を削除しますか？" } } %>
+    <% else %>
+      <%= button_to "発注を取り消す", cancel_dashboard_purchase_order_path(@order), class: "btn btn-sm btn-danger-outline", form: { data: { turbo_confirm: "この発注を取り消しますか？" } } %>
     <% end %>
   </div>
-</div>
+<% end %>

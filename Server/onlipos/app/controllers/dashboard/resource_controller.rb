@@ -9,8 +9,8 @@ class Dashboard::ResourceController < Dashboard::BaseController
   class_attribute :resource_config
   helper_method :resource_config, :field_choices
 
-  def self.manages(model, title:, columns:, fields:, association: model.model_name.plural, description: nil, order: :id)
-    self.resource_config = { model: model, title: title, columns: columns, fields: fields, association: association, description: description, order: order }
+  def self.manages(model, title:, columns:, fields:, association: model.model_name.plural, description: nil, order: :id, search: nil)
+    self.resource_config = { model: model, title: title, columns: columns, fields: fields, association: association, description: description, order: order, search: search }
   end
 
   def self.field(name, label, type = :text, **options) = Field.new(name: name, label: label, type: type, options: options)

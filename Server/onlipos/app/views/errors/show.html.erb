@@ -4,17 +4,13 @@
   実際のエラー発生時、または /errors 一覧からのプレビューで表示される。
 %>
 <% is_server = @error_info[:category] == :server %>
-<% content_for :title, "#{@status_code} #{@error_info[:title]} | OnLiPos" %>
+<% content_for :title, "#{@error_info[:title]} (#{@status_code})" %>
 
-<div class="dashboard-container error-page">
+<div class="error-page">
   <div class="card error-card">
-    <div class="error-badge <%= 'server' if is_server %>">
-      <%= is_server ? "5xx Server Error" : "4xx Client Error" %>
-    </div>
-
-    <div class="error-code <%= 'server' if is_server %>"><%= @status_code %></div>
-    <div class="error-title"><%= @error_info[:title] %></div>
-    <div class="error-desc"><%= @error_info[:ja] %></div>
+    <h1 class="error-title"><%= @error_info[:ja].to_s.split("。").first %>。</h1>
+    <% if (rest = @error_info[:ja].to_s.split("。").drop(1).join("。")).present? %><p class="error-desc"><%= rest %></p><% end %>
+    <p class="error-desc"><%= is_server ? "しばらく待ってから、もう一度お試しください。解決しない場合は、下の番号を管理者へお伝えください。" : "お手数ですが、ホームに戻ってやり直してください。" %></p>
 
     <div class="error-actions">
       <%= link_to "ホームへ戻る", root_path, class: "btn-primary" %>
@@ -22,10 +18,6 @@
       <%= link_to "前のページへ", @back_url, class: "btn-secondary" if @back_url %>
     </div>
 
-    <div class="error-footer">
-      <a href="/errors">すべてのエラーコード一覧</a>
-      &nbsp;·&nbsp;
-      <a href="/">OnLiPos</a>
-    </div>
+    <p class="error-footer">エラー番号 <%= @status_code %>（<%= @error_info[:title] %>）</p>
   </div>
 </div>

@@ -1,109 +1,45 @@
-<%#
-  ダッシュボード: 店舗在庫画面
-  JANコードで商品を検索し、店舗ごとの在庫数量の確認・更新、
-  店舗間の在庫移動を行う画面。
-%>
-<div class="dashboard-container">
-  <%= render 'dashboard/shared/menu' %>
-
-  <div class="dashboard-content card">
-    <div class="subtitle d-flex justify-content-between align-items-center">
-      <h2>店舗在庫</h2>
-    </div>
-
-    <%# JANコード検索フォーム %>
-    <div class="filters mb-3">
-      <%= form_with url: dashboard_store_stocks_path, method: :get, local: true do |f| %>
-        <div class="filter-row">
-          <div class="filter-item">
-            <%= f.label :jan_code, "JANコード" %><br>
-            <%= f.text_field :jan_code, value: @jan_code, class: "form-control", placeholder: "JANコードを入力" %>
+<%# ダッシュボード: 店舗在庫。一覧で探し、商品を選ぶと店舗ごとの数量の変更・店舗間の移動ができる %>
+<% if @jan_code.present? %>
+  <%= page_header @product ? "#{@product.name} の在庫" : "店舗在庫", back: [ "在庫一覧に戻る", dashboard_store_stocks_path ], lead: (@product && "商品コード #{@product.code}") %>
+  <% if @product.nil? %>
+    <%= empty_message("「#{@jan_code}」の商品が見つかりませんでした。", action: link_to("在庫一覧から探す", dashboard_store_stocks_path, class: "btn btn-secondary")) %>
+  <% else %>
+    <%= data_table([ "店舗", "在庫数" ], @store_stocks.map { |ss|
+          [ ss.store.name, can_write? ? form_with(model: [ :dashboard, ss ], method: :patch, class: "row-actions") { |f|
+            safe_join([ hidden_field_tag(:jan_code, @jan_code, id: nil), f.number_field(:quantity, value: ss.quantity, style: "max-width: 130px", "aria-label": "#{ss.store.name} の在庫数"), f.submit("変更", class: "btn btn-sm btn-primary") ]) } : number_with_delimiter(ss.quantity) ] },
+          empty: "この商品の在庫はまだ登録されていません。") %>
+    <% if @store_stocks.size >= 2 && can_write? %>
+      <h3>ほかの店舗へ移す</h3>
+      <div class="filters">
+        <%= form_with url: transfer_dashboard_store_stocks_path, method: :post do |f| %>
+          <%= hidden_field_tag :jan_code, @jan_code, id: nil %>
+          <% options = options_from_collection_for_select(@store_stocks.map(&:store), :id, :name) %>
+          <div class="filter-row">
+            <div class="filter-item"><%= label_tag :from_store_id, "どこから" %><%= select_tag :from_store_id, options %></div>
+            <div class="filter-item"><%= label_tag :to_store_id, "どこへ" %><%= select_tag :to_store_id, options_from_collection_for_select(@store_stocks.map(&:store), :id, :name, @store_stocks.second.store_id) %></div>
+            <div class="filter-item"><%= label_tag :quantity, "個数" %><%= number_field_tag :quantity, 1, min: 1 %></div>
+            <div class="filter-item"><%= submit_tag "移動する", class: "btn btn-primary" %></div>
           </div>
-          <div class="filter-item">
-            <br>
-            <%= f.submit "検索", class: "btn-signup" %>
-          </div>
-        </div>
-      <% end %>
-    </div>
-
-    <% if @jan_code.blank? %>
-      <div class="empty-message">
-        <p>JANコードを入力して検索してください。</p>
-      </div>
-    <% elsif @product.nil? %>
-      <div class="empty-message">
-        <p>該当する商品が見つかりませんでした。</p>
-      </div>
-    <% else %>
-      <h3 class="mb-3"><%= @product.name %> (<%= @product.code %>) の店舗別在庫</h3>
-
-      <% if @store_stocks.empty? %>
-        <div class="empty-message">
-          <p>在庫情報は登録されていません。</p>
-        </div>
-      <% else %>
-        <%# 店舗別の在庫一覧テーブル。各行で在庫数量をインライン編集して更新できる %>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>店舗名</th>
-              <th class="text-right">在庫数量</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <% @store_stocks.each do |store_stock| %>
-              <tr>
-                <td><%= store_stock.store.name %></td>
-                <td class="text-right">
-                  <%= form_with model: [:dashboard, store_stock], method: :patch, local: true, class: "d-inline" do |f| %>
-                    <%= hidden_field_tag :jan_code, @jan_code %>
-                    <div class="d-flex justify-content-end align-items-center gap-2">
-                      <%= f.number_field :quantity,
-                            value: store_stock.quantity,
-                            class: "form-control form-control-sm",
-                            style: "width: 100px; text-align: right;" %>
-                      <%= f.submit "更新", class: "btn-sm btn-outline" %>
-                    </div>
-                  <% end %>
-                </td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-
-        <%# 在庫を持つ店舗が2店舗以上ある場合のみ、店舗間の在庫移動フォームを表示 %>
-        <% if @store_stocks.size >= 2 %>
-          <h3 class="mt-4 mb-2">店舗間在庫移動</h3>
-          <%= form_with url: transfer_dashboard_store_stocks_path, method: :post, local: true do |f| %>
-            <%= hidden_field_tag :jan_code, @jan_code %>
-            <div class="filter-row">
-              <div class="filter-item">
-                <%= label_tag :from_store_id, "移動元" %><br>
-                <%= select_tag :from_store_id,
-                      options_from_collection_for_select(@store_stocks.map(&:store), :id, :name),
-                      class: "form-control" %>
-              </div>
-              <div class="filter-item">
-                <%= label_tag :to_store_id, "移動先" %><br>
-                <%= select_tag :to_store_id,
-                      options_from_collection_for_select(@store_stocks.map(&:store), :id, :name),
-                      class: "form-control" %>
-              </div>
-              <div class="filter-item">
-                <%= label_tag :quantity, "移動数量" %><br>
-                <%= number_field_tag :quantity, 1, min: 1, class: "form-control", style: "width: 100px;" %>
-              </div>
-              <div class="filter-item">
-                <br>
-                <%= submit_tag "移動する", class: "btn-signup" %>
-              </div>
-            </div>
-          <% end %>
         <% end %>
-      <% end %>
+      </div>
+    <% end %>
+  <% end %>
+<% else %>
+  <%= page_header "店舗在庫" %>
+  <div class="filters">
+    <%= form_with url: dashboard_store_stocks_path, method: :get do |f| %>
+      <div class="filter-row">
+        <div class="filter-item wide"><%= f.label :q, "商品名・商品コード" %><%= f.search_field :q, value: params[:q], placeholder: "例: おにぎり / 4901234567890" %></div>
+        <div class="filter-item"><%= f.label :store_id, "店舗" %><%= f.select :store_id, options_from_collection_for_select(@stores, :id, :name, params[:store_id]), { include_blank: "すべての店舗" } %></div>
+        <div class="filter-item"><%= f.submit "探す", class: "btn btn-primary", name: nil %></div>
+      </div>
     <% end %>
   </div>
-</div>
-
+  <%= result_count(@stocks) %>
+  <%= data_table([ "商品コード", "商品名", "店舗", "在庫数", "状態", "" ], @stocks.map { |ss|
+        threshold = ss.product.low_stock_threshold
+        [ ss.product.code, ss.product.name, ss.store.name, ss.quantity, ss.quantity <= 0 ? badge("在庫なし", :danger) : (threshold && ss.quantity <= threshold ? badge("残りわずか", :warning) : badge("あり")),
+          row_actions(link_to(can_write? ? "変更・移動" : "くわしく", dashboard_store_stocks_path(jan_code: ss.product.code), class: "btn btn-sm btn-secondary", aria: { label: "#{ss.product.name} の在庫" })) ] },
+        empty: params[:q].present? ? "条件に合う商品の在庫はありません。" : "在庫はまだ登録されていません。入荷や棚卸を行うと表示されます。") %>
+  <div class="pagination-wrapper"><%= paginate @stocks %></div>
+<% end %>

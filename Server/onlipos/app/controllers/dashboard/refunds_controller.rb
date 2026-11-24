@@ -6,10 +6,7 @@ class Dashboard::RefundsController < Dashboard::BaseController
     @stores = current_account.stores.order(:name)
     @allowed_store_ids = @stores.pluck(:id)
 
-    unless search_performed?
-      @refunds = Refund.none.page(1).per(50)
-      return
-    end
+    default_period(Date.current - 6) unless search_performed?
 
     scope = Refund
       .joins(:sale)

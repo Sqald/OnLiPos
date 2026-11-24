@@ -4,6 +4,12 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:onlipos/login/login_top_view.dart';
+import 'package:onlipos/operations/failed_sales_view.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_theme.dart';
+import 'package:onlipos/ui/app_session.dart';
+import 'package:onlipos/ui/app_header.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:onlipos/cash/cash_check_view.dart';
 import 'package:onlipos/cash/cash_close_view.dart';
@@ -51,6 +57,7 @@ class _MenuTopViewState extends State<MenuTopView> {
   void initState() {
     super.initState();
     _loadPosRole();
+    AppSession.instance.refreshCounts();
   }
 
   // この端末のPOS役割(ホスト/クライアント/standard)をSecureStorageから読み込む
@@ -65,7 +72,7 @@ class _MenuTopViewState extends State<MenuTopView> {
   Future<void> _openCashCheck() async {
     final operator = await showEmployeeAuthDialog(
       context,
-      title: 'レジ金チェック 担当者認証',
+      title: 'レジ金の点検をする人の確認',
       permission: 'cash_check',
     );
     if (operator == null || !mounted) return;
@@ -81,7 +88,7 @@ class _MenuTopViewState extends State<MenuTopView> {
   Future<void> _openCashClose() async {
     final operator = await showEmployeeAuthDialog(
       context,
-      title: 'レジ精算 担当者認証',
+      title: 'レジ精算をする人の確認',
       permission: 'close_register',
     );
     if (operator == null || !mounted) return;
@@ -97,7 +104,7 @@ class _MenuTopViewState extends State<MenuTopView> {
   Future<void> _openCashPickup() async {
     final operator = await showEmployeeAuthDialog(
       context,
-      title: '途中回収 担当者認証',
+      title: '途中回収をする人の確認',
       permission: 'cash_pickup',
     );
     if (operator == null || !mounted) return;
@@ -115,7 +122,7 @@ class _MenuTopViewState extends State<MenuTopView> {
   Future<void> _openCashMovement() async {
     final operator = await showEmployeeAuthDialog(
       context,
-      title: 'レジ入出金 担当者認証',
+      title: '入出金をする人の確認',
       permission: 'cash_pickup',
     );
     if (operator == null || !mounted) return;
@@ -151,387 +158,438 @@ class _MenuTopViewState extends State<MenuTopView> {
   bool get _canViewSales => widget.permissions.contains('view_sales');
   bool get _canViewJournal => widget.permissions.contains('view_journal');
 
-  // メニュー画面全体を構築する。AppBarにPOS役割バッジと担当者名を表示し、
-  // bodyには権限・役割に応じたタイルのグリッドを並べる
+  // 業務を終えてログイン画面に戻る
+  Future<void> _logout() async {
+    final ok = await confirm(
+      context,
+      title: '業務を終わりますか？',
+      message: 'ログイン画面に戻ります。レジを締めるときは、先に「レジ精算」を行ってください。',
+      okLabel: '業務を終わる',
+    );
+    if (!ok || !mounted) return;
+    AppSession.instance.endBusiness();
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginTopView()),
+      (route) => false,
+    );
+  }
+
+  // よく使う会計を大きく、そのほかは目的ごとにまとめて並べる
+  List<_MenuSection> get _sections => [
+    _MenuSection('お客様への対応', AppColors.primary, [
+      _MenuItem(
+        '返品・返金',
+        Icons.replay,
+        () => _open(
+          ReturnRefundView(
+            operatorName: widget.employeeName,
+            operatorId: widget.employeeId,
+          ),
+        ),
+      ),
+      _MenuItem(
+        '会計の取消',
+        Icons.cancel_outlined,
+        () => _openWithAuth(
+          '会計の取消をする人の確認',
+          'view_sales',
+          (id) => VoidSaleView(employeeId: id),
+        ),
+      ),
+      _MenuItem(
+        '領収書',
+        Icons.receipt_outlined,
+        () => _open(
+          ReceiptIssueView(
+            operatorName: widget.employeeName,
+            operatorId: widget.employeeId,
+          ),
+        ),
+      ),
+      _MenuItem(
+        '予約',
+        Icons.event_outlined,
+        () => _open(const ReservationView()),
+      ),
+      _MenuItem(
+        '厨房',
+        Icons.soup_kitchen_outlined,
+        () => _open(const KitchenView()),
+      ),
+    ]),
+    _MenuSection('レジのお金', AppColors.success, [
+      _MenuItem('レジ精算', Icons.lock_clock, _openCashClose, note: '閉店時'),
+      _MenuItem('レジ金の点検', Icons.fact_check_outlined, _openCashCheck),
+      _MenuItem('途中回収', Icons.move_to_inbox, _openCashPickup),
+      _MenuItem('入出金', Icons.swap_vert, _openCashMovement),
+    ]),
+    _MenuSection('商品・在庫', AppColors.warning, [
+      _MenuItem(
+        '在庫を見る',
+        Icons.warehouse_outlined,
+        () => _open(const StockCheckView()),
+      ),
+      _MenuItem(
+        '入出庫',
+        Icons.inventory_2_outlined,
+        () => _open(const InventoryInOutView()),
+      ),
+      _MenuItem(
+        '入荷',
+        Icons.local_shipping_outlined,
+        () => _openWithAuth(
+          '入荷をする人の確認',
+          'inventory',
+          (id) => ReceivingView(employeeId: id),
+        ),
+      ),
+      _MenuItem(
+        '棚卸',
+        Icons.checklist,
+        () => _openWithAuth(
+          '棚卸をする人の確認',
+          'inventory',
+          (id) => StocktakeView(employeeId: id),
+        ),
+      ),
+      _MenuItem(
+        'POP印刷',
+        Icons.local_offer_outlined,
+        () => _open(const PopView()),
+      ),
+      if (_canEditPrices)
+        _MenuItem(
+          '店舗の価格',
+          Icons.price_change_outlined,
+          () => _open(const PriceEditView()),
+        ),
+    ]),
+    _MenuSection('お店の管理', AppColors.secondary, [
+      _MenuItem(
+        '勤怠',
+        Icons.badge_outlined,
+        () => _open(const AttendanceView()),
+      ),
+      if (_canViewSales)
+        _MenuItem(
+          '店舗の売上',
+          Icons.bar_chart,
+          () => _open(const StoreSalesView()),
+        ),
+      if (_canViewJournal)
+        _MenuItem(
+          'ジャーナル',
+          Icons.menu_book_outlined,
+          () => _open(const JournalListView()),
+        ),
+      _MenuItem(
+        '設定',
+        Icons.settings_outlined,
+        () => _open(const SettingsView()),
+      ),
+    ]),
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Windows 8 (Metro UI) 風のダーク背景
-      backgroundColor: const Color(0xFF1D1D1D),
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('メインメニュー'),
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        elevation: 0,
+      appBar: AppHeader(
+        'メニュー',
+        subtitle: '業務開始: ${widget.employeeName} さん',
+        showBack: false,
         actions: [
           if (_isHost)
-            Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.green[800],
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.computer, size: 14, color: Colors.white),
-                  SizedBox(width: 4),
-                  Text(
-                    'ホスト機',
-                    style: TextStyle(fontSize: 12, color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-          if (_posRole == 'client')
-            Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFF2D89EF),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.tablet_android, size: 14, color: Colors.white),
-                  SizedBox(width: 4),
-                  Text(
-                    'クライアント機',
-                    style: TextStyle(fontSize: 12, color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(right: 16.0),
-              child: Text(
-                '担当: ${widget.employeeName}',
-                style: const TextStyle(fontSize: 16),
-              ),
-            ),
+            const StatusBadge('ホスト機', type: MessageType.success)
+          else if (_posRole == 'client')
+            const StatusBadge('クライアント機'),
+          const SizedBox(width: 12),
+          OutlinedButton.icon(
+            onPressed: _logout,
+            icon: const Icon(Icons.logout, size: 20),
+            label: const Text('業務を終わる'),
+            style: OutlinedButton.styleFrom(minimumSize: const Size(64, 44)),
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '業務を選択してください',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.w300,
+      body: LayoutBuilder(
+        builder: (context, box) {
+          final sale = _SaleButtons(
+            vertical: box.maxWidth >= 840,
+            buttons: [
+              (
+                'お会計',
+                'バーコードを読み取る',
+                Icons.qr_code_scanner,
+                AppColors.primary,
+                () => _open(const OperatorInputView(isListView: false)),
               ),
-            ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: GridView.count(
-                crossAxisCount: 3, // 横に並べる数（タブレット想定）
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-                childAspectRatio: 1.3, // タイルの比率（横長）
-                children: [
-                  // 売上登録ボタン（メイン機能）
-                  _MenuTile(
-                    title: '売上登録\n(スキャン)',
-                    icon: Icons.point_of_sale,
-                    color: const Color(0xFF2D89EF), // Metro Blue
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const OperatorInputView(isListView: false),
-                        ),
-                      );
-                    },
-                  ),
-                  _MenuTile(
-                    title: '売上登録\n(一覧)',
-                    icon: Icons.list_alt,
-                    color: const Color(0xFF2B5797), // Metro Dark Blue
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const OperatorInputView(isListView: true),
-                        ),
-                      );
-                    },
-                  ),
-                  // ホスト機のみ：待ち受けモード
-                  if (_isHost)
-                    _MenuTile(
-                      title: '待ち受け\nモード',
-                      icon: Icons.inbox,
-                      color: const Color(0xFF107C10), // Metro Green
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => HostWaitingView(
-                              operatorName: widget.employeeName,
-                              operatorId: widget.employeeId,
-                            ),
-                          ),
-                        );
-                      },
-                    )
-                  else
-                    _MenuTile(
-                      title: 'レジ金チェック',
-                      icon: Icons.account_balance_wallet,
-                      color: const Color(0xFFE3A21A), // Metro Orange
-                      onTap: _openCashCheck,
-                    ),
-                  // ホスト機は待ち受けタイルを追加したのでレジ金チェックを次の行に
-                  if (_isHost)
-                    _MenuTile(
-                      title: 'レジ金チェック',
-                      icon: Icons.account_balance_wallet,
-                      color: const Color(0xFFE3A21A), // Metro Orange
-                      onTap: _openCashCheck,
-                    ),
-                  _MenuTile(
-                    title: 'レジ精算',
-                    icon: Icons.receipt_long,
-                    color: const Color(0xFF00A300), // Metro Green
-                    onTap: _openCashClose,
-                  ),
-                  _MenuTile(
-                    title: '入出荷管理',
-                    icon: Icons.inventory_2,
-                    color: const Color(0xFF1BA1E2), // Metro Light Blue
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const InventoryInOutView(),
-                        ),
-                      );
-                    },
-                  ),
-                  _MenuTile(
-                    title: '返品・返金',
-                    icon: Icons.replay,
-                    color: const Color(0xFFE91E63), // Pink
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => ReturnRefundView(
-                            operatorName: widget.employeeName,
-                            operatorId: widget.employeeId,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  _MenuTile(
-                    title: '会計の取消',
-                    icon: Icons.cancel_presentation,
-                    color: const Color(0xFFB91D47), // Metro Dark Red
-                    onTap: () => _openWithAuth(
-                      '会計の取消 担当者認証',
-                      'view_sales',
-                      (id) => VoidSaleView(employeeId: id),
-                    ),
-                  ),
-                  _MenuTile(
-                    title: '入荷',
-                    icon: Icons.local_shipping,
-                    color: const Color(0xFF00ABA9), // Metro Teal
-                    onTap: () => _openWithAuth(
-                      '入荷 担当者認証',
-                      'inventory',
-                      (id) => ReceivingView(employeeId: id),
-                    ),
-                  ),
-                  _MenuTile(
-                    title: '棚卸',
-                    icon: Icons.fact_check,
-                    color: const Color(0xFF603CBA), // Metro Purple
-                    onTap: () => _openWithAuth(
-                      '棚卸 担当者認証',
-                      'inventory',
-                      (id) => StocktakeView(employeeId: id),
-                    ),
-                  ),
-                  _MenuTile(
-                    title: '勤怠',
-                    icon: Icons.badge,
-                    color: const Color(0xFF647687), // Metro Steel
-                    onTap: () => _open(const AttendanceView()),
-                  ),
-                  _MenuTile(
-                    title: '予約',
-                    icon: Icons.event,
-                    color: const Color(0xFF825A2C), // Metro Brown
-                    onTap: () => _open(const ReservationView()),
-                  ),
-                  _MenuTile(
-                    title: '厨房',
-                    icon: Icons.soup_kitchen,
-                    color: const Color(0xFFDA532C), // Metro Dark Orange
-                    onTap: () => _open(const KitchenView()),
-                  ),
-                  _MenuTile(
-                    title: '領収書発行',
-                    icon: Icons.receipt,
-                    color: const Color(0xFF6D8764), // Metro Olive
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => ReceiptIssueView(
-                            operatorName: widget.employeeName,
-                            operatorId: widget.employeeId,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  // 途中回収・入出金は操作ごとに担当者認証を行い、cash_pickup 権限をサーバーで確認する
-                  // （業務開始ログインの担当者とは別の人が操作できるよう、タイルは常に表示）
-                  _MenuTile(
-                    title: '途中回収',
-                    icon: Icons.move_to_inbox,
-                    color: const Color(0xFFE65100), // Deep Orange
-                    onTap: _openCashPickup,
-                  ),
-                  _MenuTile(
-                    title: 'レジ入出金',
-                    icon: Icons.swap_vert,
-                    color: const Color(0xFF00796B), // Teal
-                    onTap: _openCashMovement,
-                  ),
-                  if (_canViewSales)
-                    _MenuTile(
-                      title: '店舗売上',
-                      icon: Icons.bar_chart,
-                      color: const Color(0xFF7A3B69), // Metro Magenta
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => const StoreSalesView(),
-                          ),
-                        );
-                      },
-                    ),
-                  _MenuTile(
-                    title: '在庫確認',
-                    icon: Icons.warehouse,
-                    color: const Color(0xFF006EAF), // Metro Teal
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const StockCheckView(),
-                        ),
-                      );
-                    },
-                  ),
-                  _MenuTile(
-                    title: 'POP印刷',
-                    icon: Icons.local_offer,
-                    color: const Color(0xFF4CAF50), // Green
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const PopView(),
-                        ),
-                      );
-                    },
-                  ),
-                  if (_canEditPrices)
-                    _MenuTile(
-                      title: '店舗価格\n設定',
-                      icon: Icons.price_change,
-                      color: const Color(0xFFFF6F00), // Amber Dark
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => const PriceEditView(),
-                          ),
-                        );
-                      },
-                    ),
-                  if (_canViewJournal)
-                    _MenuTile(
-                      title: 'ジャーナル',
-                      icon: Icons.menu_book,
-                      color: const Color(0xFF5C6BC0), // Indigo
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => const JournalListView(),
-                          ),
-                        );
-                      },
-                    ),
-                  _MenuTile(
-                    title: '設定',
-                    icon: Icons.settings,
-                    color: const Color(0xFF603CBA), // Metro Purple
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const SettingsView(),
-                        ),
-                      );
-                    },
-                  ),
-                ],
+              (
+                '一覧からお会計',
+                '商品を選んで登録する',
+                Icons.grid_view,
+                const Color(0xFF2E4A7D),
+                () => _open(const OperatorInputView(isListView: true)),
               ),
-            ),
-          ],
-        ),
+              if (_isHost)
+                (
+                  '待ち受け',
+                  'ほかの端末の会計を受ける',
+                  Icons.inbox,
+                  AppColors.success,
+                  () => _open(
+                    HostWaitingView(
+                      operatorName: widget.employeeName,
+                      operatorId: widget.employeeId,
+                    ),
+                  ),
+                ),
+            ],
+          );
+          final sections = [
+            const _FailedSalesNotice(),
+            for (final section in _sections) _MenuSectionView(section),
+          ];
+          if (box.maxWidth < 840) {
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: [sale, const SizedBox(height: 16), ...sections],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: (box.maxWidth * 0.3).clamp(260, 380),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 8, 20),
+                  child: sale,
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(12, 20, 20, 20),
+                  children: sections,
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
-// メニューグリッド上の1タイル(アイコン＋タイトル＋タップ時の遷移)を表すウィジェット
-class _MenuTile extends StatelessWidget {
-  final String title;
+class _MenuItem {
+  const _MenuItem(this.label, this.icon, this.onTap, {this.note});
+  final String label;
   final IconData icon;
-  final Color color;
-  final VoidCallback? onTap;
+  final VoidCallback onTap;
 
-  const _MenuTile({
-    required this.title,
-    required this.icon,
-    required this.color,
-    this.onTap,
-  });
+  /// 「閉店時」など、使う場面の補足
+  final String? note;
+}
+
+class _MenuSection {
+  const _MenuSection(this.title, this.color, this.items);
+  final String title;
+  final Color color;
+  final List<_MenuItem> items;
+}
+
+// いちばんよく使う会計のボタン（大きく表示する）
+class _SaleButtons extends StatelessWidget {
+  const _SaleButtons({required this.vertical, required this.buttons});
+
+  final bool vertical;
+  final List<(String, String, IconData, Color, VoidCallback)> buttons;
 
   @override
   Widget build(BuildContext context) {
-    final tileColor = onTap != null ? color : color.withValues(alpha: 0.4);
+    final children = [
+      for (final (label, note, icon, color, onTap) in buttons)
+        Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom: vertical ? 12 : 0,
+              right: vertical ? 0 : 10,
+            ),
+            child: Material(
+              color: color,
+              borderRadius: BorderRadius.circular(16),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: onTap,
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(icon, size: 52, color: Colors.white),
+                        const SizedBox(height: 8),
+                        Text(
+                          label,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          note,
+                          style: const TextStyle(
+                            color: Color(0xE6FFFFFF),
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+    ];
+    return vertical
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children,
+          )
+        : SizedBox(
+            height: 140,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: children,
+            ),
+          );
+  }
+}
 
-    return Material(
-      color: tileColor,
-      borderRadius: BorderRadius.circular(0),
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+// 見出しと、その中の機能のボタン
+class _MenuSectionView extends StatelessWidget {
+  const _MenuSectionView(this.section);
+
+  final _MenuSection section;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Icon(icon, size: 48, color: Colors.white),
-              const SizedBox(height: 12),
+              Container(
+                width: 5,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: section.color,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              const SizedBox(width: 8),
               Text(
-                title,
+                section.title,
                 style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
+                  fontSize: 17,
                   fontWeight: FontWeight.bold,
                 ),
-                textAlign: TextAlign.center,
               ),
             ],
           ),
-        ),
+          const SizedBox(height: 8),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: section.items.length,
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 190,
+              mainAxisExtent: 78,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+            ),
+            itemBuilder: (context, i) {
+              final item = section.items[i];
+              return Card(
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: item.onTap,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      children: [
+                        Icon(item.icon, size: 28, color: section.color),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.label,
+                                maxLines: 2,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  height: 1.25,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (item.note != null)
+                                Text(
+                                  item.note!,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.secondary,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
+    );
+  }
+}
+
+// サーバーに送れなかった会計があるときの案内
+class _FailedSalesNotice extends StatelessWidget {
+  const _FailedSalesNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: AppSession.instance,
+      builder: (context, _) {
+        final count = AppSession.instance.failedCount;
+        if (count == 0) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Material(
+            color: AppColors.dangerSoft,
+            borderRadius: BorderRadius.circular(12),
+            clipBehavior: Clip.antiAlias,
+            child: ListTile(
+              leading: const Icon(Icons.error, color: AppColors.danger),
+              title: Text('送信できなかった会計が$count件あります'),
+              subtitle: const Text('内容を確認して、もう一度送信してください'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const FailedSalesView()),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -12,8 +12,8 @@ export default class extends Controller {
 
     const select = document.createElement("select")
     select.name = "items[][product_id]"
-    select.className = "form-control"
-    select.add(new Option("-- 商品を選択 --", ""))
+    select.setAttribute("aria-label", "商品")
+    select.add(new Option("商品を選んでください", ""))
     this.productsValue.forEach((p) => select.add(new Option(p.label, p.id)))
 
     const quantity = document.createElement("input")
@@ -21,12 +21,12 @@ export default class extends Controller {
     quantity.name = "items[][quantity]"
     quantity.value = "1"
     quantity.min = "1"
-    quantity.className = "form-control"
+    quantity.setAttribute("aria-label", "数量")
     quantity.style.textAlign = "right"
 
     const remove = document.createElement("button")
     remove.type = "button"
-    remove.className = "btn-sm btn-danger"
+    remove.className = "btn btn-sm btn-danger-outline"
     remove.textContent = "削除"
     remove.dataset.action = "bundle-items#remove"
 

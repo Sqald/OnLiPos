@@ -40,22 +40,25 @@ class Dashboard::StoreStocksController < Dashboard::BaseController
     redirect_back fallback_location: dashboard_store_stocks_path, alert: e.message.presence || "移動に失敗しました。"
   end
 
-  # 店舗在庫一覧画面。
-  # 初期表示時は一覧を出さず、JANコードで検索された場合のみ表示する。
+  # 店舗在庫一覧画面。商品名・コードと店舗で絞り込める。
+  # jan_code（商品コード）を指定したときは、その商品の店舗別の在庫を表示し、数量の変更・店舗間の移動ができる。
   def index
+    @stores = current_account.stores.order(:name)
     @jan_code = params[:jan_code].to_s.strip
-    @product = nil
-    @store_stocks = []
 
-    return if @jan_code.blank?
+    if @jan_code.present?
+      @product = current_account.products.find_by(code: @jan_code)
+      @store_stocks = @product ? StoreStock.joins(:store).includes(:store).where(store: current_account.stores, product: @product).order("stores.name ASC") : []
+      return
+    end
 
-    @product = current_account.products.find_by(code: @jan_code)
-    return unless @product
-
-    @store_stocks = StoreStock
-      .includes(:store)
-      .where(store: current_account.stores, product: @product)
-      .order("stores.name ASC")
+    scope = StoreStock.joins(:store, :product).includes(:store, :product).where(store: current_account.stores)
+    scope = scope.where(store_id: params[:store_id]) if params[:store_id].present?
+    if params[:q].present?
+      q = "%#{Product.sanitize_sql_like(params[:q].strip)}%"
+      scope = scope.where("products.name ILIKE :q OR products.code ILIKE :q", q: q)
+    end
+    @stocks = scope.order("products.code", "stores.name").page(params[:page]).per(50)
   end
 
   # 一覧から店舗ごとの在庫数量を直接更新する。変更差分を StockMovement に記録する。

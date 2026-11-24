@@ -37,7 +37,8 @@ Rails.application.routes.draw do
 
   namespace :dashboard do
     root to: "dashboards#index"
-    resources :pos_devices, only: [ :new, :create, :destroy ], path: "pos_devices" do
+    resource :help, only: [ :show ], controller: "help"
+    resources :pos_devices, only: [ :index, :new, :create, :destroy ], path: "pos_devices" do
       patch :update_password, path: "update_password"
       member do
         patch :disable

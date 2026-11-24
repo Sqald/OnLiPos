@@ -3,6 +3,11 @@
 // カートに追加し、店舗モード（標準/飲食店/小売店）ごとにテーブル注文・保留・
 // クライアント→ホスト転送といった機能を切り替える。
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_theme.dart';
+import 'package:onlipos/ui/app_header.dart';
+import 'package:onlipos/ui/amount_dialog.dart';
+import 'package:onlipos/sale/cart_panel.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:onlipos/login/operator_input_view.dart';
@@ -231,12 +236,7 @@ class _SaleScanViewState extends State<SaleScanView> {
   }
 
   void _showNotFound(String barcode) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('商品が見つかりません: $barcode'),
-        backgroundColor: Colors.red,
-      ),
-    );
+    showMessage(context, '商品が見つかりません（$barcode）', MessageType.error);
     _focusNode.requestFocus();
   }
 
@@ -245,15 +245,15 @@ class _SaleScanViewState extends State<SaleScanView> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('商品が見つかりません'),
-        content: Text('「$barcode」はローカルに登録がありません。\nサーバに問い合わせますか？'),
+        content: Text('「$barcode」はこの端末に登録されていません。\n最新の商品データを確認しますか？'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('NO'),
+            child: const Text('やめる'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('YES'),
+            child: const Text('確認する'),
           ),
         ],
       ),
@@ -274,12 +274,7 @@ class _SaleScanViewState extends State<SaleScanView> {
       await _addProduct(product);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('サーバへの問い合わせに失敗しました: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showMessage(context, '商品データを確認できませんでした: $e', MessageType.error);
     }
     _focusNode.requestFocus();
   }
@@ -339,13 +334,10 @@ class _SaleScanViewState extends State<SaleScanView> {
         ..clear()
         ..addAll(totals);
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok ? '厨房へ送信しました' : result['message']?.toString() ?? '送信に失敗しました',
-        ),
-        backgroundColor: ok ? Colors.green : Colors.red,
-      ),
+    showMessage(
+      context,
+      ok ? '厨房へ送りました' : result['message']?.toString() ?? '送信に失敗しました',
+      ok ? MessageType.success : MessageType.error,
     );
     _focusNode.requestFocus();
   }
@@ -460,16 +452,74 @@ class _SaleScanViewState extends State<SaleScanView> {
     _focusNode.requestFocus();
   }
 
-  void _allClear() {
-    if (_isRestaurant && widget.tableNumber != null) {
-      TableOrderApi.clearTable(widget.tableNumber!).catchError((_) {
-        TableOrderStore().clearTable(widget.tableNumber!);
+  // カートを空にする（担当者はそのまま続けて会計できる）
+  Future<void> _allClear() async {
+    if (_scannedItems.isEmpty) return;
+    final ok = await confirm(
+      context,
+      title: '商品をすべて取り消しますか？',
+      message: '登録した$_totalItems点を取り消します。',
+      okLabel: 'すべて取り消す',
+      danger: true,
+    );
+    if (ok && mounted) {
+      if (_isRestaurant && widget.tableNumber != null) {
+        TableOrderApi.clearTable(widget.tableNumber!).catchError((_) {
+          TableOrderStore().clearTable(widget.tableNumber!);
+        });
+      }
+      setState(() {
+        _sentToKitchen.clear();
+        _scannedItems.clear();
+        _calculateTotals();
       });
     }
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => const OperatorInputView()),
-      (route) => false,
+    _focusNode.requestFocus();
+  }
+
+  // 商品が残っているときは、消えることを確認してから画面を離れる
+  // （飲食店モードの注文は卓ごとに保存されるため確認しない）
+  Future<bool> _confirmLeave() async {
+    if (_scannedItems.isEmpty || _isRestaurant) return true;
+    final ok = await confirm(
+      context,
+      title: '会計をやめますか？',
+      message: '登録した$_totalItems点は取り消されます。',
+      okLabel: '会計をやめる',
+      cancelLabel: '会計を続ける',
+      danger: true,
     );
+    if (!ok) _focusNode.requestFocus();
+    return ok;
+  }
+
+  Future<void> _leave() async {
+    if (!await _confirmLeave() || !mounted) return;
+    CustomerDisplay.update(const [], 0);
+    Navigator.of(context).pop();
+  }
+
+  // 担当者を変える
+  Future<void> _changeOperator() async {
+    if (!await _confirmLeave() || !mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const OperatorInputView()),
+    );
+  }
+
+  // バーコードが読めないときに、商品コードを手で入力する
+  Future<void> _inputCode() async {
+    final code = await showNumberDialog(
+      context,
+      title: '商品コードを入力',
+      message: 'バーコードの下に書かれた番号を入力してください',
+      okLabel: '登録する',
+      maxLength: 20,
+      allowLetters: true,
+    );
+    if (!mounted) return;
+    if (code != null) await _onBarcodeScanned(code);
+    _focusNode.requestFocus();
   }
 
   // カート内容を明細に変換し、決済画面へ遷移する。会計確定後はカート/テーブル注文をクリアする
@@ -568,12 +618,7 @@ class _SaleScanViewState extends State<SaleScanView> {
     });
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('保留番号 $holdNumber で保留しました'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      showMessage(context, '保留番号 $holdNumber で保留しました', MessageType.warning);
     }
     _focusNode.requestFocus();
   }
@@ -601,11 +646,10 @@ class _SaleScanViewState extends State<SaleScanView> {
           }
           if (recalled == null) {
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('保留番号 $holdNumber が見つかりません'),
-                  backgroundColor: Colors.red,
-                ),
+              showMessage(
+                context,
+                '保留番号 $holdNumber が見つかりません',
+                MessageType.error,
               );
             }
             return;
@@ -626,27 +670,22 @@ class _SaleScanViewState extends State<SaleScanView> {
 
   Future<void> _transferToHost() async {
     if (_scannedItems.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('転送する商品がありません'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showMessage(context, '転送する商品がありません', MessageType.error);
       return;
     }
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('ホストに転送しますか？'),
+        title: const Text('ホスト機に送りますか？'),
         content: Text(
-          '${_scannedItems.length}種類  $_totalItems点\n¥$_totalAmount\n\n'
-          'ホストのレジに転送し、このカートをクリアします。',
+          '$_totalItems点　${yen(_totalAmount)}\n\n'
+          'ホスト機のレジに送り、この画面の商品を空にします。',
         ),
         actions: [
-          TextButton(
+          OutlinedButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('キャンセル'),
+            child: const Text('やめる'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -654,7 +693,7 @@ class _SaleScanViewState extends State<SaleScanView> {
               backgroundColor: const Color(0xFF2D89EF),
               foregroundColor: Colors.white,
             ),
-            child: const Text('転送する'),
+            child: const Text('送る'),
           ),
         ],
       ),
@@ -676,19 +715,11 @@ class _SaleScanViewState extends State<SaleScanView> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('転送しました（転送ID: $transferId）'),
-            backgroundColor: const Color(0xFF2D89EF),
-            duration: const Duration(seconds: 4),
-          ),
-        );
+        showMessage(context, '転送しました（転送ID: $transferId）', MessageType.success);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('転送に失敗しました: $e'), backgroundColor: Colors.red),
-        );
+        showMessage(context, '転送に失敗しました: $e', MessageType.error);
       }
     }
     _focusNode.requestFocus();
@@ -714,357 +745,227 @@ class _SaleScanViewState extends State<SaleScanView> {
 
   // ---- UI ----------------------------------------------------------
 
-  String get _appBarTitle {
-    if (_isRestaurant && widget.tableNumber != null) {
-      return '卓 ${widget.tableNumber}  担当: ${widget.operatorName}';
-    }
-    return '担当: ${widget.operatorName}';
-  }
-
   @override
   Widget build(BuildContext context) {
+    final header = AppHeader(
+      _isRestaurant && widget.tableNumber != null
+          ? '卓 ${widget.tableNumber}'
+          : 'お会計',
+      subtitle: '担当: ${widget.operatorName}',
+      onBack: _leave,
+      actions: _isLoadingTable
+          ? const []
+          : [
+              if (_isRestaurant) ...[
+                OutlinedButton.icon(
+                  onPressed: _scannedItems.isEmpty ? null : _sendToKitchen,
+                  icon: const Icon(Icons.restaurant, size: 20),
+                  label: const Text('厨房へ送る'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(64, 44),
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(value: true, label: Text('店内')),
+                  ButtonSegment(value: false, label: Text('持ち帰り')),
+                ],
+                selected: {_eatIn},
+                onSelectionChanged: (v) => _toggleEatIn(v.first),
+              ),
+              const SizedBox(width: 10),
+              IconButton.outlined(
+                tooltip: '担当者を変える',
+                onPressed: _changeOperator,
+                icon: const Icon(Icons.manage_accounts_outlined),
+              ),
+            ],
+    );
     if (_isLoadingTable) {
       return Scaffold(
-        appBar: AppBar(title: Text(_appBarTitle)),
+        appBar: header,
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
-    return Focus(
-      focusNode: _focusNode,
-      autofocus: true,
-      onKeyEvent: _handleKeyEvent,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(_appBarTitle),
-          actions: [
-            if (_isRestaurant)
-              TextButton.icon(
-                onPressed: _scannedItems.isEmpty ? null : _sendToKitchen,
-                icon: const Icon(Icons.restaurant),
-                label: const Text('厨房へ送る'),
-              ),
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: true, label: Text('店内')),
-                ButtonSegment(value: false, label: Text('持ち帰り')),
-              ],
-              selected: {_eatIn},
-              onSelectionChanged: (v) => _toggleEatIn(v.first),
-            ),
-            const SizedBox(width: 12),
-          ],
-        ),
-        body: Row(
-          children: [
-            Expanded(
-              flex: 2,
-              child: GestureDetector(
-                onTap: () => _focusNode.requestFocus(),
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        color: Colors.grey[200],
-                        child: ListView.builder(
-                          itemCount: _scannedItems.length,
-                          itemBuilder: (context, index) {
-                            final item = _scannedItems[index];
-                            final hasOverride =
-                                item.overridePrice != null ||
-                                item.promotionPrice != null;
-                            return Card(
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              child: InkWell(
-                                onLongPress: () => _editItemPrice(index),
-                                borderRadius: BorderRadius.circular(12),
-                                child: ListTile(
-                                  title: Row(
-                                    children: [
-                                      if (item.bundleCode != null)
-                                        Container(
-                                          margin: const EdgeInsets.only(
-                                            right: 6,
-                                          ),
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 6,
-                                            vertical: 2,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.orange[100],
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            'セット',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.orange[900],
-                                            ),
-                                          ),
-                                        ),
-                                      Expanded(
-                                        child: Text(
-                                          item.options.isEmpty
-                                              ? item.product.name
-                                              : '${item.product.name}（${item.options.map((o) => o.name).join('・')}）',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  subtitle: hasOverride
-                                      ? Row(
-                                          children: [
-                                            Text(
-                                              '¥${item.regularPrice}',
-                                              style: TextStyle(
-                                                decoration:
-                                                    TextDecoration.lineThrough,
-                                                color: Colors.grey[500],
-                                                fontSize: 13,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 6,
-                                                    vertical: 2,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.red[50],
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
-                                                border: Border.all(
-                                                  color: Colors.red.shade200,
-                                                ),
-                                              ),
-                                              child: Text(
-                                                '¥${item.price}${item.promotionName == null ? '' : ' ${item.promotionName}'}',
-                                                style: TextStyle(
-                                                  color: Colors.red[700],
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              '(税${item.taxRate}%)',
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                color: Colors.grey[600],
-                                              ),
-                                            ),
-                                          ],
-                                        )
-                                      : Text(
-                                          '¥${item.price}  (税${item.taxRate}%)',
-                                        ),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.remove_circle_outline,
-                                        ),
-                                        onPressed: () => _decrementItem(index),
-                                      ),
-                                      Text(
-                                        '${item.quantity}',
-                                        style: const TextStyle(fontSize: 18),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.add_circle_outline,
-                                        ),
-                                        onPressed: () => _incrementItem(index),
-                                      ),
-                                      GestureDetector(
-                                        onTap: () => _editItemPrice(index),
-                                        child: SizedBox(
-                                          width: 100,
-                                          child: Text(
-                                            '¥${item.subtotal}',
-                                            textAlign: TextAlign.right,
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              color: hasOverride
-                                                  ? Colors.red[700]
-                                                  : null,
-                                              fontWeight: hasOverride
-                                                  ? FontWeight.bold
-                                                  : null,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _leave();
+      },
+      child: Focus(
+        focusNode: _focusNode,
+        autofocus: true,
+        onKeyEvent: _handleKeyEvent,
+        child: Scaffold(
+          appBar: header,
+          body: GestureDetector(
+            onTap: () => _focusNode.requestFocus(),
+            child: LayoutBuilder(
+              builder: (context, box) => Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: _buildCart()),
+                  SizedBox(
+                    width: (box.maxWidth * 0.36).clamp(250, 400),
+                    child: CartSummaryPanel(
+                      itemCount: _totalItems,
+                      total: _totalAmount,
+                      tax: _totalTax,
+                      promotionDiscount: _promotionDiscount,
+                      primaryLabel: _isClient ? 'ホスト機へ送る' : 'お会計へ',
+                      primaryIcon: _isClient ? Icons.send : Icons.payments,
+                      onPrimary: _scannedItems.isEmpty
+                          ? null
+                          : (_isClient ? _transferToHost : _subtotal),
+                      actions: [
+                        (
+                          icon: Icons.dialpad,
+                          label: 'コードを入力',
+                          onTap: _inputCode,
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Expanded(
-              flex: 1,
-              child: GestureDetector(
-                onTap: () => _focusNode.requestFocus(),
-                child: Container(
-                  padding: const EdgeInsets.all(16.0),
-                  color: Colors.blue[50],
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Text(
-                        '点数',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      Text(
-                        '$_totalItems',
-                        style: const TextStyle(
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const Divider(height: 32),
-                      const Text(
-                        '合計（税込）',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      Text(
-                        '¥ $_totalAmount',
-                        style: const TextStyle(
-                          fontSize: 40,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      if (_promotionDiscount > 0)
-                        Text(
-                          'まとめ買い割引 -¥$_promotionDiscount',
-                          textAlign: TextAlign.center,
-                        ),
-                      if (_totalTax > 0) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          'うち消費税 ¥$_totalTax',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
+                        if (_isRetail && !_isClient)
+                          (
+                            icon: _scannedItems.isEmpty
+                                ? Icons.call_received
+                                : Icons.pause_circle_outline,
+                            label: _scannedItems.isEmpty ? '保留を呼び出す' : '保留する',
+                            onTap: _holdOrRecall,
                           ),
-                          textAlign: TextAlign.center,
+                        (
+                          icon: Icons.delete_sweep_outlined,
+                          label: 'すべて取り消す',
+                          onTap: _scannedItems.isEmpty ? null : _allClear,
                         ),
                       ],
-                      const Spacer(),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        bottomNavigationBar: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-            child: Row(
-              children: [
-                SizedBox(
-                  height: 52,
-                  child: ElevatedButton.icon(
-                    onPressed: _allClear,
-                    icon: const Icon(Icons.delete_sweep),
-                    label: const Text('オールクリア', style: TextStyle(fontSize: 15)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ),
-                if (_isRetail && !_isClient) ...[
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    height: 52,
-                    child: ElevatedButton.icon(
-                      onPressed: _holdOrRecall,
-                      icon: Icon(
-                        _scannedItems.isEmpty
-                            ? Icons.call_received
-                            : Icons.pause_circle_outline,
-                      ),
-                      label: Text(
-                        _scannedItems.isEmpty ? '保留呼び出し' : '保　留',
-                        style: const TextStyle(fontSize: 15),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.purple,
-                        foregroundColor: Colors.white,
-                      ),
                     ),
                   ),
                 ],
-                const Spacer(),
-                SizedBox(
-                  height: 60,
-                  width: 180,
-                  child: _isClient
-                      ? ElevatedButton.icon(
-                          onPressed: _transferToHost,
-                          icon: const Icon(Icons.send, size: 28),
-                          label: const Text(
-                            '転　送',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2D89EF),
-                            foregroundColor: Colors.white,
-                          ),
-                        )
-                      : ElevatedButton.icon(
-                          onPressed: _subtotal,
-                          icon: const Icon(Icons.payment, size: 28),
-                          label: const Text(
-                            '小計',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
-                ),
-              ],
+              ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  // 登録した商品の一覧（新しいものが上）
+  Widget _buildCart() {
+    if (_scannedItems.isEmpty) {
+      return EmptyState(
+        icon: Icons.qr_code_scanner,
+        title: '商品のバーコードを読み取ってください',
+        message: '読み取れないときは、番号を入力して登録できます',
+        action: OutlinedButton.icon(
+          onPressed: _inputCode,
+          icon: const Icon(Icons.dialpad),
+          label: const Text('商品コードを入力する'),
+        ),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.all(12),
+      itemCount: _scannedItems.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (context, index) => _buildCartRow(index),
+    );
+  }
+
+  Widget _buildCartRow(int index) {
+    final item = _scannedItems[index];
+    final changed = item.overridePrice != null || item.promotionPrice != null;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.options.isEmpty
+                        ? item.product.name
+                        : '${item.product.name}（${item.options.map((o) => o.name).join('・')}）',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (item.bundleCode != null)
+                        const StatusBadge('セット', type: MessageType.warning),
+                      if (changed)
+                        Text(
+                          yen(item.regularPrice),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: AppColors.muted,
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                        ),
+                      Text(
+                        yen(item.price),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: changed
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          color: changed ? AppColors.danger : null,
+                        ),
+                      ),
+                      if (item.weightGrams != null)
+                        Text('${item.weightGrams}g'),
+                      if (changed)
+                        StatusBadge(
+                          item.promotionName ?? item.discountReason ?? '値段を変更',
+                          type: MessageType.error,
+                        ),
+                      Text(
+                        '税${item.taxRate}%',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.secondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (!item.isBundle)
+              IconButton(
+                tooltip: '値段を変える',
+                onPressed: () => _editItemPrice(index),
+                icon: const Icon(Icons.sell_outlined),
+              ),
+            QuantityStepper(
+              quantity: item.quantity,
+              removeOnMinus: item.quantity <= 1,
+              onMinus: () => _decrementItem(index),
+              onPlus: () => _incrementItem(index),
+            ),
+            SizedBox(
+              width: 104,
+              child: Text(
+                yen(item.subtotal),
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.bold,
+                  color: changed ? AppColors.danger : null,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1133,7 +1034,7 @@ class _HoldRecallDialogState extends State<_HoldRecallDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('保留呼び出し'),
+      title: const Text('保留を呼び出す'),
       content: SizedBox(
         width: 420,
         child: _isLoading
@@ -1170,7 +1071,7 @@ class _HoldRecallDialogState extends State<_HoldRecallDialog> {
                             ),
                             title: Text('担当: ${hold.operatorName}'),
                             subtitle: Text(
-                              '¥${hold.totalAmount}  ${hold.createdAt.toLocal().toString().substring(11, 16)}',
+                              '${yen(hold.totalAmount)}　${hold.createdAt.toLocal().toString().substring(11, 16)}',
                             ),
                             onTap: () {
                               widget.onConfirmed(hold.holdNumber);
@@ -1187,7 +1088,7 @@ class _HoldRecallDialogState extends State<_HoldRecallDialog> {
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       autofocus: _holds.isEmpty,
                       decoration: const InputDecoration(
-                        labelText: '保留番号を入力',
+                        labelText: '保留番号',
                         border: OutlineInputBorder(),
                       ),
                       style: const TextStyle(fontSize: 24),
@@ -1200,9 +1101,9 @@ class _HoldRecallDialogState extends State<_HoldRecallDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('キャンセル'),
+          child: const Text('やめる'),
         ),
-        ElevatedButton(onPressed: _confirm, child: const Text('呼び出し')),
+        ElevatedButton(onPressed: _confirm, child: const Text('呼び出す')),
       ],
     );
   }

@@ -3,8 +3,12 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_header.dart';
+import 'package:onlipos/cash/denomination_form.dart';
 import 'open_api.dart';
 import '../menu/menu_top_view.dart';
+import '../login/login_top_view.dart';
 import '../sale/escpos/lan_recipt_api.dart';
 
 class OpenView extends StatefulWidget {
@@ -75,6 +79,16 @@ class _OpenViewState extends State<OpenView> {
 
   // 入力された金種枚数でレジ開設APIを呼び出し、成功時はメインメニューへ遷移する
   Future<void> _handleOpenStore() async {
+    if (_totalAmount == 0) {
+      final ok = await confirm(
+        context,
+        title: '釣銭準備金が0円です',
+        message: 'このままレジを開設しますか？',
+        okLabel: '0円で開設する',
+        cancelLabel: '入力に戻る',
+      );
+      if (!ok || !mounted) return;
+    }
     setState(() {
       _isLoading = true;
     });
@@ -100,9 +114,7 @@ class _OpenViewState extends State<OpenView> {
     });
 
     if (result['success'] == true && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('開設処理が完了しました')));
+      showMessage(context, 'レジを開設しました', MessageType.success);
 
       Navigator.pushReplacement(
         context,
@@ -115,145 +127,46 @@ class _OpenViewState extends State<OpenView> {
         ),
       );
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result['message'] ?? 'エラーが発生しました')),
+      showMessage(
+        context,
+        result['message']?.toString() ?? 'レジを開設できませんでした',
+        MessageType.error,
       );
     }
   }
 
-  // 金額を3桁区切りのカンマ付き文字列に整形する
-  String _formatCurrency(int number) {
-    return number.toString().replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (Match m) => '${m[1]},',
-    );
-  }
-
-  // 左側に開設情報・合計金額・開設ボタン、右側に金種別の枚数入力フォームを配置する
   @override
   Widget build(BuildContext context) {
-    final dateStr =
-        "${widget.openDate.year}年${widget.openDate.month}月${widget.openDate.day}日";
-
+    final d = widget.openDate;
     return PopScope(
       canPop: false,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('レジ開設処理'),
-          automaticallyImplyLeading: false, // 戻るボタンを非表示（ログアウト処理が必要なため）
+        // 戻る操作はできない（担当者を変えるにはログインからやり直す）
+        appBar: AppHeader(
+          'レジ開設',
+          subtitle: 'はじめに、レジに入れるお釣り用の現金を数えて入力してください',
+          showBack: false,
+          actions: [
+            TextButton(
+              onPressed: _isLoading
+                  ? null
+                  : () => Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(builder: (_) => const LoginTopView()),
+                    ),
+              child: const Text('ログインに戻る'),
+            ),
+          ],
         ),
-        body: Row(
-          children: [
-            // 左側：情報パネル
-            Expanded(
-              flex: 2,
-              child: Container(
-                color: Colors.grey[100],
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('開設日: $dateStr', style: const TextStyle(fontSize: 18)),
-                    const SizedBox(height: 10),
-                    Text(
-                      '担当者: ${widget.employeeName}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Divider(height: 40),
-                    const Text(
-                      '釣銭準備金 合計',
-                      style: TextStyle(fontSize: 16, color: Colors.grey),
-                    ),
-                    Text(
-                      '¥${_formatCurrency(_totalAmount)}',
-                      style: const TextStyle(
-                        fontSize: 40,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue,
-                      ),
-                    ),
-                    const Spacer(),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 60,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _handleOpenStore,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: _isLoading
-                            ? const CircularProgressIndicator(
-                                color: Colors.white,
-                              )
-                            : const Text(
-                                '開設する',
-                                style: TextStyle(fontSize: 20),
-                              ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // 右側：金種入力フォーム
-            Expanded(
-              flex: 3,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    const Text(
-                      '金種別枚数入力',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    ..._denominations.map((denomination) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 16.0),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 100,
-                              child: Text(
-                                '¥${_formatCurrency(denomination)}',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.right,
-                              ),
-                            ),
-                            const SizedBox(width: 20),
-                            Expanded(
-                              child: TextField(
-                                controller: _controllers[denomination],
-                                keyboardType: TextInputType.number,
-                                textAlign: TextAlign.right,
-                                decoration: const InputDecoration(
-                                  border: OutlineInputBorder(),
-                                  suffixText: '枚',
-                                  contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 16,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-              ),
-            ),
+        body: DenominationForm(
+          controllers: _controllers,
+          totalLabel: '釣銭準備金の合計',
+          total: _totalAmount,
+          submitLabel: 'レジを開設する',
+          loading: _isLoading,
+          onSubmit: _handleOpenStore,
+          details: [
+            LabelValue('営業日', '${d.year}/${d.month}/${d.day}'),
+            LabelValue('担当者', widget.employeeName),
           ],
         ),
       ),

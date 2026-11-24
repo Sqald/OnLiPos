@@ -2,18 +2,14 @@
 .mfa-container { max-width: 520px; }
 .mfa-lead { color: #4b5563; font-size: 0.92rem; line-height: 1.6; }
 .mfa-section { border-top: 1px solid #e5e7eb; padding-top: 1rem; margin-top: 1rem; }
-.mfa-section h3 { font-size: 1rem; margin: 0 0 0.6rem; }
+.mfa-section h3, .mfa-section h2 { font-size: 1rem; margin: 0 0 0.6rem; }
 .mfa-note { color: #6b7280; font-size: 0.85rem; }
 .mfa-steps { padding-left: 1.2rem; font-size: 0.88rem; color: #374151; line-height: 1.6; }
 .mfa-qr { display: flex; justify-content: center; margin: 0.75rem 0; }
 .mfa-qr-svg { width: 200px; height: 200px; background: #fff; padding: 8px; border: 1px solid #e5e7eb; border-radius: 0.5rem; }
 .mfa-secret { text-align: center; font-size: 0.85rem; color: #4b5563; word-break: break-all; }
 .mfa-secret code { font-size: 0.95rem; letter-spacing: 0.05em; }
-.mfa-code-input { font-size: 1.4rem; letter-spacing: 0.3em; text-align: center; max-width: 12rem; }
-.mfa-passkey-button {
-  display: inline-block; padding: 0.7rem 1.2rem; border: none; border-radius: 0.5rem;
-  background: var(--primary); color: #fff; font-weight: 600; cursor: pointer; font-size: 0.95rem;
-}
+input.mfa-code-input { font-size: 1.6rem; letter-spacing: 0.3em; text-align: center; max-width: 16rem; }
 .mfa-passkey-button:disabled { opacity: 0.6; cursor: wait; }
 .mfa-error { color: #b42318; font-size: 0.88rem; margin-top: 0.5rem; }
 .mfa-recovery summary { cursor: pointer; font-weight: 600; font-size: 0.92rem; }

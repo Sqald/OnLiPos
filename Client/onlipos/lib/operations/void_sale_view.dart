@@ -1,5 +1,6 @@
 // 会計の取消（VOID）。精算前の会計だけを、返品と同じ2名の認証で取り消す。
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/common.dart';
 import 'package:onlipos/api/pos_api_client.dart';
 import 'package:onlipos/login/employee_auth_dialog.dart';
 import 'package:onlipos/operations/common.dart';
@@ -22,13 +23,13 @@ class _VoidSaleViewState extends State<VoidSaleView> {
 
     final first = await showEmployeeAuthDialog(
       context,
-      title: '取消の承認（1人目）',
+      title: '取消の確認（1人目）',
       permission: 'refund',
     );
     if (first == null || !mounted) return;
     final second = await showEmployeeAuthDialog(
       context,
-      title: '取消の承認（2人目）',
+      title: '取消の確認（2人目）',
       permission: 'refund',
     );
     if (second == null || !mounted) return;
@@ -48,20 +49,23 @@ class _VoidSaleViewState extends State<VoidSaleView> {
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('${sale['receipt_number']}  ¥${sale['total_amount']}'),
+        title: Text('${yen(sale['total_amount'] as num?)} の会計を取り消す'),
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(labelText: '取消の理由'),
+          decoration: const InputDecoration(
+            labelText: '取り消す理由',
+            helperText: 'このあと2人の確認が必要です',
+          ),
         ),
         actions: [
-          TextButton(
+          OutlinedButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('戻る'),
+            child: const Text('やめる'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('取消に進む'),
+            child: const Text('次へ'),
           ),
         ],
       ),
@@ -72,21 +76,24 @@ class _VoidSaleViewState extends State<VoidSaleView> {
   Widget build(BuildContext context) {
     final today = DateTime.now().toIso8601String().substring(0, 10);
     return ReloadableList(
-      title: '会計の取消（本日）',
+      title: '会計の取消（今日の会計）',
       load: () =>
           SaleExtrasApi.sales(employeeId: widget.employeeId, date: today),
       listKey: 'sales',
-      emptyMessage: '本日の会計はありません',
+      emptyMessage: '今日の会計はまだありません',
+      emptyIcon: Icons.receipt_long,
       itemBuilder: (context, sale, reload) => ListTile(
-        title: Text('${sale['created_at']}  ¥${sale['total_amount']}'),
+        title: Text(
+          '${yen(sale['total_amount'] as num?)}　${sale['created_at']}',
+        ),
         subtitle: Text('${sale['receipt_number']}  ${sale['employee_name']}'),
         trailing: sale['status'] == 'voided'
-            ? const Text('取消済み')
+            ? const StatusBadge('取消済み', type: MessageType.error)
             : OutlinedButton(
                 onPressed: sale['voidable'] == true
                     ? () => _void(sale, reload)
                     : null,
-                child: const Text('取消'),
+                child: const Text('取り消す'),
               ),
       ),
     );

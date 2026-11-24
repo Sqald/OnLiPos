@@ -1,5 +1,8 @@
 // 棚卸の数量登録（在庫操作の権限を持つ担当者）
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_theme.dart';
+import 'package:onlipos/ui/app_header.dart';
 import 'package:flutter/services.dart';
 import 'package:onlipos/operations/common.dart';
 import 'package:onlipos/sale/sale_extras_api.dart';
@@ -15,10 +18,11 @@ class StocktakeView extends StatelessWidget {
       title: '棚卸',
       load: SaleExtrasApi.stocktakes,
       listKey: 'stocktakes',
-      emptyMessage: '実施中の棚卸はありません（管理画面で開始してください）',
+      emptyMessage: '実施中の棚卸はありません。管理画面の「棚卸」で始めてください',
+      emptyIcon: Icons.checklist,
       itemBuilder: (context, item, reload) => ListTile(
         title: Text(item['name']?.toString() ?? ''),
-        subtitle: Text('登録済み ${item['items_count']}商品'),
+        subtitle: Text('数えた商品 ${item['items_count']}件'),
         trailing: const Icon(Icons.chevron_right),
         onTap: () async {
           await Navigator.of(context).push(
@@ -69,7 +73,10 @@ class _StocktakeCountViewState extends State<_StocktakeCountView> {
 
   Future<void> _submit() async {
     final quantity = int.tryParse(_quantity.text);
-    if (_code.text.trim().isEmpty || quantity == null) return;
+    if (_code.text.trim().isEmpty || quantity == null) {
+      showMessage(context, '商品コードと数を入力してください', MessageType.error);
+      return;
+    }
     final result = await SaleExtrasApi.countStock(
       stocktakeId: widget.stocktakeId,
       employeeId: widget.employeeId,
@@ -82,7 +89,7 @@ class _StocktakeCountViewState extends State<_StocktakeCountView> {
       setState(
         () => _history.insert(
           0,
-          '${result['product_name']}: ${result['counted_quantity']}',
+          '${result['product_name']}　${result['counted_quantity']}個',
         ),
       );
       _code.clear();
@@ -96,39 +103,84 @@ class _StocktakeCountViewState extends State<_StocktakeCountView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('棚卸: ${widget.name}')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: _code,
-              focusNode: _codeFocus,
-              autofocus: true,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(labelText: '商品コード（JAN）'),
+      appBar: AppHeader('棚卸', subtitle: widget.name),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            color: AppColors.surface,
+            padding: const EdgeInsets.all(16),
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SizedBox(
+                  width: 280,
+                  child: TextField(
+                    controller: _code,
+                    focusNode: _codeFocus,
+                    autofocus: true,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      labelText: '商品コード（バーコード）',
+                      prefixIcon: Icon(Icons.qr_code_scanner),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 150,
+                  child: TextField(
+                    controller: _quantity,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.right,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(
+                      labelText: '数えた数',
+                      suffixText: '個',
+                    ),
+                    onSubmitted: (_) => _submit(),
+                  ),
+                ),
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(value: true, label: Text('足す')),
+                    ButtonSegment(value: false, label: Text('置き換える')),
+                  ],
+                  selected: {_add},
+                  onSelectionChanged: (v) => setState(() => _add = v.first),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _submit,
+                  icon: const Icon(Icons.check),
+                  label: const Text('登録する'),
+                ),
+              ],
             ),
-            TextField(
-              controller: _quantity,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(labelText: '数量'),
-              onSubmitted: (_) => _submit(),
-            ),
-            SwitchListTile(
-              title: const Text('加算する（オフにすると上書き）'),
-              value: _add,
-              onChanged: (v) => setState(() => _add = v),
-            ),
-            ElevatedButton(onPressed: _submit, child: const Text('登録')),
-            const Divider(),
-            Expanded(
-              child: ListView(
-                children: [for (final h in _history) ListTile(title: Text(h))],
-              ),
-            ),
-          ],
-        ),
+          ),
+          Expanded(
+            child: _history.isEmpty
+                ? const EmptyState(
+                    icon: Icons.checklist,
+                    title: '商品を数えて登録してください',
+                    message: '同じ商品を別の場所で見つけたら「足す」で登録します',
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: _history.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 6),
+                    itemBuilder: (_, i) => Card(
+                      child: ListTile(
+                        leading: const Icon(
+                          Icons.check_circle,
+                          color: AppColors.success,
+                        ),
+                        title: Text(_history[i]),
+                      ),
+                    ),
+                  ),
+          ),
+        ],
       ),
     );
   }

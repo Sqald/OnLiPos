@@ -1,14 +1,3 @@
-<%#
-  ダッシュボード: 店舗新規登録画面
-  新規店舗を登録する。フォーム本体は _form.html.erb を共用。
-%>
-<div class="dashboard-container">
-  <%= render 'dashboard/shared/menu' %>
-
-  <div class="dashboard-form-card card">
-    <div class="subtitle">
-      <h2>店舗登録</h2>
-    </div>
-    <%= render 'form', store: @store %>
-  </div>
-</div>
+<%# ダッシュボード: 店舗の登録 %>
+<%= page_header "店舗の登録", back: true %>
+<div class="dashboard-content form-narrow"><%= render "form", store: @store %></div>

@@ -1,9 +1,3 @@
 <%# ダッシュボード: 電子ジャーナルの改ざん検証 %>
-<div class="dashboard-container">
-  <%= render "dashboard/shared/menu" %>
-  <div class="dashboard-content card">
-    <div class="subtitle"><h2>電子ジャーナルの改ざん検証</h2></div>
-    <p>端末ごとに、連番の欠番・書き換え・末尾の削除を検証した結果です（毎日自動でも検証しています）。</p>
-    <%= data_table([ "店舗 / 端末", "結果" ], @results.map { |pos, issues| [ "#{pos.store.name} / #{pos.name}", issues.empty? ? badge("正常") : safe_join(issues.first(20), tag.br) ] }) %>
-  </div>
-</div>
+<%= page_header "改ざんの確認", back: true, lead: "端末ごとに、番号の抜け・書き換え・末尾の削除がないかを調べた結果です（毎日自動でも調べています）。" %>
+<%= data_table([ "店舗 / 端末", "結果" ], @results.map { |pos, issues| [ "#{pos.store.name} / #{pos.name}", issues.empty? ? badge("正常") : safe_join([ badge("問題あり", :danger), *issues.first(20) ], tag.br) ] }) %>

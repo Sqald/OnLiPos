@@ -3,31 +3,13 @@ require "csv"
 # 各種売上レポート（日次/月次/商品別/支払方法別/税率別/担当者別）を集計して表示する画面。
 # HTML表示のほか、CSV形式でのダウンロードにも対応する。
 class Dashboard::ReportsController < Dashboard::BaseController
-  helper_method :search_performed?
-
   # 検索条件（店舗・期間）が指定された場合のみ各種集計を実行し、@daily_summary等の
   # インスタンス変数にセットする。未指定時は空の集計結果を返す（負荷軽減）。
   def index
     @stores = current_account.stores.order(:name)
     @allowed_store_ids = @stores.pluck(:id)
 
-    unless search_performed?
-      @daily_summary = []
-      @monthly_summary = []
-      @product_ranking = []
-      @payment_summary = []
-      @employee_summary = []
-      @tax_summary = []
-      @customer_segment_summary = []
-      @total_sales_amount = 0
-      @total_sales_count = 0
-      @total_discount = 0
-      @refund_count = 0
-      @refund_total = 0
-      @void_count = 0
-      @void_total = 0
-      return
-    end
+    default_period(Date.current.beginning_of_month) unless search_performed?
 
     # 集計は営業日（business_date）基準・取消（VOID）除外
     scope = build_scope

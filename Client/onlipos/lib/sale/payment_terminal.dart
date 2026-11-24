@@ -5,6 +5,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/common.dart';
 
 class TerminalResult {
   /// 承認番号・取引番号（返金時の照合に使う）
@@ -73,28 +74,29 @@ class _ManualTerminalDialogState extends State<_ManualTerminalDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('${widget.label} ¥${widget.amount}'),
+      title: Text('${widget.label} ${yen(widget.amount)}'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('決済端末に ¥${widget.amount} を入力し、承認されたことを確認してください。'),
+          Text('決済端末に ${yen(widget.amount)} を入力し、支払いが完了したことを確認してください。'),
           const SizedBox(height: 12),
           TextField(
             controller: _controller,
             maxLength: 40,
             decoration: const InputDecoration(
-              labelText: '承認番号・取引番号（任意。カード番号は入力しないでください）',
+              labelText: '取引番号（なくても可）',
+              helperText: 'カード番号は入力しないでください',
             ),
             onSubmitted: (_) => _confirm(),
           ),
         ],
       ),
       actions: [
-        TextButton(
+        OutlinedButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('キャンセル'),
+          child: const Text('やめる'),
         ),
-        ElevatedButton(onPressed: _confirm, child: const Text('承認済み')),
+        ElevatedButton(onPressed: _confirm, child: const Text('支払い完了を確認した')),
       ],
     );
   }

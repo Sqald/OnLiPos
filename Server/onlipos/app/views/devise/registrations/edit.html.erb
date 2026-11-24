@@ -1,88 +1,43 @@
-<%#
-  Devise: アカウント情報編集画面
-  ログイン中ユーザーが氏名・メールアドレス・パスワード等を変更する。
-  パスワード変更やメールアドレス変更には現在のパスワード入力が必要。
-%>
-<div class="auth-wrapper">
-  <div class="auth-container">
-    <h2><%= t('.title') %></h2>
-
-    <%= form_for(resource, as: resource_name, url: registration_path(resource_name), html: { method: :put }) do |f| %>
-      <%= render "devise/shared/error_messages", resource: resource %>
-
-      <%# アカウント種別（個人/法人）の選択 %>
+<%# Devise: マイページ（アカウント情報の編集・退会）。ダッシュボードと同じ枠で表示する %>
+<%= page_header "マイページ", lead: "氏名・メールアドレス・パスワードを変更できます。" %>
+<div class="dashboard-content form-narrow">
+  <%= form_for(resource, as: resource_name, url: registration_path(resource_name), html: { method: :put, class: "dashboard-form" }) do |f| %>
+    <%= form_errors(resource) %>
+    <fieldset class="form-section">
+      <legend>アカウント</legend>
       <div class="field">
-        <%= f.label :user_type %><br />
-        <%= f.radio_button :user_type, "individual" %>
-        <%= f.label :user_type_individual, t('devise.registrations.new.user_type_individual') %>
-        <%= f.radio_button :user_type, "corporate" %>
-        <%= f.label :user_type_corporate, t('devise.registrations.new.user_type_corporate') %>
+        <span class="field-label">アカウントの種類</span>
+        <div class="radio-group">
+          <%= f.radio_button :user_type, "individual" %><%= f.label :user_type_individual, "個人" %>
+          <%= f.radio_button :user_type, "corporate" %><%= f.label :user_type_corporate, "法人" %>
+        </div>
       </div>
-
-      <div class="field">
-        <%= f.label :company_name %><br />
-        <%= f.text_field :company_name, placeholder: t('devise.registrations.new.company_name_placeholder') %>
+      <div class="field"><label for="user_company_name">会社名・屋号<%= optional_mark %></label><%= f.text_field :company_name, placeholder: "法人の場合は入力してください", autocomplete: "organization" %></div>
+      <div class="name-pair">
+        <div class="field"><label for="user_last_name">姓<%= required_mark %></label><%= f.text_field :last_name, autocomplete: "family-name" %></div>
+        <div class="field"><label for="user_first_name">名<%= required_mark %></label><%= f.text_field :first_name, autocomplete: "given-name" %></div>
       </div>
-
-      <div class="field">
-        <%= f.label :last_name, t('devise.registrations.new.full_name_label') %><br />
-        <%= f.text_field :last_name, placeholder: t('devise.registrations.new.last_name_placeholder'), style: "width: 45%; display: inline-block; margin-right: 4%;" %>
-        <%= f.text_field :first_name, placeholder: t('devise.registrations.new.first_name_placeholder'), style: "width: 45%; display: inline-block;" %>
-      </div>
-
-      <div class="field">
-        <%= f.label :login_name %><br />
-        <%= f.text_field :login_name, placeholder: "半角英数4~16文字" %>
-      </div>
-
-      <div class="field">
-        <%= f.label :email %><br />
-        <%= f.email_field :email, autofocus: true, autocomplete: "email" %>
-      </div>
-
-      <%# パスワードを変更しない場合は空欄のままでよい %>
-      <div class="field">
-        <%= f.label :password %>
-        <span class="field-hint"><%= t('.leave_blank') %></span>
-        <% if @minimum_password_length %>
-          <span class="field-hint"><%= t('.password_min_length', count: @minimum_password_length) %></span>
-        <% end %><br />
-        <%= f.password_field :password, autocomplete: "new-password" %>
-      </div>
-
-      <div class="field">
-        <%= f.label :password_confirmation %><br />
-        <%= f.password_field :password_confirmation, autocomplete: "new-password" %>
-      </div>
-
-      <div class="field">
-        <%= f.label :current_password %>
-        <span class="field-hint"><%= t('.need_current_password') %></span><br />
-        <%= f.password_field :current_password, autocomplete: "current-password" %>
-      </div>
-
-      <div class="actions">
-        <%= f.submit t('.submit') %>
-      </div>
-    <% end %>
-
-    <div class="divider"></div>
-
-    <%# 退会（アカウント削除）用のフォーム %>
-    <div class="danger-zone">
-      <h3><%= t('.cancel_title') %></h3>
-      <p><%= t('.cancel_text') %></p>
-      <div class="actions" style="margin-top: 0;">
-        <%= form_with url: registration_path(resource_name), method: :delete, data: { turbo_confirm: t('.are_you_sure') } do |f| %>
-          <%= f.label :current_password, "現在のパスワード" %>
-          <%= f.password_field :current_password, autocomplete: "current-password", required: true, id: "cancel_current_password" %>
-          <%= f.submit t('.cancel_button'), class: "btn-danger" %>
-        <% end %>
-      </div>
-    </div>
-
-    <div class="auth-links">
-      <%= link_to t('.back'), :back %>
-    </div>
-  </div>
+      <div class="field"><label for="user_login_name">企業ID（POS端末で使うID）<%= required_mark %></label><%= f.text_field :login_name, autocapitalize: "none", autocomplete: "off" %><p class="field-hint">半角英数字4〜16文字</p></div>
+      <div class="field"><label for="user_email">メールアドレス<%= required_mark %></label><%= f.email_field :email, autocomplete: "email" %></div>
+    </fieldset>
+    <fieldset class="form-section">
+      <legend>パスワードの変更</legend>
+      <p class="field-hint">変更しない場合は空欄のままにしてください。</p>
+      <div class="field"><%= f.label :password, "新しいパスワード" %><%= f.password_field :password, autocomplete: "new-password" %><% if @minimum_password_length %><p class="field-hint"><%= @minimum_password_length %>文字以上</p><% end %></div>
+      <div class="field"><%= f.label :password_confirmation, "新しいパスワード（確認のためもう一度）" %><%= f.password_field :password_confirmation, autocomplete: "new-password" %></div>
+    </fieldset>
+    <fieldset class="form-section">
+      <legend>確認</legend>
+      <div class="field"><label for="user_current_password">現在のパスワード<%= required_mark %></label><%= f.password_field :current_password, autocomplete: "current-password" %><p class="field-hint">変更を保存するには、現在のパスワードが必要です。</p></div>
+    </fieldset>
+    <div class="actions"><%= f.submit "変更を保存" %></div>
+  <% end %>
 </div>
+<section class="danger-zone form-narrow" style="margin-top: 2rem">
+  <h2>アカウントの削除（退会）</h2>
+  <p>アカウントを削除します。売上などの取引記録がある場合は、法令で保存が必要なため画面からは削除できません。</p>
+  <%= form_with url: registration_path(resource_name), method: :delete, data: { turbo_confirm: "本当にアカウントを削除しますか？\nこの操作は取り消せません。" } do |f| %>
+    <div class="field"><%= f.label :current_password, "現在のパスワード", for: "cancel_current_password" %><%= f.password_field :current_password, autocomplete: "current-password", required: true, id: "cancel_current_password" %></div>
+    <%= f.submit "アカウントを削除する", class: "btn btn-danger-outline" %>
+  <% end %>
+</section>

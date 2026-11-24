@@ -22,7 +22,7 @@ class DashboardAnalyticsControllerTest < ActionDispatch::IntegrationTest
   test "既定（直近30日・日別）で表示できる" do
     get dashboard_analytics_path
     assert_response :success
-    assert_select "h2", "売上分析"
+    assert_select "h1", "売上分析"
     assert_select "svg.viz-svg"
     assert_match "¥2,400", response.body
   end

@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/num_pad.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_theme.dart';
+import 'package:onlipos/ui/app_header.dart';
 import 'package:flutter/services.dart';
 import 'sale_scan_view.dart';
 import 'table_order_api.dart';
@@ -77,109 +81,86 @@ class _TableNumberInputViewState extends State<TableNumberInputView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('卓番入力 - 担当: ${widget.operatorName}'),
-        leading: Navigator.canPop(context)
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                tooltip: '戻る',
-                onPressed: () => Navigator.pop(context),
-              )
-            : null,
-        automaticallyImplyLeading: false,
-      ),
-      body: SingleChildScrollView(
-        child: Center(
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 500),
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  '卓番を入力してください',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  autofocus: true,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 56,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: '卓番',
-                  ),
-                  onSubmitted: _openTable,
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: () => _openTable(_controller.text),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('確定', style: TextStyle(fontSize: 20)),
-                  ),
-                ),
-                const SizedBox(height: 40),
-                if (_isLoadingTables)
-                  const Center(child: CircularProgressIndicator())
-                else if (_activeTables.isNotEmpty) ...[
-                  const Text(
-                    '注文中のテーブル',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const Divider(),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    alignment: WrapAlignment.center,
-                    children: _activeTables.map((table) {
-                      return SizedBox(
-                        width: 100,
-                        height: 64,
-                        child: ElevatedButton(
-                          onPressed: () => _openTable(table),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange[100],
-                            foregroundColor: Colors.orange[900],
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: Text(
-                            '卓 $table',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ],
-              ],
+    final input = SectionCard(
+      title: '卓の番号を入力',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _controller,
+            focusNode: _focusNode,
+            autofocus: true,
+            keyboardType: TextInputType.none,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
+            decoration: const InputDecoration(labelText: '卓'),
+            onSubmitted: _openTable,
+          ),
+          const SizedBox(height: 10),
+          NumPad(controller: _controller, maxLength: 4, keyHeight: 54),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 60,
+            child: ElevatedButton(
+              onPressed: () => _openTable(_controller.text),
+              child: const Text('この卓を開く', style: TextStyle(fontSize: 20)),
             ),
           ),
+        ],
+      ),
+    );
+    final tables = SectionCard(
+      title: '注文中の卓',
+      child: _isLoadingTables
+          ? const Center(child: CircularProgressIndicator())
+          : _activeTables.isEmpty
+          ? const Text(
+              '注文中の卓はありません',
+              style: TextStyle(color: AppColors.secondary),
+            )
+          : Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                for (final table in _activeTables)
+                  SizedBox(
+                    width: 116,
+                    height: 76,
+                    child: OutlinedButton(
+                      onPressed: () => _openTable(table),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: AppColors.warningSoft,
+                        foregroundColor: AppColors.warning,
+                      ),
+                      child: Text(
+                        '卓 $table',
+                        style: const TextStyle(
+                          fontSize: 21,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+    );
+    return Scaffold(
+      appBar: AppHeader('卓を選ぶ', subtitle: '担当: ${widget.operatorName}'),
+      body: LayoutBuilder(
+        builder: (context, box) => SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: box.maxWidth < 720
+              ? Column(children: [input, const SizedBox(height: 12), tables])
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(width: 340, child: input),
+                    const SizedBox(width: 16),
+                    Expanded(child: tables),
+                  ],
+                ),
         ),
       ),
     );

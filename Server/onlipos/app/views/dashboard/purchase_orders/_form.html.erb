@@ -1,21 +1,24 @@
 <%# 発注の入力フォーム %>
 <%= form_errors(@order) %>
 <%= form_with model: [ :dashboard, @order ] do |f| %>
-  <div class="field"><%= f.label :store_id, "店舗" %><%= f.collection_select :store_id, @stores, :id, :name, {}, class: "form-select" %></div>
-  <div class="field"><%= f.label :supplier_id, "仕入先" %><%= f.collection_select :supplier_id, @suppliers, :id, :name, {}, class: "form-select" %></div>
-  <div class="field"><%= f.label :expected_on, "入荷予定日" %><%= f.date_field :expected_on %></div>
-  <div class="field"><%= f.label :note, "備考" %><%= f.text_field :note %></div>
+  <div class="field-pair form-narrow">
+    <div class="field"><label for="purchase_order_store_id">届ける店舗<%= required_mark %></label><%= f.collection_select :store_id, @stores, :id, :name %></div>
+    <div class="field"><label for="purchase_order_supplier_id">仕入先<%= required_mark %></label><%= f.collection_select :supplier_id, @suppliers, :id, :name %></div>
+    <div class="field"><%= f.label :expected_on, "入荷の予定日" %><%= f.date_field :expected_on %></div>
+    <div class="field"><%= f.label :note, "メモ" %><%= f.text_field :note %></div>
+  </div>
+  <h3>発注する商品</h3>
   <table class="data-table">
-    <thead><tr><th>商品</th><th>数量</th><th>原価（円）</th><th>削除</th></tr></thead>
+    <thead><tr><th>商品</th><th>数量</th><th>原価（円）</th><th>削除する</th></tr></thead>
     <tbody>
       <%= f.fields_for :items do |i| %>
         <tr>
-          <td><%= i.select :product_id, @products.map { |p| [ "#{p.code} #{p.name}", p.id ] }, { include_blank: true } %></td>
-          <td><%= i.number_field :quantity, min: 0 %></td><td><%= i.number_field :unit_cost, min: 0 %></td>
-          <td><%= i.check_box :_destroy if i.object.persisted? %></td>
+          <td><%= i.select :product_id, @products.map { |p| [ "#{p.code} #{p.name}", p.id ] }, { include_blank: "商品を選んでください" }, "aria-label": "商品" %></td>
+          <td><%= i.number_field :quantity, min: 0, "aria-label": "数量" %></td><td><%= i.number_field :unit_cost, min: 0, "aria-label": "原価" %></td>
+          <td><%= i.check_box :_destroy, "aria-label": "この行を削除" if i.object.persisted? %></td>
         </tr>
       <% end %>
     </tbody>
   </table>
-  <div class="actions"><%= f.submit "保存", class: "btn-signup" %> <%= link_to "戻る", dashboard_purchase_orders_path, class: "link-cancel" %></div>
+  <div class="actions"><%= f.submit "保存する" %><%= link_to "やめる", dashboard_purchase_orders_path, class: "link-cancel" %></div>
 <% end %>

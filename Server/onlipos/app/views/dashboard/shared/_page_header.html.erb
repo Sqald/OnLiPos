@@ -1,0 +1,18 @@
+<%# ダッシュボード: ページ見出し（NavigationHelper#page_header から使う）。locals: title, lead, back, actions %>
+<div class="page-header">
+  <% if (group = current_nav_group) %>
+    <nav class="breadcrumb" aria-label="現在の場所">
+      <%= link_to "ホーム", dashboard_root_path %>
+      <span aria-hidden="true">›</span> <span><%= group.label %></span>
+      <% unless current_page?(current_nav_item.path) || current_nav_item.label == title %>
+        <span aria-hidden="true">›</span> <%= link_to current_nav_item.label, current_nav_item.path %>
+      <% end %>
+    </nav>
+  <% end %>
+  <div class="page-header-row">
+    <h1><%= title %></h1>
+    <% if actions %><div class="page-actions"><%= actions %></div><% end %>
+  </div>
+  <% if lead %><p class="page-lead"><%= lead %></p><% end %>
+  <% if back %><p class="page-back"><%= link_to back.last do %><%= icon(:back, size: 16) %><%= back.first %><% end %></p><% end %>
+</div>

@@ -1,5 +1,6 @@
 // 商品オプション（トッピング・サイズなど）の選択ダイアログ
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/common.dart';
 import 'package:onlipos/product/product.dart';
 
 /// 選択したオプションを返す。キャンセル時は null
@@ -56,17 +57,20 @@ class _OptionSelectDialogState extends State<_OptionSelectDialog> {
           children: [
             for (final group in groups) ...[
               Text(
-                '${group.name}（${group.minSelect}〜${group.maxSelect}個）',
+                group.minSelect == 0
+                    ? '${group.name}（${group.maxSelect}つまで）'
+                    : '${group.name}（${group.minSelect}〜${group.maxSelect}つ選んでください）',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               Wrap(
                 spacing: 8,
+                runSpacing: 8,
                 children: [
                   for (final item in group.items)
                     FilterChip(
                       label: Text(
                         item.price > 0
-                            ? '${item.name} +¥${item.price}'
+                            ? '${item.name} +${yen(item.price)}'
                             : item.name,
                       ),
                       selected: _selected.contains(item.id),
@@ -80,9 +84,9 @@ class _OptionSelectDialogState extends State<_OptionSelectDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        OutlinedButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('キャンセル'),
+          child: const Text('やめる'),
         ),
         ElevatedButton(
           onPressed: _valid
@@ -93,7 +97,7 @@ class _OptionSelectDialogState extends State<_OptionSelectDialog> {
                       .toList(),
                 )
               : null,
-          child: const Text('追加'),
+          child: const Text('登録する'),
         ),
       ],
     );

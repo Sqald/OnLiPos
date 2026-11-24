@@ -1,8 +1,9 @@
 <%# ログインの2段階目（MFA 未設定のユーザー）: 認証アプリかパスキーのどちらかを登録してからログイン %>
+<% content_for :title, "2段階認証の設定" %>
 <div class="auth-wrapper">
-  <div class="auth-container mfa-container">
+  <div class="auth-container wide">
     <h2>2段階認証の設定</h2>
-    <p class="mfa-lead">ダッシュボードへのログインには2段階認証が必須です。次のどちらかを登録してください（あとから両方登録することもできます）。</p>
+    <p class="auth-lead">ダッシュボードへのログインには2段階認証が必須です。次のどちらかを登録してください（あとから両方登録することもできます）。</p>
 
     <section class="mfa-section">
       <h3>方法1: パスキー</h3>

@@ -1,5 +1,8 @@
 // 勤怠の打刻（従業員コード＋PIN）
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/credential_pad.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_theme.dart';
 import 'package:onlipos/operations/common.dart';
 import 'package:onlipos/sale/sale_extras_api.dart';
 
@@ -30,6 +33,10 @@ class _AttendanceViewState extends State<AttendanceView> {
   }
 
   Future<void> _punch(String punch, VoidCallback reload) async {
+    if (_code.text.trim().isEmpty || _pin.text.isEmpty) {
+      showMessage(context, '従業員番号とPINを入力してください', MessageType.error);
+      return;
+    }
     setState(() => _busy = true);
     final result = await SaleExtrasApi.punch(
       code: _code.text.trim(),
@@ -47,48 +54,71 @@ class _AttendanceViewState extends State<AttendanceView> {
     reload();
   }
 
+  static const _icons = {
+    'clock_in': Icons.login,
+    'clock_out': Icons.logout,
+    'break_start': Icons.coffee,
+    'break_end': Icons.work,
+  };
+
   @override
   Widget build(BuildContext context) {
     return ReloadableList(
       title: '勤怠',
       load: SaleExtrasApi.attendances,
       listKey: 'attendances',
-      emptyMessage: '勤務中の従業員はいません',
-      header: (reload) => Padding(
+      emptyMessage: 'いま勤務中の人はいません',
+      emptyIcon: Icons.people_outline,
+      header: (reload) => Container(
+        color: AppColors.surface,
         padding: const EdgeInsets.all(16),
-        child: Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            SizedBox(
-              width: 160,
-              child: TextField(
-                controller: _code,
-                decoration: const InputDecoration(labelText: '従業員コード'),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 820),
+            child: CredentialPad(
+              codeController: _code,
+              pinController: _pin,
+              keyHeight: 46,
+              onSubmit: () {},
+              actions: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (final entry in _punches.entries)
+                    SizedBox(
+                      width: 156,
+                      child: entry.key.startsWith('clock')
+                          ? ElevatedButton.icon(
+                              onPressed: _busy
+                                  ? null
+                                  : () => _punch(entry.key, reload),
+                              icon: Icon(_icons[entry.key]),
+                              label: Text(entry.value),
+                            )
+                          : OutlinedButton.icon(
+                              onPressed: _busy
+                                  ? null
+                                  : () => _punch(entry.key, reload),
+                              icon: Icon(_icons[entry.key]),
+                              label: Text(entry.value),
+                            ),
+                    ),
+                ],
               ),
             ),
-            SizedBox(
-              width: 160,
-              child: TextField(
-                controller: _pin,
-                obscureText: true,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'PIN'),
-              ),
-            ),
-            for (final entry in _punches.entries)
-              ElevatedButton(
-                onPressed: _busy ? null : () => _punch(entry.key, reload),
-                child: Text(entry.value),
-              ),
-          ],
+          ),
         ),
       ),
       itemBuilder: (context, item, reload) => ListTile(
         leading: Icon(item['on_break'] == true ? Icons.coffee : Icons.work),
         title: Text(item['employee_name']?.toString() ?? ''),
         subtitle: Text('出勤 ${shortTime(item['clock_in_at'])}'),
+        trailing: StatusBadge(
+          item['on_break'] == true ? '休憩中' : '勤務中',
+          type: item['on_break'] == true
+              ? MessageType.warning
+              : MessageType.success,
+        ),
       ),
     );
   }

@@ -1,27 +1,22 @@
 <%# ダッシュボード: レジ精算（Z）の詳細 %>
-<div class="dashboard-container">
-  <%= render "dashboard/shared/menu" %>
-  <div class="dashboard-content card">
-    <div class="subtitle"><h2>レジ精算（Z）の詳細</h2></div>
-    <%= detail_table([
-          [ "営業日 / Z番号", "#{@session.business_date} / #{@session.z_number}" ], [ "店舗 / 端末", "#{@session.store.name} / #{@session.pos_token.name}" ],
-          [ "開設", "#{datetime(@session.opened_at)} #{@session.opening_employee&.name}" ], [ "精算", "#{datetime(@session.closed_at)} #{@session.closing_employee&.name}" ],
-          [ "釣銭準備金", yen(@session.opening_float) ], [ "売上", "#{@totals[:sales_count]}件 #{yen(@totals[:sales_total])}" ], [ "返品", "#{@totals[:refund_count]}件 #{yen(@totals[:refund_total])}" ],
-          [ "取消", "#{@totals[:void_count]}件 #{yen(@totals[:void_total])}" ], [ "割引", yen(@totals[:discount_total]) ], [ "現金売上", yen(@totals[:cash_sales_total]) ], [ "現金返金", yen(@totals[:cash_refund_total]) ],
-          [ "入金 / 出金", "#{yen(@totals[:cash_in_total])} / #{yen(@totals[:cash_out_total])}" ],
-          [ "理論在高", yen(@session.expected_cash_amount) ], [ "実査額", yen(@session.closing_counted_amount) ], [ "過不足", yen(@session.cash_diff_amount) ], [ "翌営業日の釣銭準備金", yen(@session.next_opening_float) ] ]) %>
-    <h3>決済手段別</h3>
-    <%= data_table([ "決済手段", "金額" ], (@breakdown["payment_breakdown"] || {}).map { |k, v| [ PaymentMethods.label(k), yen(v) ] }) %>
-    <h3>税率別</h3>
-    <%= data_table([ "税率", "売上", "うち消費税", "返品", "差引", "差引消費税" ], (@breakdown["tax_breakdown"] || []).map { |r| [ "#{r["tax_rate"]}%", yen(r["sales_amount"]), yen(r["sales_tax"]), yen(r["refund_amount"]), yen(r["net_amount"]), yen(r["net_tax"]) ] }) %>
-    <h3>入出金</h3>
-    <%= data_table([ "日時", "種別", "金額", "理由" ], @session.cash_movements.order(:occurred_at).map { |m| [ datetime(m.occurred_at), "#{m.inbound? ? "入金" : "出金"}", yen(m.amount), m.reason ] }, empty: "入出金はありません。") %>
-    <h3>レジ金の記録</h3>
-    <%= data_table([ "日時", "担当者", "実査額", "理論在高", "過不足" ], @cash_logs.map { |c| [ datetime(c.created_at), c.employee.name, yen(c.total_amount), yen(c.expected_amount), yen(c.diff_amount) ] }) %>
-    <% if @late_sales.any? %>
-      <h3>精算後に届いたオフライン会計</h3>
-      <p>上の集計には含まれていません。</p>
-      <%= data_table([ "販売日時", "レシート番号", "金額" ], @late_sales.map { |s| [ datetime(s.sold_at), link_to(s.receipt_number, dashboard_sale_detail_path(s)), yen(s.total_amount) ] }) %>
-    <% end %>
-  </div>
-</div>
+<%= page_header "レジ精算の詳細", back: true %>
+<%= detail_table([
+      [ "営業日 / Z番号", "#{@session.business_date} / #{@session.z_number}" ], [ "店舗 / 端末", "#{@session.store.name} / #{@session.pos_token.name}" ],
+      [ "開設", "#{datetime(@session.opened_at)} #{@session.opening_employee&.name}" ], [ "精算", "#{datetime(@session.closed_at)} #{@session.closing_employee&.name}" ],
+      [ "釣銭準備金", yen(@session.opening_float) ], [ "売上", "#{@totals[:sales_count]}件 #{yen(@totals[:sales_total])}" ], [ "返品", "#{@totals[:refund_count]}件 #{yen(@totals[:refund_total])}" ],
+      [ "取消", "#{@totals[:void_count]}件 #{yen(@totals[:void_total])}" ], [ "割引", yen(@totals[:discount_total]) ], [ "現金売上", yen(@totals[:cash_sales_total]) ], [ "現金返金", yen(@totals[:cash_refund_total]) ],
+      [ "入金 / 出金", "#{yen(@totals[:cash_in_total])} / #{yen(@totals[:cash_out_total])}" ],
+      [ "理論在高", yen(@session.expected_cash_amount) ], [ "数えた金額", yen(@session.closing_counted_amount) ], [ "過不足", @session.cash_diff_amount.to_i.zero? ? yen(@session.cash_diff_amount) : badge(yen(@session.cash_diff_amount), :danger) ], [ "翌営業日の釣銭準備金", yen(@session.next_opening_float) ] ]) %>
+<h3>決済手段別</h3>
+<%= data_table([ "決済手段", "金額" ], (@breakdown["payment_breakdown"] || {}).map { |k, v| [ PaymentMethods.label(k), yen(v) ] }) %>
+<h3>税率別</h3>
+<%= data_table([ "税率", "売上", "うち消費税", "返品", "差引", "差引消費税" ], (@breakdown["tax_breakdown"] || []).map { |r| [ "#{r["tax_rate"]}%", yen(r["sales_amount"]), yen(r["sales_tax"]), yen(r["refund_amount"]), yen(r["net_amount"]), yen(r["net_tax"]) ] }) %>
+<h3>入出金</h3>
+<%= data_table([ "日時", "種別", "金額", "理由" ], @session.cash_movements.order(:occurred_at).map { |m| [ datetime(m.occurred_at), "#{m.inbound? ? "入金" : "出金"}", yen(m.amount), m.reason ] }, empty: "入出金はありません。") %>
+<h3>レジ金の記録</h3>
+<%= data_table([ "日時", "担当者", "数えた金額", "理論在高", "過不足" ], @cash_logs.map { |c| [ datetime(c.created_at), c.employee.name, yen(c.total_amount), yen(c.expected_amount), yen(c.diff_amount) ] }) %>
+<% if @late_sales.any? %>
+  <h3>精算後に届いたオフライン会計</h3>
+  <p>上の集計には含まれていません。</p>
+  <%= data_table([ "販売日時", "レシート番号", "金額" ], @late_sales.map { |s| [ datetime(s.sold_at), link_to(s.receipt_number, dashboard_sale_detail_path(s)), yen(s.total_amount) ] }) %>
+<% end %>

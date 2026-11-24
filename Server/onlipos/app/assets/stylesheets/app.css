@@ -1,9 +1,44 @@
-@import "variables.css";
-@import "layout.css";
-@import "devise.css";
-@import "pages/top.css";
-@import "pages/dashboard.css";
-@import "pages/analytics.css";
-@import "pages/mfa.css";
-@import "pages/errors.css";
-@import "pages/admin.css";
+/* --- 全体の土台 ---
+   stylesheet_link_tag :app は app/assets/stylesheets 以下をすべて（名前順に）読み込むため、@import は不要。
+   値は variables.css の変数を使い、色や余白を直接書かないこと。 */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; scroll-padding-top: 5rem; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 { font-weight: 800; line-height: 1.35; color: var(--ink); text-wrap: balance; }
+h3 { font-size: 1.1rem; margin: 2rem 0 0.75rem; }
+p { margin: 0 0 0.9rem; }
+a { color: var(--primary-ink); }
+img, svg { max-width: 100%; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--bg-sunken); padding: 0.1em 0.35em; border-radius: 4px; overflow-wrap: anywhere; }
+pre { overflow-x: auto; background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem; font-size: 0.85rem; }
+[hidden] { display: none !important; }
+
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+main:focus { outline: none; }
+
+.icon { flex: none; vertical-align: -0.2em; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.skip-link { position: absolute; left: 1rem; top: -4rem; z-index: 1000; background: var(--primary); color: #fff; padding: 0.6rem 1rem; border-radius: 0 0 var(--radius) var(--radius); }
+.skip-link:focus { top: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
+
+@media print {
+  .topbar, .sidebar, .bottom-nav, .main-footer, .page-actions, .breadcrumb, .filters, .flash-close { display: none !important; }
+  .app-shell { display: block; }
+  body { background: #fff; }
+}

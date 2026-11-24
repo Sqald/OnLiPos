@@ -1,130 +1,82 @@
-<%# ダッシュボード: 商品登録/編集フォーム(new/editの両画面から render される共通パーシャル)
-    商品コード・名称・価格・税率・カテゴリ・ステータスを入力する %>
-<%= form_with(model: [:dashboard, product], local: true, class: "dashboard-form") do |f| %>
-  <% if product.errors.any? %>
-    <div id="error_explanation">
-      <h2><%= pluralize(product.errors.count, "件のエラー") %>が発生しました:</h2>
-      <ul>
-        <% product.errors.full_messages.each do |message| %>
-          <li><%= message %></li>
-        <% end %>
-      </ul>
-    </div>
-  <% end %>
+<%# ダッシュボード: 商品の登録/編集フォーム。よく使う項目を先に、細かい設定は折りたたんで表示する %>
+<% has_detail = product.persisted? && (product.eat_in_tax_rate || product.eat_in_price || product.min_age || product.variant_group.present? || product.option_group_ids.any?) %>
+<%= form_with(model: [ :dashboard, product ], class: "dashboard-form") do |f| %>
+  <%= form_errors(product) %>
 
-  <div class="field">
-    <%= f.label :code, "商品コード" %>
-    <%= f.text_field :code, placeholder: "例: P0001" %>
-  </div>
-
-  <div class="field">
-    <%= f.label :name, "商品名" %>
-    <%= f.text_field :name, placeholder: "例: オリジナルTシャツ" %>
-  </div>
-
-  <div class="field">
-    <%= f.label :price, "基本価格 (税込)" %>
-    <%= f.number_field :price, placeholder: "例: 1000" %>
-  </div>
-
-  <div class="field">
-    <label>
-      <%= f.check_box :sold_by_weight %>
-      量り売り（計量）商品にする（基本価格は100gあたりの単価として扱われます）
-    </label>
-  </div>
-
-  <div class="field">
-    <%= f.label :description, "商品説明" %>
-    <%= f.text_area :description, rows: 4, class: "form-select", style: "height: auto;" %>
-  </div>
-
-  <div class="field">
-    <%= f.label :tax_rate, "消費税率 (%)" %>
-    <%= f.number_field :tax_rate, placeholder: "例: 10", min: 0, value: product.new_record? ? 10 : product.tax_rate %>
-  </div>
-
-  <div class="field">
-    <%= f.label :tax_type, "税区分" %>
-    <%= f.select :tax_type, Product::TAX_TYPE_LABELS.map { |k, v| [ v, k ] }, {}, class: "form-control" %>
-    <p class="text-sm-muted">外税の場合、基本価格は税抜価格として扱われます。</p>
-  </div>
-
-  <%# 店内飲食で税率・価格が変わる商品（テイクアウト併用の飲食店向け） %>
-  <div class="field">
-    <%= f.label :eat_in_tax_rate, "店内飲食の消費税率 (%)（空欄 = 同じ）" %>
-    <%= f.number_field :eat_in_tax_rate, min: 0, max: 100 %>
-  </div>
-  <div class="field">
-    <%= f.label :eat_in_price, "店内飲食の価格（空欄 = 同じ）" %>
-    <%= f.number_field :eat_in_price, min: 0 %>
-  </div>
-
-  <div class="field">
-    <%= f.label :cost_price, "原価（税抜、粗利の計算に使用）" %>
-    <%= f.number_field :cost_price, min: 0 %>
-  </div>
-  <div class="field">
-    <%= f.label :supplier_id, "仕入先" %>
-    <%= f.collection_select :supplier_id, current_account.suppliers.order(:name), :id, :name, { include_blank: "指定なし" }, class: "form-control" %>
-  </div>
-  <div class="field">
-    <label><%= f.check_box :track_stock %> 在庫を管理する</label>
-  </div>
-  <div class="field">
-    <%= f.label :low_stock_threshold, "在庫の警告数（この数以下で警告）" %>
-    <%= f.number_field :low_stock_threshold, min: 0 %>
-  </div>
-  <div class="field">
-    <%= f.label :min_age, "年齢確認（この年齢以上。酒・たばこ等は20）" %>
-    <%= f.number_field :min_age, min: 1, max: 100 %>
-  </div>
-  <div class="field">
-    <%= f.label :variant_group, "バリエーションのグループ名（例: Tシャツ）" %>
-    <%= f.text_field :variant_group %>
-    <%= f.label :variant_name, "バリエーション名（例: 赤 / M）" %>
-    <%= f.text_field :variant_name %>
-    <p class="text-sm-muted">同じグループ名の商品は、レジの一覧で1つにまとまり、色・サイズなどを選んで登録できます。</p>
-  </div>
-  <% option_groups = current_account.option_groups.order(:name) %>
-  <% if option_groups.any? %>
+  <fieldset class="form-section">
+    <legend>基本</legend>
+    <div class="field"><label for="product_code">商品コード<%= required_mark %></label><%= f.text_field :code, placeholder: "バーコードを読み取るか、番号を入力", inputmode: "text", autofocus: product.new_record? %></div>
+    <div class="field"><label for="product_name">商品名<%= required_mark %></label><%= f.text_field :name, placeholder: "例: オリジナルTシャツ" %></div>
     <div class="field">
-      <p>オプション（トッピングなど）</p>
-      <% option_groups.each do |g| %>
-        <label class="checkbox-item"><%= check_box_tag "product[option_group_ids][]", g.id, product.option_group_ids.include?(g.id), id: "option_group_#{g.id}" %> <%= g.name %></label>
-      <% end %>
-      <%= hidden_field_tag "product[option_group_ids][]", "", id: nil %>
+      <%= f.label :product_category_id, "カテゴリ" %>
+      <%= f.collection_select :product_category_id, current_account.product_categories.order(:display_order, :name), :id, :name, { include_blank: "カテゴリなし" } %>
     </div>
-  <% end %>
-  <div class="field">
-    <%= f.label :image, "商品画像（PNG / JPEG / WebP、3MBまで）" %>
-    <% if product.persisted? && product.image.attached? %><br><%= image_tag image_dashboard_product_path(product), alt: "", style: "max-width:160px" %><br><% end %>
-    <%= f.file_field :image, accept: Product::IMAGE_TYPES.join(",") %>
-  </div>
-
-  <div class="field">
-    <%= f.label :product_category_id, "カテゴリ" %>
-    <%= f.collection_select :product_category_id,
-          current_account.product_categories.order(:display_order, :name), :id, :name,
-          { include_blank: "カテゴリなし" }, class: "form-control" %>
-  </div>
-
-  <div class="field">
-    <%= f.label :status, "ステータス" %>
-    <div class="radio-group">
-      <%= f.radio_button :status, :active, checked: product.active? || product.new_record? %>
-      <%= f.label :status_active, "有効" %>
-      
-      <%= f.radio_button :status, :discontinued %>
-      <%= f.label :status_discontinued, "廃盤" %>
+    <div class="field">
+      <span class="field-label">状態</span>
+      <div class="radio-group">
+        <%= f.radio_button :status, :active, checked: product.active? || product.new_record? %><%= f.label :status_active, "販売中" %>
+        <%= f.radio_button :status, :discontinued %><%= f.label :status_discontinued, "廃盤（レジで使わない）" %>
+      </div>
     </div>
-  </div>
+  </fieldset>
+
+  <fieldset class="form-section">
+    <legend>価格と税</legend>
+    <div class="field-pair">
+      <div class="field"><label for="product_price">価格<%= required_mark %></label><div class="input-unit"><%= f.number_field :price, placeholder: "例: 1000", min: 0 %><span>円</span></div></div>
+      <div class="field"><%= f.label :tax_rate, "消費税率" %><div class="input-unit"><%= f.number_field :tax_rate, min: 0, value: product.new_record? ? 10 : product.tax_rate %><span>%</span></div><p class="field-hint">食料品などの軽減税率は 8、それ以外は 10 です。</p></div>
+    </div>
+    <div class="field"><%= f.label :tax_type, "価格に税を含むか" %><%= f.select :tax_type, Product::TAX_TYPE_LABELS.map { |k, v| [ v, k ] } %><p class="field-hint">「外税」にすると、上の価格は税抜として扱われます。</p></div>
+    <div class="field"><label><%= f.check_box :sold_by_weight %> 量り売りにする（価格は100gあたりになります）</label></div>
+    <div class="field"><label for="product_cost_price">原価（税抜）<%= optional_mark %></label><div class="input-unit"><%= f.number_field :cost_price, min: 0 %><span>円</span></div><p class="field-hint">入れておくと、粗利（もうけ）を計算できます。</p></div>
+  </fieldset>
+
+  <fieldset class="form-section">
+    <legend>在庫・仕入れ</legend>
+    <div class="field"><label><%= f.check_box :track_stock %> この商品の在庫を管理する</label></div>
+    <div class="field-pair">
+      <div class="field"><label for="product_low_stock_threshold">在庫が少ないと知らせる数<%= optional_mark %></label><div class="input-unit"><%= f.number_field :low_stock_threshold, min: 0 %><span>個以下</span></div></div>
+      <div class="field"><label for="product_supplier_id">仕入先<%= optional_mark %></label><%= f.collection_select :supplier_id, current_account.suppliers.order(:name), :id, :name, { include_blank: "指定なし" } %></div>
+    </div>
+  </fieldset>
+
+  <fieldset class="form-section">
+    <legend>画像・説明</legend>
+    <div class="field">
+      <%= f.label :image, "商品画像" %>
+      <% if product.persisted? && product.image.attached? %><p><%= image_tag image_dashboard_product_path(product), alt: "現在の画像", width: 160 %></p><% end %>
+      <%= f.file_field :image, accept: Product::IMAGE_TYPES.join(",") %>
+      <p class="field-hint">PNG / JPEG / WebP、3MBまで。レジの商品一覧に表示されます。</p>
+    </div>
+    <div class="field"><%= f.label :description, "商品説明" %><%= f.text_area :description, rows: 3 %></div>
+  </fieldset>
+
+  <details class="form-section" <%= "open" if has_detail %>>
+    <summary>くわしい設定<small>店内飲食・年齢確認・色やサイズ・オプション</small></summary>
+    <div class="field-pair">
+      <div class="field"><%= f.label :eat_in_price, "店内飲食の価格" %><div class="input-unit"><%= f.number_field :eat_in_price, min: 0 %><span>円</span></div><p class="field-hint">空欄なら通常の価格と同じです。</p></div>
+      <div class="field"><%= f.label :eat_in_tax_rate, "店内飲食の消費税率" %><div class="input-unit"><%= f.number_field :eat_in_tax_rate, min: 0, max: 100 %><span>%</span></div><p class="field-hint">空欄なら通常の税率と同じです。</p></div>
+    </div>
+    <div class="field"><%= f.label :min_age, "年齢確認" %><div class="input-unit"><%= f.number_field :min_age, min: 1, max: 100 %><span>歳以上</span></div><p class="field-hint">酒・たばこなどは 20 と入力すると、会計時に確認画面が出ます。</p></div>
+    <div class="field-pair">
+      <div class="field"><%= f.label :variant_group, "色・サイズ違いのグループ名" %><%= f.text_field :variant_group, placeholder: "例: Tシャツ" %></div>
+      <div class="field"><%= f.label :variant_name, "この商品の種類" %><%= f.text_field :variant_name, placeholder: "例: 赤 / M" %></div>
+    </div>
+    <p class="field-hint">同じグループ名の商品は、レジの一覧で1つにまとまり、色やサイズを選んで登録できます。</p>
+    <% option_groups = current_account.option_groups.order(:name) %>
+    <% if option_groups.any? %>
+      <div class="field">
+        <p>オプション（トッピングなど）</p>
+        <div class="store-grid">
+          <% option_groups.each do |g| %><label class="checkbox-item"><%= check_box_tag "product[option_group_ids][]", g.id, product.option_group_ids.include?(g.id), id: "option_group_#{g.id}" %> <%= g.name %></label><% end %>
+        </div>
+        <%= hidden_field_tag "product[option_group_ids][]", "", id: nil %>
+      </div>
+    <% end %>
+  </details>
 
   <div class="actions">
-  <%= f.button product.new_record? ? "登録する" : "更新する", 
-      type: "button", 
-      class: "btn-signup", 
-      data: { controller: "form-submit", action: "form-submit#submit" } %>
-  <%= link_to "キャンセル", dashboard_products_path, class: "link-cancel" %>
-</div>
+    <%= f.button product.new_record? ? "登録する" : "変更を保存", type: "button", class: "btn btn-primary", data: { controller: "form-submit", action: "form-submit#submit" } %>
+    <%= link_to "やめる", dashboard_products_path, class: "link-cancel" %>
+  </div>
 <% end %>

@@ -1,15 +1,12 @@
 <%# ダッシュボード: 要確認の会計 %>
-<div class="dashboard-container">
-  <%= render "dashboard/shared/menu" %>
-  <div class="dashboard-content card">
-    <div class="subtitle"><h2>要確認の会計</h2></div>
-    <p>オフライン中の価格変更など、確認が必要な会計です。内容を確認し、問題がなければ「確認済み」にしてください。</p>
-    <p><%= params[:reviewed] ? link_to("未確認を表示", dashboard_sale_reviews_path) : link_to("確認済みを表示", dashboard_sale_reviews_path(reviewed: 1)) %></p>
-    <%= data_table([ "販売日時", "店舗 / 端末", "担当者", "レシート番号", "金額", "理由", "" ],
-          @sales.map { |s| [ datetime(s.sold_at), "#{s.store.name} / #{s.pos_token&.name}", s.employee&.name, link_to(s.receipt_number, dashboard_sale_detail_path(s)), yen(s.total_amount),
-                             safe_join(s.review_reasons, tag.br),
-                             s.reviewed_at ? "#{datetime(s.reviewed_at)} #{s.reviewed_by_name}" : (can_write? ? button_to("確認済みにする", dashboard_sale_review_path(s), method: :patch, class: "btn-sm btn-outline") : "") ] },
-          empty: "確認が必要な会計はありません。") %>
-    <div class="pagination-wrapper"><%= paginate @sales %></div>
-  </div>
-</div>
+<%= page_header "要確認の会計", lead: "通信が切れている間の値段の変更など、確認してほしい会計です。問題がなければ「確認済みにする」を押してください。" %>
+<nav class="tabs" aria-label="表示の切り替え">
+  <%= link_to "未確認", dashboard_sale_reviews_path, class: ("active" unless params[:reviewed]) %>
+  <%= link_to "確認済み", dashboard_sale_reviews_path(reviewed: 1), class: ("active" if params[:reviewed]) %>
+</nav>
+<%= data_table([ "日時", "店舗 / 端末", "担当者", "レシート番号", "金額", "確認してほしい理由", "" ],
+      @sales.map { |s| [ datetime(s.sold_at), "#{s.store.name} / #{s.pos_token&.name}", s.employee&.name || "-", link_to(s.receipt_number, dashboard_sale_detail_path(s)), yen(s.total_amount),
+                         safe_join(s.review_reasons, tag.br),
+                         s.reviewed_at ? "#{datetime(s.reviewed_at)} #{s.reviewed_by_name}" : (can_write? ? row_actions(button_to("確認済みにする", dashboard_sale_review_path(s), method: :patch, class: "btn btn-sm btn-primary")) : "") ] },
+      empty: params[:reviewed] ? "確認済みの会計はありません。" : "確認が必要な会計はありません。") %>
+<div class="pagination-wrapper"><%= paginate @sales %></div>

@@ -1,50 +1,11 @@
-<%#
-  ダッシュボード: 店舗一覧画面
-  登録済みの店舗を一覧表示し、価格設定・編集・削除への導線を提供する。
-%>
-<div class="dashboard-container">
-  <%= render 'dashboard/shared/menu' %>
-
-  <section class="dashboard-section">
-    <div class="section-header">
-      <h2>店舗管理</h2>
-      <%= link_to "店舗を追加", new_dashboard_store_path, class: "btn-signup" %>
-    </div>
-
-    <div class="card card-table">
-      <%# 店舗が1件以上あれば一覧テーブル、なければ空メッセージを表示 %>
-      <% if @stores.any? %>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>店舗名</th>
-              <th>店舗ID</th>
-              <th>電話番号</th>
-              <th>登録日</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% @stores.each do |store| %>
-              <tr>
-                <td><%= store.name %></td>
-                <td><%= store.ascii_name %></td>
-                <td><%= store.phone_number.presence || '-' %></td>
-                <td><%= store.created_at.strftime('%Y/%m/%d') %></td>
-                <td>
-                  <%= link_to "価格設定", prices_dashboard_store_path(store), class: "btn-sm btn-outline" %>
-                  <%= link_to "編集", edit_dashboard_store_path(store), class: "btn-sm btn-outline" %>
-                  <%= link_to "削除", dashboard_store_path(store), data: { turbo_method: :delete, turbo_confirm: "本当に削除しますか？\n紐付いているPOS端末や在庫情報も削除されます。" }, class: "btn-sm btn-danger-outline" %>
-                </td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      <% else %>
-        <div class="empty-message">
-          <p>店舗がまだ登録されていません。</p>
-        </div>
-      <% end %>
-    </div>
-  </section>
-</div>
+<%# ダッシュボード: 店舗一覧 %>
+<%= page_header "店舗" do %>
+  <% if can_write? %><%= link_to new_dashboard_store_path, class: "btn btn-primary" do %><%= icon(:plus, size: 18) %>店舗を登録<% end %><% end %>
+<% end %>
+<%= data_table([ "店舗名", "店舗ID", "電話番号", "登録日", "操作" ], @stores.map { |s|
+      [ s.name, s.ascii_name, s.phone_number.presence || "-", l(s.created_at.to_date),
+        can_write? ? row_actions(
+          link_to("この店舗の価格", prices_dashboard_store_path(s), class: "btn btn-sm btn-secondary"),
+          link_to("編集", edit_dashboard_store_path(s), class: "btn btn-sm btn-secondary"),
+          button_to("削除", dashboard_store_path(s), method: :delete, class: "btn btn-sm btn-danger-outline", form: { data: { turbo_confirm: "「#{s.name}」を削除しますか？\nこの店舗のPOS端末や在庫の情報も削除されます。" } })) : "" ] },
+      empty: "店舗がまだ登録されていません。", action: (link_to("はじめの店舗を登録する", new_dashboard_store_path, class: "btn btn-primary") if can_write?)) %>

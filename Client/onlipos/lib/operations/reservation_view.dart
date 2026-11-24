@@ -18,10 +18,11 @@ class ReservationView extends StatelessWidget {
   Widget build(BuildContext context) {
     final today = DateTime.now().toIso8601String().substring(0, 10);
     return ReloadableList(
-      title: '本日の予約',
+      title: '今日の予約',
       load: () => SaleExtrasApi.reservations(today),
       listKey: 'reservations',
-      emptyMessage: '本日の予約はありません',
+      emptyMessage: '今日の予約はありません',
+      emptyIcon: Icons.event_available,
       itemBuilder: (context, item, reload) => ListTile(
         title: Text(
           '${shortTime(item['starts_at'])}  ${item['name']} 様 ${item['party_size']}名',

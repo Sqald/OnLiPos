@@ -39,10 +39,10 @@ void main() {
       await tester.pump();
 
       expect(find.text('POP印刷'), findsOneWidget);
-      expect(find.text('商品を追加してください'), findsOneWidget);
-      expect(find.text('1面'), findsOneWidget);
-      expect(find.text('4面'), findsOneWidget);
-      expect(find.text('16面'), findsOneWidget);
+      expect(find.text('商品を足してください'), findsOneWidget);
+      expect(find.text('1枚'), findsOneWidget);
+      expect(find.text('4枚'), findsOneWidget);
+      expect(find.text('16枚'), findsOneWidget);
     });
 
     testWidgets('商品名検索で結果が表示される', (tester) async {
@@ -74,7 +74,7 @@ void main() {
       await tester.pump(); // onChanged('') が非同期なので追加pump
 
       // 空メッセージが消え、商品がリストに現れる
-      expect(find.text('商品を追加してください'), findsNothing);
+      expect(find.text('商品を足してください'), findsNothing);
       // 商品名がリストタイルに表示される
       expect(find.text('テスト商品1'), findsAtLeastNWidgets(1));
     });
@@ -95,12 +95,12 @@ void main() {
       expect(find.text('1'), findsOneWidget);
 
       // + ボタン
-      await tester.tap(find.byIcon(Icons.add_circle_outline));
+      await tester.tap(find.byIcon(Icons.add));
       await tester.pump();
       expect(find.text('2'), findsOneWidget);
     });
 
-    testWidgets('- ボタンで枚数が減る（最小1）', (tester) async {
+    testWidgets('- ボタンで枚数が減り、1枚のときは削除の印になる', (tester) async {
       final repo = _FakeRepo([_product()]);
       await tester.pumpWidget(_app(repo: repo));
       await tester.pump();
@@ -111,19 +111,16 @@ void main() {
       await tester.tap(find.text('テスト商品1'));
       await tester.pump();
       await tester.pump();
-      await tester.tap(find.byIcon(Icons.add_circle_outline));
+      await tester.tap(find.byIcon(Icons.add));
       await tester.pump();
       expect(find.text('2'), findsOneWidget);
 
       // - ボタン → 1 になる
-      await tester.tap(find.byIcon(Icons.remove_circle_outline));
+      await tester.tap(find.byIcon(Icons.remove));
       await tester.pump();
       expect(find.text('1'), findsOneWidget);
-
-      // さらに押しても 1 のまま（clamp）
-      await tester.tap(find.byIcon(Icons.remove_circle_outline));
-      await tester.pump();
-      expect(find.text('1'), findsOneWidget);
+      expect(find.byIcon(Icons.remove), findsNothing);
+      expect(find.byIcon(Icons.delete_outline), findsOneWidget);
     });
 
     testWidgets('削除ボタンで商品がリストから消える', (tester) async {
@@ -137,12 +134,12 @@ void main() {
       await tester.tap(find.text('テスト商品1'));
       await tester.pump();
       await tester.pump();
-      expect(find.text('商品を追加してください'), findsNothing);
+      expect(find.text('商品を足してください'), findsNothing);
 
       // 削除
       await tester.tap(find.byIcon(Icons.delete_outline));
       await tester.pump();
-      expect(find.text('商品を追加してください'), findsOneWidget);
+      expect(find.text('商品を足してください'), findsOneWidget);
     });
 
     testWidgets('同じ商品を再度追加すると枚数が増える', (tester) async {
@@ -172,17 +169,17 @@ void main() {
       await tester.pumpWidget(_app());
       await tester.pump();
 
-      for (final label in ['1面', '2面', '4面', '8面', '16面']) {
+      for (final label in ['1枚', '2枚', '4枚', '8枚', '16枚']) {
         expect(find.text(label), findsOneWidget);
       }
     });
 
-    testWidgets('JANコード検索フィールドと検索ボタンが表示される', (tester) async {
+    testWidgets('商品コードの入力欄と追加ボタンが表示される', (tester) async {
       await tester.pumpWidget(_app());
       await tester.pump();
 
       expect(find.byIcon(Icons.qr_code), findsOneWidget);
-      expect(find.text('検索'), findsOneWidget);
+      expect(find.text('足す'), findsOneWidget);
     });
   });
 }

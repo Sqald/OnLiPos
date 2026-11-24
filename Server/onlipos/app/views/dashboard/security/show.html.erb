@@ -1,59 +1,34 @@
 <%# ダッシュボード: セキュリティ設定（2段階認証の管理） %>
-<div class="dashboard-container">
-  <%= render 'dashboard/shared/menu' %>
-
-  <div class="dashboard-content card mfa-settings">
-    <div class="subtitle"><h2>セキュリティ設定</h2></div>
-    <p class="mfa-lead">ダッシュボードへのログインには、パスワードに加えて次のいずれかによる2段階認証が必要です。端末の故障・紛失に備えて、2つ以上登録しておくことをおすすめします。</p>
-
-    <section class="mfa-section">
-      <h3>パスキー</h3>
-      <% if @passkeys.any? %>
-        <table class="data-table">
-          <thead><tr><th>名前</th><th>登録日時</th><th>最終利用</th><th></th></tr></thead>
-          <tbody>
-            <% @passkeys.each do |pk| %>
-              <tr>
-                <td><%= pk.nickname %></td>
-                <td><%= l(pk.created_at, format: "%Y/%m/%d %H:%M") %></td>
-                <td><%= pk.last_used_at ? l(pk.last_used_at, format: "%Y/%m/%d %H:%M") : "-" %></td>
-                <td><%= button_to "削除", dashboard_security_passkey_path(pk), method: :delete, class: "btn-sm btn-danger-outline",
-                                  data: { turbo_confirm: "パスキー「#{pk.nickname}」を削除しますか？" } %></td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      <% else %>
-        <p class="mfa-note">登録されていません。</p>
-      <% end %>
-      <%= render "users/mfa/passkey_button", mode: "register", label: "パスキーを追加", nickname: true,
-                 options_url: dashboard_security_passkey_options_path, verify_url: dashboard_security_passkeys_path %>
-    </section>
-
-    <section class="mfa-section">
-      <h3>認証アプリ</h3>
-      <% if current_user.otp_enabled? %>
-        <p>登録済み（<%= l(current_user.otp_enabled_at, format: "%Y/%m/%d %H:%M") %>）</p>
-        <%= button_to "認証アプリの登録を解除", dashboard_security_totp_path, method: :delete, class: "btn-sm btn-danger-outline",
-                      data: { turbo_confirm: "認証アプリの登録を解除しますか？" } %>
-      <% else %>
-        <p class="mfa-note">登録されていません。</p>
-        <%= link_to "認証アプリを登録", dashboard_new_security_totp_path, class: "btn-signup" %>
-      <% end %>
-    </section>
-
-    <section class="mfa-section">
-      <h3>ログイン中の端末</h3>
-      <p>紛失した端末や共用PCでログインしたままの場合は、すべての端末からログアウトできます（この端末もログアウトします）。</p>
-      <%= button_to "すべての端末からログアウト", dashboard_security_sign_out_everywhere_path, method: :post, class: "btn-sm btn-danger-outline",
-                    data: { turbo_confirm: "すべての端末からログアウトしますか？" } %>
-    </section>
-
-    <section class="mfa-section">
-      <h3>リカバリーコード</h3>
-      <p>パスキーや認証アプリが使えなくなったときに、1回だけ使えるコードです。残り <strong><%= current_user.recovery_codes_remaining %></strong> 個。</p>
-      <%= button_to "リカバリーコードを再発行", dashboard_security_recovery_codes_path, method: :post, class: "btn-sm btn-outline",
-                    data: { turbo_confirm: "再発行すると、今までのリカバリーコードはすべて使えなくなります。よろしいですか？" } %>
-    </section>
-  </div>
+<%= page_header "セキュリティ", lead: "ログインには、パスワードに加えて次のどちらかが必要です。故障や紛失に備えて、2つ以上の登録をおすすめします。" %>
+<div class="mfa-settings">
+  <section class="card">
+    <h2 class="card-title">パスキー <%= @passkeys.any? ? badge("#{@passkeys.size}件登録済み") : badge("未登録", false) %></h2>
+    <p class="text-sm-muted">指紋・顔認証・端末のPINなどでログインを確認します。</p>
+    <% if @passkeys.any? %>
+      <%= data_table([ "名前", "登録した日時", "最後に使った日時", "" ], @passkeys.map { |pk| [ pk.nickname, datetime(pk.created_at), datetime(pk.last_used_at),
+            row_actions(button_to("削除", dashboard_security_passkey_path(pk), method: :delete, class: "btn btn-sm btn-danger-outline", form: { data: { turbo_confirm: "パスキー「#{pk.nickname}」を削除しますか？" } })) ] }) %>
+      <div style="height: 1rem"></div>
+    <% end %>
+    <div class="form-narrow"><%= render "users/mfa/passkey_button", mode: "register", label: "パスキーを追加", nickname: true, options_url: dashboard_security_passkey_options_path, verify_url: dashboard_security_passkeys_path %></div>
+  </section>
+  <section class="card">
+    <h2 class="card-title">認証アプリ <%= current_user.otp_enabled? ? badge("登録済み") : badge("未登録", false) %></h2>
+    <p class="text-sm-muted">スマートフォンのアプリに表示される6桁の数字でログインを確認します。</p>
+    <% if current_user.otp_enabled? %>
+      <p><%= datetime(current_user.otp_enabled_at) %> に登録しました。</p>
+      <%= button_to "認証アプリの登録を解除", dashboard_security_totp_path, method: :delete, class: "btn btn-sm btn-danger-outline", form: { data: { turbo_confirm: "認証アプリの登録を解除しますか？" } } %>
+    <% else %>
+      <%= link_to "認証アプリを登録", dashboard_new_security_totp_path, class: "btn btn-primary" %>
+    <% end %>
+  </section>
+  <section class="card">
+    <h2 class="card-title">リカバリーコード <%= badge("残り#{current_user.recovery_codes_remaining}個", current_user.recovery_codes_remaining > 3 ? true : :warning) %></h2>
+    <p class="text-sm-muted">パスキーや認証アプリが使えなくなったときに、1回だけ使えるコードです。</p>
+    <%= button_to "リカバリーコードを再発行", dashboard_security_recovery_codes_path, method: :post, class: "btn btn-sm btn-secondary", form: { data: { turbo_confirm: "再発行すると、今までのリカバリーコードはすべて使えなくなります。よろしいですか？" } } %>
+  </section>
+  <section class="card">
+    <h2 class="card-title">ログイン中の端末</h2>
+    <p class="text-sm-muted">紛失した端末や共用のパソコンでログインしたままのときに使います。この端末もログアウトします。</p>
+    <%= button_to "すべての端末からログアウト", dashboard_security_sign_out_everywhere_path, method: :post, class: "btn btn-sm btn-danger-outline", form: { data: { turbo_confirm: "すべての端末からログアウトしますか？" } } %>
+  </section>
 </div>

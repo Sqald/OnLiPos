@@ -8,6 +8,11 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/app_session.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_theme.dart';
+import 'package:onlipos/ui/app_header.dart';
+import 'package:onlipos/cash/denomination_form.dart';
 import 'package:flutter/services.dart';
 
 import '../login/login_top_view.dart';
@@ -110,6 +115,20 @@ class _CashCloseViewState extends State<CashCloseView> {
   Future<void> _submit() async {
     if (_isLoading) return;
 
+    final diff = _diffAmount ?? 0;
+    final ok = await confirm(
+      context,
+      title: 'レジを精算しますか？',
+      message:
+          '数えた現金: ${yen(_totalAmount)}\n'
+          '${_diffAmount == null ? '' : '過不足: ${diff == 0 ? 'なし' : yen(diff)}\n'}'
+          '精算すると、今日の会計はこれ以上入力できません。',
+      okLabel: '精算する',
+      cancelLabel: 'もう一度数える',
+      danger: true,
+    );
+    if (!ok || !mounted) return;
+
     setState(() {
       _isLoading = true;
     });
@@ -164,9 +183,7 @@ class _CashCloseViewState extends State<CashCloseView> {
       _showClosingDialog();
     } else {
       final message = result['message']?.toString() ?? 'エラーが発生しました';
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      showMessage(context, message, MessageType.error);
     }
   }
 
@@ -176,14 +193,15 @@ class _CashCloseViewState extends State<CashCloseView> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('精算完了'),
-        content: const Text('レジ精算が完了しました。\nこのあとどうしますか？'),
+        title: const Text('レジ精算が完了しました'),
+        content: const Text('お疲れさまでした。このあとどうしますか？'),
         actions: [
-          TextButton.icon(
+          OutlinedButton.icon(
             icon: const Icon(Icons.logout),
-            label: const Text('ログアウト'),
+            label: const Text('ログイン画面に戻る'),
             onPressed: () {
               Navigator.of(ctx).pop();
+              AppSession.instance.endBusiness();
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const LoginTopView()),
                 (route) => false,
@@ -192,7 +210,7 @@ class _CashCloseViewState extends State<CashCloseView> {
           ),
           FilledButton.icon(
             icon: const Icon(Icons.power_settings_new),
-            label: const Text('アプリを終了'),
+            label: const Text('アプリを終了する'),
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
               if (kIsWeb) {
@@ -209,306 +227,50 @@ class _CashCloseViewState extends State<CashCloseView> {
     );
   }
 
-  // 金額を3桁区切りの文字列に整形する
-  String _formatCurrency(int number) {
-    return number.toString().replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (m) => '${m[1]},',
-    );
-  }
-
-  // ラベルと金額を1行で表示する（差異があるときは強調色にする）
-  Widget _buildResultRow(String label, int amount, {bool highlight = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label),
-          Text(
-            '¥${_formatCurrency(amount)}',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: highlight ? Colors.red : Colors.black87,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 金種別の枚数入力欄一覧を組み立てる
-  Widget _buildDenominationInputs() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          const Text(
-            '金種別枚数入力',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 20),
-          ..._denominations.map((denomination) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 100,
-                    child: Text(
-                      '¥${_formatCurrency(denomination)}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.right,
-                    ),
-                  ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: TextField(
-                      controller: _controllers[denomination],
-                      keyboardType: TextInputType.number,
-                      textAlign: TextAlign.right,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        suffixText: '枚',
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 16,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
-      ),
-    );
-  }
-
-  // 担当者名・締め合計金額・精算前状況をまとめて表示するサマリー部
-  Widget _buildSummarySection({bool compact = false}) {
-    return Container(
-      color: Colors.grey[100],
-      padding: EdgeInsets.all(compact ? 16 : 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '担当者: ${widget.employeeName}',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          SizedBox(height: compact ? 8 : 24),
-          const Text(
-            'レジ内現金 合計（締め）',
-            style: TextStyle(fontSize: 16, color: Colors.grey),
-          ),
-          Text(
-            '¥${_formatCurrency(_totalAmount)}',
-            style: TextStyle(
-              fontSize: compact ? 32 : 40,
-              fontWeight: FontWeight.bold,
-              color: Colors.red,
-            ),
-          ),
-          if (_lastAmount != null ||
-              _expectedAmount != null ||
-              _diffAmount != null)
-            Card(
-              margin: const EdgeInsets.only(top: 8),
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      '精算前の状況',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    if (_lastLoggedAt != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4.0, bottom: 6.0),
-                        child: Text(
-                          '前回チェック: ${_lastLoggedAt!.toLocal()}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ),
-                    if (_lastAmount != null)
-                      _buildResultRow('前回レジ金', _lastAmount!),
-                    if (_expectedAmount != null)
-                      _buildResultRow('想定レジ金', _expectedAmount!),
-                    _buildResultRow('今回レジ金（締め）', _totalAmount),
-                    if (_diffAmount != null)
-                      _buildResultRow(
-                        '差異',
-                        _diffAmount!,
-                        highlight: _diffAmount != 0,
-                      ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  // 画面幅に応じてスマホ向け縦レイアウトとタブレット/デスクトップ向け横レイアウトを切り替える
   @override
   Widget build(BuildContext context) {
+    final diff = _diffAmount;
+    final last = _lastLoggedAt?.toLocal();
     return Scaffold(
-      appBar: AppBar(title: const Text('レジ精算')),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          // 幅 600px 未満はスマホ向け縦レイアウト
-          if (constraints.maxWidth < 600) {
-            return Column(
-              children: [
-                _buildSummarySection(compact: true),
-                Expanded(child: _buildDenominationInputs()),
-                SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _submit,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: _isLoading
-                            ? const CircularProgressIndicator(
-                                color: Colors.white,
-                              )
-                            : const Text(
-                                '精算を確定',
-                                style: TextStyle(fontSize: 18),
-                              ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          }
-          // 幅 600px 以上はタブレット/デスクトップ向け横レイアウト
-          return Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: Container(
-                  color: Colors.grey[100],
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '担当者: ${widget.employeeName}',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        'レジ内現金 合計（締め）',
-                        style: TextStyle(fontSize: 16, color: Colors.grey),
-                      ),
-                      Text(
-                        '¥${_formatCurrency(_totalAmount)}',
-                        style: const TextStyle(
-                          fontSize: 40,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      if (_lastAmount != null ||
-                          _expectedAmount != null ||
-                          _diffAmount != null)
-                        Card(
-                          margin: const EdgeInsets.only(top: 8),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  '精算前の状況',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                if (_lastLoggedAt != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                      top: 4.0,
-                                      bottom: 8.0,
-                                    ),
-                                    child: Text(
-                                      '前回チェック: ${_lastLoggedAt!.toLocal()}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                  ),
-                                if (_lastAmount != null)
-                                  _buildResultRow('前回レジ金', _lastAmount!),
-                                if (_expectedAmount != null)
-                                  _buildResultRow('想定レジ金', _expectedAmount!),
-                                _buildResultRow('今回レジ金（締め）', _totalAmount),
-                                if (_diffAmount != null)
-                                  _buildResultRow(
-                                    '差異',
-                                    _diffAmount!,
-                                    highlight: _diffAmount != 0,
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      const Spacer(),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 60,
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _submit,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            foregroundColor: Colors.white,
-                          ),
-                          child: _isLoading
-                              ? const CircularProgressIndicator(
-                                  color: Colors.white,
-                                )
-                              : const Text(
-                                  '精算を確定',
-                                  style: TextStyle(fontSize: 20),
-                                ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+      appBar: const AppHeader('レジ精算', subtitle: '閉店時に、レジの中の現金をすべて数えて入力してください'),
+      body: DenominationForm(
+        controllers: _controllers,
+        totalLabel: 'いま数えた現金',
+        total: _totalAmount,
+        submitLabel: '精算を確定する',
+        danger: true,
+        loading: _isLoading,
+        onSubmit: _submit,
+        details: [
+          LabelValue('担当者', widget.employeeName),
+          if (_expectedAmount != null) ...[
+            const Divider(),
+            LabelValue('あるはずの金額', yen(_expectedAmount), bold: true),
+            if (diff != null)
+              LabelValue(
+                '過不足',
+                _totalAmount == 0
+                    ? '-'
+                    : diff == 0
+                    ? 'ぴったりです'
+                    : '${diff > 0 ? '+' : ''}${yen(diff)}',
+                size: 20,
+                bold: true,
+                color: _totalAmount == 0
+                    ? null
+                    : diff == 0
+                    ? AppColors.success
+                    : AppColors.danger,
               ),
-              Expanded(flex: 3, child: _buildDenominationInputs()),
-            ],
-          );
-        },
+          ],
+          if (_lastAmount != null)
+            LabelValue(
+              last == null
+                  ? '前回数えた金額'
+                  : '前回（${last.month}/${last.day} ${last.hour}:${last.minute.toString().padLeft(2, '0')}）',
+              yen(_lastAmount),
+            ),
+        ],
       ),
     );
   }

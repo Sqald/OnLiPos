@@ -1,15 +1,8 @@
 <%# ダッシュボード: パスワードの再入力 %>
-<div class="dashboard-container">
-  <%= render "dashboard/shared/menu" %>
-  <div class="dashboard-content card">
-    <div class="subtitle"><h2>パスワードの再入力</h2></div>
-    <p>安全のため、現在のパスワードを入力してください（10分間有効です）。</p>
-    <%= form_with url: dashboard_reauthentication_path, method: :post do |f| %>
-      <div class="field">
-        <%= f.label :password, "パスワード" %>
-        <%= f.password_field :password, autocomplete: "current-password", required: true, autofocus: true %>
-      </div>
-      <div class="actions"><%= f.submit "確認" %></div>
-    <% end %>
-  </div>
+<%= page_header "パスワードの確認", lead: "安全のため、現在のパスワードを入力してください（10分間は再入力不要です）。" %>
+<div class="dashboard-content form-narrow">
+  <%= form_with url: dashboard_reauthentication_path, method: :post do |f| %>
+    <div class="field"><%= f.label :password, "パスワード" %><%= f.password_field :password, autocomplete: "current-password", required: true, autofocus: true %></div>
+    <div class="actions"><%= f.submit "確認する" %></div>
+  <% end %>
 </div>

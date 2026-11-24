@@ -1,78 +1,20 @@
-<%# ダッシュボード: 端末設定(プロビジョニング)新規登録画面
-    店舗モード・POSロール・プリンター等のハードウェア設定をまとめて1つのプリセットとして登録する %>
-<div class="dashboard-container">
-  <%= render 'dashboard/shared/menu' %>
-
-  <section class="dashboard-section">
-    <div class="section-header">
-      <h2>端末設定の追加</h2>
-      <%= link_to "一覧に戻る", dashboard_provisionings_path, class: "btn-outline" %>
-    </div>
-
-    <div class="card">
-      <%= form_with(model: [:dashboard, @provisioning], local: true, class: "form-vertical") do |f| %>
-        <% if @provisioning.errors.any? %>
-          <div class="error-messages">
-            <ul>
-              <% @provisioning.errors.full_messages.each do |msg| %>
-                <li><%= msg %></li>
-              <% end %>
-            </ul>
-          </div>
-        <% end %>
-
-        <div class="form-group">
-          <%= f.label :name, "設定名 (管理用)" %>
-          <%= f.text_field :name, class: "form-control", placeholder: "例: 本店iPad 1号機用設定" %>
-        </div>
-
-        <div class="form-group">
-          <%= f.label :store_id, "対象店舗" %>
-          <%= f.collection_select :store_id, @stores, :id, :name, { prompt: "店舗を選択" }, { class: "form-control" } %>
-        </div>
-
-        <div class="form-group">
-          <%= f.label :store_mode, "店舗モード" %>
-          <%= f.select :store_mode,
-            [['標準', 'standard'], ['飲食店モード', 'restaurant'], ['小売店モード', 'retail']],
-            { selected: 'standard' },
-            { class: "form-control" } %>
-          <p class="form-hint">飲食店モード: 売上登録時に卓番を入力します。小売店モード: 保留・呼び出し機能が使えます。</p>
-        </div>
-
-        <div class="form-group">
-          <%= f.label :pos_role, "POS ロール" %>
-          <%= f.select :pos_role,
-            [['標準（スキャン＋会計）', 'standard'], ['ホスト機（待ち受けモードあり）', 'host'], ['クライアント機（転送専用）', 'client']],
-            { selected: 'standard' },
-            { class: "form-control" } %>
-          <p class="form-hint">ホスト機: レジカウンターなど会計を担う端末。クライアント機: フロア持ち歩きタブレットなど、ホストに転送して会計する端末。</p>
-        </div>
-
-        <%# ハードウェア設定(レシートプリンターIP・ドロワーキックコマンド) %>
-        <hr class="my-4">
-        <h3 class="text-lg font-bold mb-4">ハードウェア設定</h3>
-
-        <div class="form-group">
-          <%= f.label :receipt_printer_ip, "レシートプリンター IPアドレス" %>
-          <%= f.text_field :receipt_printer_ip, class: "form-control", placeholder: "例: 192.168.1.150" %>
-        </div>
-
-        <div class="form-group">
-          <%= f.label :drawer_kick_command, "ドロワーキックコマンド" %>
-          <%= f.text_field :drawer_kick_command, class: "form-control", value: "27,112,0,50,250", placeholder: "例: 27,112,0,50,250" %>
-          <p class="form-hint">ESC/POSコマンドをカンマ区切りの10進数で入力します。</p>
-        </div>
-
-        <div class="form-actions">
-          <%= f.submit "設定を作成", class: "btn-primary" %>
-        </div>
-      <% end %>
-    </div>
-  </section>
+<%# ダッシュボード: 端末の初期設定（プロビジョニング）の登録 %>
+<%= page_header "端末の初期設定を追加", back: true %>
+<div class="dashboard-content form-narrow">
+  <%= form_with(model: [ :dashboard, @provisioning ], class: "dashboard-form") do |f| %>
+    <%= form_errors(@provisioning) %>
+    <fieldset class="form-section">
+      <legend>基本</legend>
+      <div class="field"><label for="provisioning_name">設定の名前<%= required_mark %></label><%= f.text_field :name, placeholder: "例: 本店タブレット用" %></div>
+      <div class="field"><label for="provisioning_store_id">店舗<%= required_mark %></label><%= f.collection_select :store_id, @stores, :id, :name, { prompt: "選んでください" } %></div>
+      <div class="field"><%= f.label :store_mode, "お店の種類" %><%= f.select :store_mode, [ [ "標準", "standard" ], [ "飲食店（卓番号を入力する）", "restaurant" ], [ "小売店（会計の保留・呼び出しを使う）", "retail" ] ], { selected: "standard" } %></div>
+      <div class="field"><%= f.label :pos_role, "端末の役割" %><%= f.select :pos_role, [ [ "標準（読み取りから会計まで1台で行う）", "standard" ], [ "ホスト機（ほかの端末から送られた会計も受ける）", "host" ], [ "クライアント機（商品を読み取り、ホスト機へ送る）", "client" ] ], { selected: "standard" } %></div>
+    </fieldset>
+    <fieldset class="form-section">
+      <legend>プリンター・ドロワー</legend>
+      <div class="field"><label for="provisioning_receipt_printer_ip">レシートプリンターのIPアドレス<%= optional_mark %></label><%= f.text_field :receipt_printer_ip, placeholder: "例: 192.168.1.150", inputmode: "decimal" %><p class="field-hint">プリンターの設定画面や、自己診断印刷で確認できます。</p></div>
+      <div class="field"><%= f.label :drawer_kick_command, "ドロワーを開く信号" %><%= f.text_field :drawer_kick_command, value: "27,112,0,50,250" %><p class="field-hint">通常は変更不要です（ESC/POSコマンドをカンマ区切りの10進数で指定）。</p></div>
+    </fieldset>
+    <div class="actions"><%= f.submit "登録する" %><%= link_to "やめる", dashboard_provisionings_path, class: "link-cancel" %></div>
+  <% end %>
 </div>
-
-<style>
-  .my-4 { margin-top: 1rem; margin-bottom: 1rem; }
-  .mb-4 { margin-bottom: 1rem; }
-</style>

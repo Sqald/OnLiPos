@@ -1,52 +1,19 @@
-<%#
-  パーシャル: 店舗の新規登録・編集共通フォーム
-  new.html.erb / edit.html.erb から store を渡して呼び出される。
-%>
-<%= form_with(model: [:dashboard, store], local: true, class: "dashboard-form") do |f| %>
-  <% if store.errors.any? %>
-    <div id="error_explanation">
-      <h2><%= pluralize(store.errors.count, "件のエラー") %>が発生しました:</h2>
-      <ul>
-        <% store.errors.full_messages.each do |message| %>
-          <li><%= message %></li>
-        <% end %>
-      </ul>
-    </div>
-  <% end %>
-
+<%# パーシャル: 店舗の登録・編集フォーム。locals: store %>
+<%= form_with(model: [ :dashboard, store ], class: "dashboard-form") do |f| %>
+  <%= form_errors(store) %>
+  <div class="field"><label for="store_name">店舗名<%= required_mark %></label><%= f.text_field :name, placeholder: "例: 渋谷店", autofocus: store.new_record? %></div>
   <div class="field">
-    <%= f.label :name, "店舗名" %>
-    <%= f.text_field :name, placeholder: "例: 渋谷店" %>
-  </div>
-
-  <div class="field">
-    <%= f.label :ascii_name, "店舗ID (半角英数)" %>
-    <%# 新規登録時のみ入力可能。登録後は不変のためグレーアウトして表示 %>
+    <label for="store_ascii_name">店舗ID<%= required_mark if store.new_record? %></label>
     <% if store.new_record? %>
-      <%= f.text_field :ascii_name, placeholder: "例: shibuya01" %>
-      <p class="text-sm-muted">※ POS端末のログイン時に使用します。登録後は変更できません。</p>
+      <%= f.text_field :ascii_name, placeholder: "例: shibuya01", autocapitalize: "none" %>
+      <p class="field-hint">半角英数字。POS端末のログインで使います。<strong>あとから変更できません。</strong></p>
     <% else %>
       <%= f.text_field :ascii_name, disabled: true, class: "form-input-disabled" %>
+      <p class="field-hint">店舗IDは変更できません。</p>
     <% end %>
   </div>
-
-  <div class="field">
-    <%= f.label :phone_number, "電話番号" %>
-    <%= f.text_field :phone_number, placeholder: "例: 03-1234-5678" %>
-  </div>
-
-  <div class="field">
-    <%= f.label :address, "住所" %>
-    <%= f.text_field :address, placeholder: "例: 東京都渋谷区..." %>
-  </div>
-
-  <div class="field">
-    <%= f.label :description, "店舗説明・備考" %>
-    <%= f.text_area :description, rows: 3, class: "form-select", style: "height: auto;" %>
-  </div>
-
-  <div class="actions">
-    <%= f.submit store.new_record? ? "登録する" : "更新する", class: "btn-signup" %>
-    <%= link_to "キャンセル", dashboard_stores_path, class: "link-cancel" %>
-  </div>
+  <div class="field"><label for="store_phone_number">電話番号<%= optional_mark %></label><%= f.telephone_field :phone_number, placeholder: "例: 03-1234-5678" %></div>
+  <div class="field"><label for="store_address">住所<%= optional_mark %></label><%= f.text_field :address, placeholder: "例: 東京都渋谷区..." %><p class="field-hint">電話番号と住所は、レシートに印字されます。</p></div>
+  <div class="field"><label for="store_description">メモ<%= optional_mark %></label><%= f.text_area :description, rows: 3 %></div>
+  <div class="actions"><%= f.submit store.new_record? ? "登録する" : "変更を保存" %><%= link_to "やめる", dashboard_stores_path, class: "link-cancel" %></div>
 <% end %>

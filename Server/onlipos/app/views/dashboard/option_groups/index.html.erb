@@ -1,11 +1,8 @@
 <%# ダッシュボード: オプション（トッピング・サイズなど） %>
-<div class="dashboard-container">
-  <%= render "dashboard/shared/menu" %>
-  <div class="dashboard-content card">
-    <div class="subtitle"><h2>オプション（トッピング・サイズなど）</h2></div>
-    <p>商品の編集画面で、商品ごとに使うオプションを選びます。</p>
-    <% if can_write? %><%= link_to "オプションを追加", new_dashboard_option_group_path, class: "btn-signup" %><% end %>
-    <%= data_table([ "名称", "選択数", "選択肢", "使用商品", "操作" ], @groups.map { |g| [ g.name, "#{g.min_select}〜#{g.max_select}", g.option_items.map { |i| "#{i.name}（+#{i.price}円）" }.join("、"), g.products.size,
-          can_write? ? safe_join([ link_to("編集", edit_dashboard_option_group_path(g), class: "btn-sm btn-outline"), button_to("削除", dashboard_option_group_path(g), method: :delete, class: "btn-sm btn-danger-outline", data: { turbo_confirm: "削除しますか？" }) ]) : "" ] }) %>
-  </div>
-</div>
+<%= page_header "オプション", lead: "トッピングやサイズなど、会計のときに選ぶ内容です。商品の編集画面で、商品ごとに使うオプションを選びます。" do %>
+  <% if can_write? %><%= link_to new_dashboard_option_group_path, class: "btn btn-primary" do %><%= icon(:plus, size: 18) %>オプションを登録<% end %><% end %>
+<% end %>
+<%= data_table([ "名称", "選ぶ数", "選択肢", "使っている商品", "操作" ], @groups.map { |g|
+      [ g.name, "#{g.min_select}〜#{g.max_select}", g.option_items.map { |i| "#{i.name}（+#{i.price}円）" }.join("、"), "#{g.products.size}件",
+        can_write? ? row_actions(link_to("編集", edit_dashboard_option_group_path(g), class: "btn btn-sm btn-secondary"), button_to("削除", dashboard_option_group_path(g), method: :delete, class: "btn btn-sm btn-danger-outline", form: { data: { turbo_confirm: "「#{g.name}」を削除しますか？" } })) : "" ] },
+      empty: "オプションがまだ登録されていません。", action: (link_to("オプションを登録する", new_dashboard_option_group_path, class: "btn btn-primary") if can_write?)) %>

@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:onlipos/api/pos_api_client.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_theme.dart';
+import 'package:onlipos/ui/app_session.dart';
+import 'package:onlipos/ui/app_header.dart';
+import 'package:onlipos/operations/failed_sales_view.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../login/login_top_view.dart';
@@ -48,30 +54,19 @@ class _SettingsViewState extends State<SettingsView> {
     });
   }
 
-  // 確認ダイアログを表示したうえで従業員セッションを終了し、ログイン画面へ戻る
+  // 確認したうえで業務を終え、ログイン画面へ戻る
   Future<void> _logout() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('ログアウト'),
-        content: const Text('業務を終了し、ログイン画面に戻ります。よろしいですか？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('キャンセル'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('ログアウト'),
-          ),
-        ],
-      ),
+    final ok = await confirm(
+      context,
+      title: '業務を終わりますか？',
+      message: 'ログイン画面に戻ります。レジを締めるときは、先に「レジ精算」を行ってください。',
+      okLabel: '業務を終わる',
     );
-
-    if (confirmed != true || !mounted) return;
+    if (!ok || !mounted) return;
 
     // 端末認証情報（LoginToken, AccessUrl）は残し、従業員セッションのみ終了する。
     // これにより、一般担当者が誤って端末ひも付けを解除してしまうリスクを避けます。
+    AppSession.instance.endBusiness();
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginTopView()),
       (route) => false,
@@ -92,95 +87,94 @@ class _SettingsViewState extends State<SettingsView> {
     );
   }
 
-  // 端末情報カードと操作ボタン(マスタ再同期・ログアウト)を表示する
+  // 端末の情報と、商品データの更新・業務終了のボタンを表示する
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('設定')),
+      appBar: const AppHeader('設定'),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '端末情報',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          : ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                SectionCard(
+                  title: 'この端末',
+                  child: Column(
+                    children: [
+                      LabelValue('店舗', _storeName ?? '未取得'),
+                      LabelValue('レシートプリンター', _printerIp ?? '未設定'),
+                      LabelValue('アプリのバージョン', PosApiClient.appVersion),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  Card(
-                    child: ListTile(
-                      title: const Text('店舗名'),
-                      subtitle: Text(_storeName ?? '未取得'),
-                    ),
-                  ),
-                  Card(
-                    child: ListTile(
-                      title: const Text('レシートプリンターIP'),
-                      subtitle: Text(_printerIp ?? '未設定'),
-                    ),
-                  ),
-                  Card(
-                    child: ListTile(
-                      title: const Text('未送信オフライン会計'),
-                      subtitle: Text(
-                        _offlinePendingCount > 0
-                            ? '$_offlinePendingCount 件（マスタ同期時に自動送信）'
-                            : 'なし',
-                      ),
-                      trailing: _offlinePendingCount > 0
-                          ? const Icon(
-                              Icons.warning_amber,
-                              color: Colors.orange,
-                            )
-                          : const Icon(Icons.check_circle, color: Colors.green),
-                    ),
-                  ),
-                  // サーバーに拒否されたオフライン会計（自動再送しない。端末内に保持）
-                  if (_offlineFailedCount > 0)
-                    Card(
-                      child: ListTile(
-                        title: const Text('送信失敗のオフライン会計'),
-                        subtitle: Text(
-                          '$_offlineFailedCount 件（サーバーに受け付けられませんでした。管理者に連絡してください）',
+                ),
+                const SizedBox(height: 16),
+                SectionCard(
+                  title: '会計データの送信',
+                  child: Column(
+                    children: [
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(
+                          _offlinePendingCount > 0
+                              ? Icons.cloud_upload
+                              : Icons.cloud_done,
+                          color: _offlinePendingCount > 0
+                              ? AppColors.warning
+                              : AppColors.success,
                         ),
-                        trailing: const Icon(Icons.error, color: Colors.red),
+                        title: Text(
+                          _offlinePendingCount > 0
+                              ? '未送信の会計が$_offlinePendingCount件あります'
+                              : 'すべて送信済みです',
+                        ),
+                        subtitle: _offlinePendingCount > 0
+                            ? const Text('通信できるようになると自動で送信します')
+                            : null,
                       ),
-                    ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    '操作',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      // サーバーに拒否されたオフライン会計（自動再送しない。端末内に保持）
+                      if (_offlineFailedCount > 0)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(
+                            Icons.error,
+                            color: AppColors.danger,
+                          ),
+                          title: Text('送信できなかった会計が$_offlineFailedCount件あります'),
+                          subtitle: const Text('タップして内容を確認してください'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () async {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const FailedSalesView(),
+                              ),
+                            );
+                            _loadSettings();
+                          },
+                        ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _openProvisioning,
-                      icon: const Icon(Icons.sync),
-                      label: const Text('マスタ再同期'),
-                    ),
+                ),
+                const SizedBox(height: 16),
+                SectionCard(
+                  title: '操作',
+                  child: Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _openProvisioning,
+                        icon: const Icon(Icons.sync),
+                        label: const Text('商品データを更新'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _logout,
+                        icon: const Icon(Icons.logout),
+                        label: const Text('業務を終わる'),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _logout,
-                      icon: const Icon(Icons.logout),
-                      label: const Text('ログアウト'),
-                    ),
-                  ),
-                  const Spacer(),
-                  const Align(
-                    alignment: Alignment.bottomRight,
-                    child: Text(
-                      'OnLiPos Client',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
     );
   }
