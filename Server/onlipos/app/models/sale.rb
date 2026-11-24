@@ -3,6 +3,7 @@
 # 売上（会計1件）。明細は saledetails、支払い内訳は sale_payments、税率別内訳は
 # sale_tax_breakdowns に持つ。確定後の取消はレコード削除ではなく status を voided にして記録する。
 class Sale < ApplicationRecord
+  # アソシエーション
   belongs_to :user
   belongs_to :store
   belongs_to :pos_token, optional: true
@@ -45,12 +46,14 @@ class Sale < ApplicationRecord
     sixty_plus: 5
   }, prefix: true
 
+  # バリデーション
   validates :voided_at, :void_reason, presence: true, if: :voided?
 
   validates :total_amount, presence: true, numericality: { greater_than_or_equal_to: 0 }
   validates :total_discount, numericality: { greater_than_or_equal_to: 0 }
   validates :receipt_number, presence: true, uniqueness: true
 
+  # コールバック
   before_validation :set_receipt_number, on: :create
   before_validation :set_accounting_dates, on: :create
 

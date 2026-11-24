@@ -185,6 +185,7 @@ class Api::V1::SalesController < Api::V1::BaseController
     ActiveRecord::Base.transaction do
       assign_customer
       if @sale.save
+        # 明細作成 → 小計割引反映 → 支払い保存 → 税率別内訳確定の順で処理する
         save_sale_details
         apply_set_promotions
         apply_coupon
@@ -262,6 +263,7 @@ class Api::V1::SalesController < Api::V1::BaseController
     end
 
     error_message = nil
+    # 取消可否の判定と在庫戻し・状態更新をまとめて1トランザクションで行う
     ActiveRecord::Base.transaction do
       sale.lock!
 
