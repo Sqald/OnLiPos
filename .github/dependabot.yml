@@ -1,17 +1,25 @@
-# 依存ライブラリの更新（脆弱性対応を含む）
+# 依存ライブラリの更新（脆弱性対応を含む）。PRが増えすぎないよう、種類ごとに1つのPRにまとめる
 version: 2
 updates:
   - package-ecosystem: bundler
     directory: /Server/onlipos
     schedule: { interval: weekly }
+    groups:
+      bundler: { patterns: ["*"] }
     open-pull-requests-limit: 5
   - package-ecosystem: pub
     directory: /Client/onlipos
     schedule: { interval: weekly }
+    groups:
+      pub: { patterns: ["*"] }
     open-pull-requests-limit: 5
   - package-ecosystem: docker
     directory: /Server/onlipos
     schedule: { interval: weekly }
+    groups:
+      docker: { patterns: ["*"] }
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
+    groups:
+      github-actions: { patterns: ["*"] }

@@ -9,6 +9,9 @@ if ENV["SENTRY_DSN"].present?
     # 個人情報をSentryに送らないよう、パラメータをフィルタリング
     config.send_default_pii = false
 
+    # アプリのログをSentryへ自動送信しない（7.0 から既定で有効。ログにはお客様の情報が含まれ得るため）
+    config.rails.structured_logging.enabled = false
+
     # パフォーマンス監視（サンプリング率10%）
     config.traces_sample_rate = 0.1
   end
