@@ -2,11 +2,13 @@
 # 端末(pos_token)単位の連番とハッシュチェーンを持ち、追記のみ・更新削除不可（readonly?）。
 # 売上・返品・レジ開設精算・取消・領収書発行などのイベントごとに create_from_* で生成される。
 class JournalEntry < ApplicationRecord
+  # アソシエーション
   belongs_to :user
   belongs_to :store
   belongs_to :pos_token
   belongs_to :employee, optional: true
 
+  # ジャーナルの記帳種別
   enum :entry_type, {
     sale:            0,
     refund:          1,
@@ -19,6 +21,7 @@ class JournalEntry < ApplicationRecord
     receipt_issue:   8
   }
 
+  # バリデーション
   validates :entry_type, presence: true
   validates :printed_at, presence: true
   validates :payload,    presence: true
@@ -26,6 +29,7 @@ class JournalEntry < ApplicationRecord
   # チェーン先頭エントリの previous_hash
   GENESIS_HASH = ("0" * 64).freeze
 
+  # コールバック: 保存前に連番採番とハッシュチェーンを構築する
   before_create :assign_integrity_chain
 
   # 電子ジャーナルは追記型。作成後の更新・削除は改ざんとみなし例外にする

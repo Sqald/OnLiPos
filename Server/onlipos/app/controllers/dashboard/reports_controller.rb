@@ -1,6 +1,6 @@
 require "csv"
 
-# 各種売上レポート（日次/月次/商品別/支払方法別/税率別/担当者別）を集計して表示する画面。
+# 各種売上レポート（日次/月次/商品別/支払方法別/税率別/担当者別/客層別）を集計して表示する画面。
 # HTML表示のほか、CSV形式でのダウンロードにも対応する。
 class Dashboard::ReportsController < Dashboard::BaseController
   # 検索条件（店舗・期間）が指定された場合のみ各種集計を実行し、@daily_summary等の
