@@ -12,13 +12,6 @@ updates:
     schedule: { interval: weekly }
     groups:
       pub: { patterns: ["*"] }
-    # Dart 3.12 以上が必要な版（現在の Flutter 3.41.6 では使えない）。Flutter を更新したら外す
-    ignore:
-      - { dependency-name: charset_converter, versions: [">=2.5.0"] }
-      - { dependency-name: pdf, versions: [">=3.13.0"] }
-      - { dependency-name: printing, versions: [">=5.15.0"] }
-      - { dependency-name: sqflite, versions: [">=2.4.3"] }
-      - { dependency-name: sqflite_common_ffi, versions: [">=2.4.1"] }
     open-pull-requests-limit: 5
   - package-ecosystem: docker
     directory: /Server/onlipos

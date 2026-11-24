@@ -3,12 +3,13 @@
 /// 「マスタ同期」メニューやログイン後の初回同期から呼ばれる。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/common.dart';
 import 'package:onlipos/ui/app_theme.dart';
 import 'package:onlipos/ui/app_session.dart';
 import 'package:onlipos/setup/setup_view.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 import '../product/master_sync_api.dart';
 import '../login/login_top_view.dart';
 import '../sale/offline_sale_repository.dart';

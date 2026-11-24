@@ -1,6 +1,6 @@
 // 一覧選択方式の売上登録画面（バーコードスキャンではなく、商品/セット一覧から
 // タップして数量を増減させるUI）。商品タブとセット商品タブを切り替えて操作する。
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/common.dart';
 import 'package:onlipos/ui/app_theme.dart';
 import 'package:onlipos/ui/app_header.dart';

@@ -1,7 +1,7 @@
 /// 指で押しやすい数字入力（テンキー）。つなげたキーボードやバーコードリーダーからも入力できる。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:onlipos/ui/app_theme.dart';
 

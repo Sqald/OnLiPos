@@ -3,7 +3,7 @@ library;
 
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/api/pos_api_client.dart';
 import 'package:onlipos/product/product.dart';
 

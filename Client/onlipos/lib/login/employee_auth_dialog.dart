@@ -5,7 +5,7 @@
 /// レジ金チェック・精算などの操作の直前に呼び出す。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/credential_pad.dart';
 import 'package:onlipos/api/pos_api_client.dart';
 import 'package:onlipos/login/login_api.dart';

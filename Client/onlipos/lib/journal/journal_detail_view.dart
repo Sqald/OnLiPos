@@ -2,7 +2,7 @@
 /// レジ操作など)の詳細を表示し、売上/返品については再印字も行う。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/common.dart';
 import 'package:onlipos/ui/app_theme.dart';
 import 'package:onlipos/ui/app_header.dart';

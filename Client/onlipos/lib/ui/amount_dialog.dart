@@ -1,7 +1,7 @@
 /// 数字を入力するダイアログ（テンキー付き）。金額・重さ・商品コードの入力に使う。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:onlipos/ui/app_theme.dart';
 import 'package:onlipos/ui/common.dart';

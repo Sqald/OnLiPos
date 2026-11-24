@@ -3,7 +3,7 @@ library;
 
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/api/pos_api_client.dart';
 import 'package:onlipos/operations/failed_sales_view.dart';
 import 'package:onlipos/ui/app_session.dart';
@@ -14,6 +14,15 @@ final appNavigatorKey = GlobalKey<NavigatorState>();
 
 /// MaterialApp.builder で使い、すべての画面の下にフッターを付ける
 Widget withStatusFooter(BuildContext context, Widget? child) {
+  // printing など、まだ material_ui に移行していないパッケージの画面部品へテーマと日本語表示を渡す。
+  // それらが移行したら外す
+  // ignore: deprecated_member_use
+  return MaterialUiCompatibilityBridge(
+    child: Builder(builder: (context) => _withFooter(context, child)),
+  );
+}
+
+Widget _withFooter(BuildContext context, Widget? child) {
   final media = MediaQuery.of(context);
   // 文字入力のキーボードが出ている間は、入力欄を広く使えるように隠す
   if (media.viewInsets.bottom > 0 || media.size.height < 320) {

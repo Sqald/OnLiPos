@@ -1,5 +1,5 @@
 // 本日の予約の確認と来店処理
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/operations/common.dart';
 import 'package:onlipos/sale/sale_extras_api.dart';
 

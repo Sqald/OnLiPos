@@ -1,5 +1,5 @@
 // 発注に対する入荷の登録（在庫操作の権限を持つ担当者）
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/common.dart';
 import 'package:onlipos/ui/app_theme.dart';
 import 'package:onlipos/ui/app_header.dart';

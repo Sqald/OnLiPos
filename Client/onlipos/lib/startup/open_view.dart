@@ -2,10 +2,11 @@
 /// 開設処理を行う。開設完了後はメインメニューへ遷移する。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/common.dart';
 import 'package:onlipos/ui/app_header.dart';
 import 'package:onlipos/cash/denomination_form.dart';
+
 import 'open_api.dart';
 import '../menu/menu_top_view.dart';
 import '../login/login_top_view.dart';

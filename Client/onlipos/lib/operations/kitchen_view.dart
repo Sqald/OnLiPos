@@ -1,7 +1,7 @@
 // 厨房への注文の一覧（受付待ち → 調理中 → 提供済み）。10秒ごとに自動更新する
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/common.dart';
 import 'package:onlipos/ui/app_theme.dart';
 import 'package:onlipos/ui/app_header.dart';

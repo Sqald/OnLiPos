@@ -1,7 +1,7 @@
 /// 画面で共通に使う小さな部品
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/app_theme.dart';
 
 /// 金額を「¥1,234」の形にする
