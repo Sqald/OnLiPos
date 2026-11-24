@@ -1,349 +1,84 @@
-/* --- ダッシュボード画面用スタイル --- */
+/* --- ダッシュボード固有（ホーム・使い方ガイドなど） --- */
+.dashboard-container { min-width: 0; }
 
-.dashboard-container {
-  max-width: 1200px;
-  margin: 2rem auto;
-  padding: 0 2rem;
+/* ホーム */
+.home-greeting { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0.25rem 1rem; margin-bottom: 1.25rem; }
+.home-greeting h1 { font-size: 1.6rem; margin: 0; }
+.home-greeting p { margin: 0; color: var(--muted); }
+.home-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 1.25rem; align-items: start; margin-bottom: 1.5rem; }
+.home-grid .card { margin: 0; }
+.home-grid .card h2, .home-card h2 { font-size: 1.1rem; margin: 0 0 0.9rem; }
+.home-card { margin-bottom: 1.25rem; }
+
+.todo-list { list-style: none; margin: 0; padding: 0; }
+.todo-list li + li { border-top: 1px solid var(--line); }
+.todo-list a { display: flex; align-items: center; gap: 0.8rem; padding: 0.8rem 0.25rem; color: var(--ink); text-decoration: none; }
+.todo-list a:hover { background: var(--bg-light); }
+.todo-list .icon:first-child { color: var(--warning); }
+.todo-list .todo-info .icon:first-child { color: var(--primary); }
+.todo-text { flex: 1; min-width: 0; }
+.todo-text strong { display: block; }
+.todo-text span { color: var(--muted); font-size: 0.88rem; }
+.todo-none { display: flex; align-items: center; gap: 0.6rem; color: var(--success); margin: 0; padding: 0.5rem 0; }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.75rem; margin-bottom: 1.75rem; }
+.tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; min-height: 112px; padding: 1rem 0.75rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); color: var(--ink); font-weight: 700; text-align: center; text-decoration: none; }
+.tile .icon { color: var(--primary); }
+.tile:hover { border-color: var(--primary); background: var(--primary-soft); }
+
+.week-bars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.5rem; align-items: end; height: 190px; }
+.week-bar { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; gap: 0.3rem; font-size: 0.8rem; color: var(--muted); }
+.week-bar span:first-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.week-bar i { display: block; width: 100%; max-width: 46px; min-height: 3px; border-radius: 5px 5px 0 0; background: #a9c5f3; }
+.week-bar.today i { background: var(--primary); }
+.week-bar.today { color: var(--ink); font-weight: 700; }
+
+.setup-steps { list-style: none; counter-reset: step; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.setup-steps li { counter-increment: step; display: flex; align-items: center; gap: 0.9rem; padding: 0.75rem 1rem; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.setup-steps li::before { content: counter(step); display: grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--bg-sunken); font-weight: 800; color: var(--secondary); }
+.setup-steps li.done::before { content: "✓"; background: var(--success-soft); color: var(--success); }
+.setup-steps li.done { color: var(--muted); background: var(--bg-light); }
+.setup-steps li.next { border-color: var(--primary); background: var(--primary-soft); }
+.setup-steps div { flex: 1; min-width: 0; }
+.setup-steps strong { display: block; }
+.setup-steps div span { font-size: 0.88rem; color: var(--muted); }
+
+.company-id { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.company-id-value { font-size: 1.5rem; font-weight: 800; letter-spacing: 0.04em; color: var(--primary-ink); overflow-wrap: anywhere; }
+.company-id p { margin: 0; flex-basis: 100%; }
+
+.store-pos-group { margin-bottom: 2rem; }
+.store-pos-title { font-size: 1.1rem; margin: 0 0 0.75rem; padding-left: 0.7rem; border-left: 4px solid var(--primary); }
+
+/* 卓のQRコード */
+.qr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; }
+.qr-item { border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem; text-align: center; background: var(--surface); }
+.qr-item strong { display: block; font-size: 1.15rem; margin-bottom: 0.5rem; }
+.qr-item .mfa-qr-svg { width: 150px; height: 150px; }
+.qr-item .row-actions { justify-content: center; margin-top: 0.75rem; }
+
+/* 使い方ガイド */
+.guide-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 1.25rem; }
+.guide-grid .card { margin: 0; }
+.guide-grid h2, .guide h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
+.guide ol, .guide ul { margin: 0; padding-left: 1.4rem; }
+.guide li { margin-bottom: 0.4rem; }
+.glossary { display: grid; grid-template-columns: minmax(9rem, 14rem) 1fr; gap: 0; margin: 0; }
+.glossary dt, .glossary dd { padding: 0.7rem 0; border-top: 1px solid var(--line); margin: 0; }
+.glossary dt { font-weight: 700; }
+
+@media (max-width: 1100px) { .home-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 640px) {
+  .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
+  .tile { min-height: 92px; padding: 0.7rem 0.35rem; font-size: 0.85rem; }
+  .week-bars { gap: 0.25rem; }
+  .week-bar { font-size: 0.68rem; }
+  .glossary { grid-template-columns: 1fr; }
+  .glossary dd { border-top: 0; padding-top: 0; }
+  .setup-steps li { flex-wrap: wrap; }
 }
 
-/* --- ダッシュボードメニュー --- */
-.dashboard-menu {
-  margin-bottom: 2rem;
-}
-
-.dashboard-menu ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.dashboard-menu li {
-  margin: 0;
-}
-
-.menu-item {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.75rem 1.5rem;
-  background-color: white;
-  color: var(--secondary);
-  text-decoration: none;
-  font-weight: 600;
-  font-size: 0.95rem;
-  border-radius: 0.5rem;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  transition: all 0.2s ease;
-}
-
-.menu-item:hover {
-  color: var(--primary);
-  border-color: var(--primary);
-  background-color: #eff6ff;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-
-.menu-item.active {
-  color: var(--primary);
-  border-color: var(--primary);
-  background-color: #eff6ff;
-}
-
-.menu-item-disabled {
-  background-color: #f3f4f6;
-  color: #9ca3af;
-  border-color: transparent;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-.menu-item-disabled:hover {
-  color: #9ca3af;
-  border-color: transparent;
-  background-color: #f3f4f6;
-  transform: none;
-  box-shadow: none;
-}
-
-/* --- セクション --- */
-.dashboard-section {
-  margin-bottom: 4rem;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.section-header h2 {
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: #111827;
-}
-
-/* --- データテーブル --- */
-.card-table {
-  padding: 0;
-  overflow: hidden;
-}
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-}
-
-.data-table th {
-  padding: 1rem;
-  font-size: 0.875rem;
-  color: #6b7280;
-  background-color: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
-  font-weight: 600;
-}
-
-.data-table td {
-  padding: 1rem;
-  color: #111827;
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.data-table tr:last-child td {
-  border-bottom: none;
-}
-
-/* --- ステータスバッジ --- */
-.status-badge {
-  display: inline-block;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.status-active { background-color: #d1fae5; color: #065f46; }
-.status-inactive { background-color: #f3f4f6; color: #4b5563; }
-
-/* --- 空の状態 --- */
-.empty-message { padding: 2rem; text-align: center; color: #6b7280; }
-
-/* --- 店舗・POSグループ --- */
-.store-pos-group { margin-bottom: 2.5rem; }
-.store-pos-title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 1rem;
-  padding-left: 0.75rem;
-  border-left: 4px solid var(--primary);
-}
-
-/* --- ボタン類 --- */
-.btn-sm {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
-  border-radius: 0.25rem;
-  cursor: pointer;
-  border: 1px solid transparent;
-  display: inline-block;
-  text-decoration: none;
-  text-align: center;
-}
-
-.btn-danger-outline {
-  color: #ef4444;
-  border-color: #ef4444;
-}
-
-.btn-danger-outline:hover {
-  background-color: #fef2f2;
-  color: #dc2626;
-}
-
-.btn-outline {
-  background: transparent;
-  border-color: #d1d5db;
-  color: #4b5563;
-}
-.btn-outline:hover {
-  background: #f3f4f6;
-  color: #111827;
-}
-
-/* --- ログインID表示エリア --- */
-.login-id-card {
-  margin-bottom: 3rem;
-  text-align: center;
-}
-
-.login-id-label {
-  font-size: 1rem;
-  color: #6b7280;
-  margin-bottom: 0.5rem;
-  font-weight: 600;
-}
-
-.login-id-value {
-  font-size: 2rem;
-  font-weight: 800;
-  color: var(--primary);
-  letter-spacing: 0.05em;
-}
-
-.login-id-note {
-  font-size: 0.875rem;
-  color: #4b5563;
-  margin-top: 0.5rem;
-}
-
-/* --- フォーム用追加スタイル --- */
-.dashboard-form-card {
-  max-width: 600px !important;
-  margin: 0 auto;
-}
-
-.text-sm-muted {
-  font-size: 0.8em;
-  color: #6b7280;
-}
-
-.store-selection-box {
-  background: #f9fafb;
-  padding: 1rem;
-  border-radius: 0.5rem;
-  border: 1px solid #e5e7eb;
-}
-
-.store-selection-header {
-  margin-bottom: 0.75rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.checkbox-label-bold {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  font-weight: bold;
-  margin-bottom: 0 !important;
-}
-
-.store-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 0.5rem;
-}
-
-.checkbox-item {
-  display: flex;
-  align-items: center;
-}
-
-.store-checkbox {
-  margin-right: 0.5rem !important;
-}
-
-.store-label {
-  cursor: pointer;
-  font-weight: normal;
-  margin-bottom: 0 !important;
-}
-
-.link-cancel {
-  display: block;
-  text-align: center;
-  margin-top: 1rem;
-  color: #6b7280;
-  text-decoration: none;
-}
-
-.link-cancel:hover {
-  color: var(--secondary);
-  text-decoration: underline;
-}
-
-/* --- フォーム要素 --- */
-.form-select {
-  width: 100%;
-  padding: 0.75rem 1rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.5rem;
-  font-size: 1rem;
-  color: #111827;
-  box-sizing: border-box;
-  background-color: white;
-}
-
-input.form-input-disabled {
-  width: 100%;
-  padding: 0.75rem 1rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.5rem;
-  font-size: 1rem;
-  box-sizing: border-box;
-  background-color: #f3f4f6;
-  color: #6b7280;
-}
-
-/* --- ページネーション --- */
-.pagination-wrapper {
-  padding: 1rem;
-  display: flex;
-  justify-content: center;
-}
-
-.pagination {
-  display: flex;
-  gap: 0.5rem;
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.pagination span a, .pagination span.current, .pagination span.gap {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.5rem;
-  text-decoration: none;
-  color: var(--secondary);
-  font-size: 0.9rem;
-}
-
-.pagination span.current {
-  background-color: var(--primary);
-  color: white;
-  border-color: var(--primary);
-}
-
-.pagination span a:hover {
-  background-color: #f3f4f6;
-}
-
-/* --- フォーム追加スタイル --- */
-textarea.form-select {
-  font-family: inherit;
-}
-
-.radio-group {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-top: 0.5rem;
-}
-
-.radio-group input[type="radio"] {
-  margin-right: 0.25rem;
-}
-
-.radio-group label {
-  margin-bottom: 0;
-  cursor: pointer;
-  font-weight: normal;
-}
+/* 勤怠の時刻の修正 */
+.attendance-form { display: grid; gap: 0.35rem; max-width: 260px; margin-top: 0.5rem; }
+.attendance-form label { font-size: 0.82rem; color: var(--muted); }
+td > details > summary { cursor: pointer; color: var(--primary-ink); font-weight: 600; font-size: 0.9rem; }

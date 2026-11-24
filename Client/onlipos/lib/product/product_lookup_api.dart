@@ -26,18 +26,6 @@ class ProductLookupApi {
     final data = json.decode(response.body) as Map<String, dynamic>;
     if (data['success'] != true) return null;
 
-    final p = data['product'] as Map<String, dynamic>;
-    final price = p['price'] as int;
-    return Product(
-      id: p['id'] as int,
-      code: p['code'] as String,
-      name: p['name'] as String,
-      price: price,
-      listPrice: (p['list_price'] as int?) ?? price,
-      taxRate: (p['tax_rate'] as int?) ?? 10,
-      categoryId: p['category_id'] as int?,
-      categoryName: p['category_name'] as String?,
-      soldByWeight: p['sold_by_weight'] as bool? ?? false,
-    );
+    return Product.fromMap(data['product'] as Map<String, dynamic>);
   }
 }

@@ -18,15 +18,11 @@
    dim_options = SalesAnalysis::DIMENSIONS.group_by { |_, d| d[:element] }
                                          .map { |el, dims| [ el, dims.map { |k, d| [ d[:label], k ] } ] }
    change = ->(cur, before) { before.to_i.zero? ? nil : ((cur - before) * 100.0 / before.abs).round(1) } %>
+<%= page_header "売上分析", lead: "期間や店舗、商品などの切り口で、売れ方をグラフと表で見られます。" do %>
+  <%= link_to dashboard_analytics_path(analysis_params.merge(format: :csv)), class: "btn btn-secondary", data: { turbo: false } do %><%= icon(:download, size: 18) %>CSVで出力<% end %>
+<% end %>
 <div class="dashboard-container">
-  <%= render 'dashboard/shared/menu' %>
-
-  <div class="dashboard-content card analytics">
-    <div class="subtitle d-flex justify-content-between align-items-center">
-      <h2>売上分析</h2>
-      <%= link_to "CSVダウンロード", dashboard_analytics_path(analysis_params.merge(format: :csv)), class: "btn-signup" %>
-    </div>
-
+  <div class="dashboard-content analytics">
     <%# 条件フォーム %>
     <%= form_with url: dashboard_analytics_path, method: :get, local: true, class: "an-form" do |f| %>
       <div class="an-form-row">

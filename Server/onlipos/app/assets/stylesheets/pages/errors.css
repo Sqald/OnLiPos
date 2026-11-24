@@ -13,39 +13,6 @@
   text-align: center;
 }
 
-.error-badge {
-  display: inline-block;
-  background: #eff6ff;
-  color: var(--primary);
-  border: 1px solid #bfdbfe;
-  border-radius: 2rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  padding: 0.25rem 0.75rem;
-  margin-bottom: 1.5rem;
-}
-
-.error-badge.server {
-  background: #fef2f2;
-  color: #dc2626;
-  border-color: #fca5a5;
-}
-
-.error-code {
-  font-size: clamp(5rem, 18vw, 8rem);
-  font-weight: 900;
-  line-height: 1;
-  color: var(--primary);
-  letter-spacing: -0.04em;
-  margin-bottom: 0.75rem;
-}
-
-.error-code.server {
-  color: #dc2626;
-}
-
 .error-title {
   font-size: 1.4rem;
   font-weight: 700;
@@ -56,47 +23,17 @@
 .error-desc {
   font-size: 0.95rem;
   color: #6b7280;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   line-height: 1.7;
 }
 
 .error-actions {
+  margin-top: 1.5rem;
   display: flex;
   gap: 0.75rem;
   justify-content: center;
   flex-wrap: wrap;
 }
-
-.btn-primary {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.6rem 1.4rem;
-  border-radius: 0.5rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: none;
-  background: var(--primary);
-  color: #fff;
-  transition: opacity 0.15s;
-}
-.btn-primary:hover { opacity: 0.85; text-decoration: none; }
-
-.btn-secondary {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.6rem 1.4rem;
-  border-radius: 0.5rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: none;
-  background: transparent;
-  color: var(--secondary);
-  border: 1px solid #e5e7eb;
-  transition: background 0.15s;
-}
-.btn-secondary:hover { background: #f3f4f6; text-decoration: none; }
 
 .error-footer {
   margin-top: 2rem;
@@ -105,7 +42,6 @@
   font-size: 0.8rem;
   color: #9ca3af;
 }
-.error-footer a { color: #9ca3af; text-decoration: underline; }
 
 /* --- エラー一覧ページ --- */
 .errors-list-section {

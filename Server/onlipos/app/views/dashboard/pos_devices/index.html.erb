@@ -1,0 +1,34 @@
+<%# ダッシュボード: POS端末一覧（店舗ごとの端末と稼働状況、パスワードの再設定・停止・削除） %>
+<%= page_header "POS端末", lead: "レジとして使うタブレットやパソコンの一覧です。端末をなくしたときは「停止」を押すと、すぐに使えなくなります。" do %>
+  <% if can_write? && @stores.any? %><%= link_to new_dashboard_pos_device_path, class: "btn btn-primary" do %><%= icon(:plus, size: 18) %>POS端末を追加<% end %><% end %>
+<% end %>
+<%= help_note("端末アプリにログインするには？") do %>
+  <ol>
+    <li>端末アプリの「初期設定」で、企業ID「<strong><%= current_account.login_name %></strong>」と、下の表の店舗ID・端末IDを入力します。</li>
+    <li>端末を登録したときに表示された6桁のパスワードを入力します（2週間有効。わからないときは「パスワード再設定」）。</li>
+  </ol>
+<% end %>
+<% if @stores.none? %>
+  <%= empty_message("先に店舗を登録してください。", action: (link_to("店舗を登録する", new_dashboard_store_path, class: "btn btn-primary") if can_write?)) %>
+<% end %>
+<% @stores.each do |store| %>
+  <section class="store-pos-group">
+    <h2 class="store-pos-title"><%= store.name %> <span class="text-sm-muted">店舗ID: <%= store.ascii_name %></span></h2>
+    <%= data_table([ "端末名", "端末ID", "状態", "ログイン", "最後に使った日時", "アプリ", "操作" ], store.pos_tokens.sort_by(&:id).map { |pos|
+          status = if pos.disabled? then badge("停止中", :danger)
+                   elsif pos.last_used_at && pos.last_used_at > 1.hour.ago then badge("稼働中")
+                   else badge("休止中", false) end
+          login = case pos.password_status
+                  when :authenticated then badge("ログイン済み")
+                  when :disabled then pos.disabled_reason.presence || "-"
+                  when :pending then safe_join([ badge("ログイン待ち", :warning), (tag.small("期限 #{datetime(pos.password_expires_at)}") if pos.password_expires_at) ].compact, tag.br)
+                  else safe_join([ badge("パスワード期限切れ", :danger), tag.small("再設定してください") ], tag.br) end
+          actions = can_write? ? row_actions(
+            button_to("パスワード再設定", dashboard_pos_device_update_password_path(pos), method: :patch, class: "btn btn-sm btn-secondary", form: { data: { turbo_confirm: "「#{pos.name}」のパスワードを再設定しますか？\n新しいパスワードが画面に表示され、端末は再ログインが必要になります。" } }),
+            pos.disabled? ? button_to("停止を解除", enable_dashboard_pos_device_path(pos), method: :patch, class: "btn btn-sm btn-secondary", form: { data: { turbo_confirm: "「#{pos.name}」の停止を解除しますか？" } })
+                          : button_to("停止", disable_dashboard_pos_device_path(pos), method: :patch, class: "btn btn-sm btn-danger-outline", form: { data: { turbo_confirm: "「#{pos.name}」を停止しますか？\nこの端末はすぐに使えなくなります（後から解除できます）。" } }),
+            button_to("削除", dashboard_pos_device_path(pos), method: :delete, class: "btn btn-sm btn-danger-outline", form: { data: { turbo_confirm: "「#{pos.name}」を削除しますか？\nこの操作は取り消せません。" } })) : ""
+          [ pos.name, pos.ascii_name, status, login, datetime(pos.last_used_at), [ pos.app_version, pos.platform ].compact_blank.join(" / ").presence || "-", actions ] },
+          empty: "この店舗にはまだPOS端末がありません。", action: (link_to("POS端末を追加", new_dashboard_pos_device_path(store_id: store.id), class: "btn btn-primary") if can_write?)) %>
+  </section>
+<% end %>

@@ -1,0 +1,26 @@
+<%# ダッシュボード: 棚卸の詳細 %>
+<%= page_header @stocktake.name, back: true do %>
+  <%= link_to dashboard_stocktake_path(@stocktake, format: :csv), class: "btn btn-secondary", data: { turbo: false } do %><%= icon(:download, size: 18) %>CSVで出力<% end %>
+<% end %>
+<%= detail_table([ [ "店舗", @stocktake.store.name ], [ "状態", badge(Stocktake::STATUS_LABELS[@stocktake.status], @stocktake.counting? ? :warning : true) ], [ "差異の金額（原価）", yen(@items.sum { |i| i.difference_amount.to_i }) ] ]) %>
+<% if can_write? && @stocktake.counting? %>
+  <h3>数えた数を入力</h3>
+  <div class="filters">
+    <%= form_with url: count_dashboard_stocktake_path(@stocktake) do |f| %>
+      <div class="filter-row">
+        <div class="filter-item wide"><%= f.label :code, "商品コード" %><%= f.text_field :code, required: true, autofocus: true %></div>
+        <div class="filter-item"><%= f.label :quantity, "数えた数" %><%= f.number_field :quantity, min: 0, required: true %></div>
+        <div class="filter-item"><label><%= f.check_box :add, {}, "1", nil %> いまの数に足す</label></div>
+        <div class="filter-item"><%= f.submit "登録する", class: "btn btn-primary" %></div>
+      </div>
+    <% end %>
+  </div>
+<% end %>
+<h3>数えた商品</h3>
+<%= data_table([ "商品", "帳簿の数", "数えた数", "差", "差の金額" ], @items.map { |i| [ "#{i.product.name}（#{i.product.code}）", i.expected, i.counted_quantity, i.difference.to_i.zero? ? i.difference.to_s : badge(i.difference, :warning), yen(i.difference_amount) ] }, empty: "まだ数えた商品がありません。") %>
+<% if can_write? && @stocktake.counting? %>
+  <div class="actions">
+    <%= button_to "確定して在庫に反映する", complete_dashboard_stocktake_path(@stocktake), class: "btn btn-primary", form: { data: { turbo_confirm: "登録した商品の在庫数を、数えた数に置き換えます。よろしいですか？" } } %>
+    <%= button_to "棚卸を中止する", cancel_dashboard_stocktake_path(@stocktake), class: "btn btn-danger-outline", form: { data: { turbo_confirm: "この棚卸を中止しますか？\n在庫には反映されません。" } } %>
+  </div>
+<% end %>

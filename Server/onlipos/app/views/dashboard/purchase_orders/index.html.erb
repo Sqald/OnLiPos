@@ -1,0 +1,6 @@
+<%# ダッシュボード: 発注・入荷 %>
+<%= page_header "発注・入荷", lead: "仕入先への発注を記録し、届いたら入荷を登録します。入荷すると在庫が増えます。" do %>
+  <% if can_write? %><%= link_to new_dashboard_purchase_order_path, class: "btn btn-primary" do %><%= icon(:plus, size: 18) %>発注を作成<% end %><% end %>
+<% end %>
+<%= data_table([ "発注番号", "店舗", "仕入先", "状態", "発注日", "入荷予定", "金額", "" ], @orders.map { |o| [ o.number, o.store.name, o.supplier.name, badge(PurchaseOrder::STATUS_LABELS[o.status], { "draft" => false, "cancelled" => false, "received" => true }.fetch(o.status, :warning)), o.ordered_on ? l(o.ordered_on) : "-", o.expected_on ? l(o.expected_on) : "-", yen(o.total_amount), row_actions(link_to("開く", dashboard_purchase_order_path(o), class: "btn btn-sm btn-secondary")) ] }, empty: "発注はまだありません。") %>
+<div class="pagination-wrapper"><%= paginate @orders %></div>

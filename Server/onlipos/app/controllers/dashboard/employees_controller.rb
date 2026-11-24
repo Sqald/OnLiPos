@@ -6,17 +6,17 @@ class Dashboard::EmployeesController < Dashboard::BaseController
 
   # 自ユーザー配下の従業員一覧
   def index
-    @employees = current_user.employees
+    @employees = current_account.employees
   end
 
   # 新規登録フォーム
   def new
-    @employee = current_user.employees.build
+    @employee = current_account.employees.build
   end
 
   # 従業員を登録し、権限（チェックボックス選択分）を同期する
   def create
-    @employee = current_user.employees.build(employee_params)
+    @employee = current_account.employees.build(employee_params)
     if @employee.save
       @employee.sync_permissions(permission_params)
       redirect_to dashboard_employees_path, notice: "従業員を登録しました。"
@@ -56,12 +56,12 @@ class Dashboard::EmployeesController < Dashboard::BaseController
 
   # 自ユーザー配下の従業員をIDで取得する（他ユーザーの従業員は対象外）
   def set_employee
-    @employee = current_user.employees.find(params[:id])
+    @employee = current_account.employees.find(params[:id])
   end
 
   # フォームの店舗選択肢用に自ユーザーの店舗一覧をセットする
   def set_stores
-    @stores = current_user.stores
+    @stores = current_account.stores
   end
 
   def employee_params
@@ -72,9 +72,9 @@ class Dashboard::EmployeesController < Dashboard::BaseController
     # 全店舗フラグがONの場合は現在のユーザーの全店舗を紐付ける。
     # それ以外は自ユーザーの店舗IDのみに絞り、他ユーザーの店舗へ紐付けられないようにする
     if p[:is_all_stores] == "1"
-      p[:store_ids] = current_user.stores.ids
+      p[:store_ids] = current_account.stores.ids
     elsif p.key?(:store_ids)
-      p[:store_ids] = current_user.stores.where(id: p[:store_ids]).ids
+      p[:store_ids] = current_account.stores.where(id: p[:store_ids]).ids
     end
     p
   end

@@ -1,0 +1,12 @@
+<%# ダッシュボード: メンバー管理 %>
+<%= page_header "メンバー", lead: "この管理画面を使う人です。1人に1つずつ発行し、共用しないでください。" do %>
+  <%= link_to new_dashboard_member_path, class: "btn btn-primary" do %><%= icon(:plus, size: 18) %>メンバーを追加<% end %>
+<% end %>
+<% if flash[:member_password] %>
+  <div class="notice" data-controller="clipboard" data-clipboard-text-value="<%= flash[:member_password] %>"><%= icon(:check) %><div>初期パスワード: <code><%= flash[:member_password] %></code> <button type="button" class="btn btn-sm btn-secondary" data-clipboard-target="button" data-action="clipboard#copy">コピー</button><br>再表示されません。本人に安全な方法で伝えてください。初回ログイン時に2段階認証の登録が必要です。</div></div>
+<% end %>
+<%= data_table([ "名前", "メールアドレス", "役割", "2段階認証", "最後のログイン", "操作" ], @members.map { |m|
+      [ m.display_name, m.email, form_with(model: m, url: dashboard_member_path(m), method: :patch, scope: :user, class: "row-actions") { |f| safe_join([ f.select(:role, %w[manager viewer].map { |r| [ role_label(r), r ] }, {}, id: "role_#{m.id}", "aria-label": "#{m.display_name} の役割"), f.submit("変更", class: "btn btn-sm btn-secondary") ]) },
+        m.mfa_enabled? ? badge("設定済み") : badge("未設定", :warning), datetime(m.try(:last_sign_in_at)),
+        row_actions(button_to("パスワード再発行", reset_password_dashboard_member_path(m), method: :post, class: "btn btn-sm btn-secondary", form: { data: { turbo_confirm: "#{m.display_name} のパスワードと2段階認証をリセットしますか？" } }),
+          button_to("削除", dashboard_member_path(m), method: :delete, class: "btn btn-sm btn-danger-outline", form: { data: { turbo_confirm: "#{m.display_name} を削除しますか？" } })) ] }, empty: "メンバーはまだいません。") %>

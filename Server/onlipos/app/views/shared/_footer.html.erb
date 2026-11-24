@@ -1,6 +1,12 @@
-<%# パーシャル: 一般ページ共通フッター（著作権表示） %>
+<%# パーシャル: 共通フッター（ヘルプへのリンクと著作権表示） %>
 <footer class="main-footer">
-  <div class="copyright">
-    <p>&copy; 2026 OnLiPos Project. All rights reserved.</p>
-  </div>
+  <nav class="footer-links" aria-label="フッターメニュー">
+    <% if user_signed_in? %>
+      <%= link_to "ホーム", dashboard_root_path %>
+      <%= link_to "使い方ガイド", dashboard_help_path %>
+    <% else %>
+      <%= link_to "ログイン", new_user_session_path %>
+    <% end %>
+  </nav>
+  <p class="copyright">&copy; 2026 OnLiPos Project</p>
 </footer>

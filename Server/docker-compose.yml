@@ -26,6 +26,11 @@ services:
       HOST_NAME: ${HOST_NAME:-}
       FORCE_SSL: ${FORCE_SSL:-false}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      ALLOW_LEGACY_OPERATOR_AUTH: ${ALLOW_LEGACY_OPERATOR_AUTH:-}
+      MIN_APP_VERSION: ${MIN_APP_VERSION:-}
+    volumes:
+      # 商品画像などの添付ファイル（rails と worker で共有）
+      - storage:/rails/storage
     secrets:
       - db_password
     depends_on:
@@ -68,24 +73,38 @@ services:
       - rails
     restart: unless-stopped
 
+  # DBのバックアップ（内容の確認・暗号化・通知つき）。設定は backup/backup.sh の冒頭を参照
   backup:
     image: postgres:${POSTGRES_DOCKER_VERSION}
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        while true; do
-          PGPASSWORD=$$(cat /run/secrets/db_password) pg_dump -h postgres -U ${DB_USER} ${DB_NAME} | gzip > /backup/onlipos_$$(date +%Y%m%d_%H%M%S).sql.gz
-          find /backup -name '*.sql.gz' -mtime +30 -delete
-          sleep 86400
-        done
+    entrypoint: [ "/bin/sh", "/scripts/backup.sh" ]
+    environment:
+      DB_USER: ${DB_USER}
+      # production.primary のDB名（config/database.yml）と一致させること
+      BACKUP_DB: ${DB_NAME}_prod
+      BACKUP_INTERVAL: ${BACKUP_INTERVAL:-86400}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_OFFSITE_DIR: ${BACKUP_OFFSITE_DIR:-}
+      BACKUP_WEBHOOK_URL: ${BACKUP_WEBHOOK_URL:-}
     volumes:
       - ./backups:/backup
+      - ./backup:/scripts:ro
+      - storage:/storage:ro
+      # secrets/backup_passphrase.txt を置くと暗号化する（任意。パスフレーズはサーバーとは別の場所にも必ず控えること）
+      - ./secrets:/run/backup-secrets:ro
+      # 2か所目の保存先。NAS等のマウント先を BACKUP_OFFSITE_HOST_DIR に指定し、BACKUP_OFFSITE_DIR=/offsite とする
+      - ${BACKUP_OFFSITE_HOST_DIR:-./backups}:/offsite
     secrets:
       - db_password
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-prepare:
+        condition: service_completed_successfully
+    # 48時間以内に成功していなければ unhealthy
+    healthcheck:
+      test: [ "CMD-SHELL", "test -f /backup/LAST_SUCCESS && [ $$(( $$(date +%s) - $$(cat /backup/LAST_SUCCESS) )) -lt 172800 ]" ]
+      interval: 5m
+      timeout: 10s
+      retries: 3
+      start_period: 10m
     restart: unless-stopped
 
   worker:
@@ -98,6 +117,11 @@ services:
       HOST_NAME: ${HOST_NAME:-}
       FORCE_SSL: ${FORCE_SSL:-false}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      ALLOW_LEGACY_OPERATOR_AUTH: ${ALLOW_LEGACY_OPERATOR_AUTH:-}
+      MIN_APP_VERSION: ${MIN_APP_VERSION:-}
+    volumes:
+      # 商品画像などの添付ファイル（rails と worker で共有）
+      - storage:/rails/storage
     secrets:
       - db_password
     depends_on:
@@ -108,6 +132,7 @@ services:
 
 volumes:
   postgres:
+  storage:
 
 secrets:
   db_password:

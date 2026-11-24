@@ -15,10 +15,11 @@ class SalesControllerTest < ActionDispatch::IntegrationTest
     @store = @user.stores.create!(name: "テスト店舗", ascii_name: "salesteststore")
     @pos_token = @store.pos_tokens.create!(name: "POS1", ascii_name: "pos1", password: "PosPass1!", password_confirmation: "PosPass1!")
     # セキュアトークン生成
-    @pos_token.update_columns(token: SecureRandom.hex(32))
+    @pos_token.regenerate_token
     @employee = @user.employees.create!(code: "E001", name: "田中一郎")
     @employee.stores << @store
-    @product = @user.products.create!(code: "P001", name: "商品A", price: 1000, tax_rate: 10)
+    @product = @user.products.create!(code: "P001", name: "商品A", price: 1100, tax_rate: 10)
+    @employee.employee_permissions.create!(permission: "discount")
     StoreStock.create!(store: @store, product: @product, quantity: 100)
   end
 
@@ -255,14 +256,14 @@ class SalesControllerTest < ActionDispatch::IntegrationTest
 
     post "/api/v1/sales",
          params: {
-           sale: { total_amount: 250, subtotal_ex_tax: 232, tax_amount: 18 },
+           sale: { total_amount: 2500, subtotal_ex_tax: 2315, tax_amount: 185 },
            employee_id: @employee.id,
            details: [
              { product_id: scale_product.id, product_name: scale_product.name,
-               quantity: 1, unit_price: 500, subtotal: 250,
-               tax_rate: 8, tax_amount: 18, weight_grams: 500 }
+               quantity: 1, unit_price: 500, subtotal: 2500,
+               tax_rate: 8, tax_amount: 185, weight_grams: 500 }
            ],
-           payments: [ { method: 0, amount: 250 } ]
+           payments: [ { method: 0, amount: 2500 } ]
          },
          headers: { "Authorization" => "Bearer #{@pos_token.token}" },
          as: :json
@@ -270,7 +271,7 @@ class SalesControllerTest < ActionDispatch::IntegrationTest
     assert_response :created
     detail = Sale.find(JSON.parse(response.body)["sale_id"]).saledetails.first
     assert_equal 500, detail.weight_grams
-    assert_equal 250, detail.subtotal
+    assert_equal 2500, detail.subtotal
   end
 
   test "量り売り商品で weight_grams を送らない場合は 422 エラー" do

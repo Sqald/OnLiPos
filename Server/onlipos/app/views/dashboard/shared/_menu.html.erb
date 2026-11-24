@@ -1,51 +1,29 @@
-<%# ダッシュボード共通サイドメニュー(各画面から render 'dashboard/shared/menu' で読み込まれる)
-    現在のコントローラ名と一致するメニュー項目に active クラスを付与してハイライトする %>
-<div class="dashboard-menu">
-  <ul>
-    <li>
-      <%= link_to "ダッシュボード", dashboard_root_path, class: "menu-item #{controller_name == 'dashboards' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "店舗管理", dashboard_stores_path, class: "menu-item #{controller_name == 'stores' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "商品管理", dashboard_products_path, class: "menu-item #{controller_name == 'products' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "セット商品", dashboard_product_bundles_path, class: "menu-item #{controller_name == 'product_bundles' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "商品カテゴリ", dashboard_product_categories_path, class: "menu-item #{controller_name == 'product_categories' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "従業員管理", dashboard_employees_path, class: "menu-item #{controller_name == 'employees' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "端末設定", dashboard_provisionings_path, class: "menu-item #{controller_name == 'provisionings' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "売上一覧", dashboard_sales_path, class: "menu-item #{controller_name == 'sales' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "売上レポート", dashboard_reports_path, class: "menu-item #{controller_name == 'reports' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "売上分析", dashboard_analytics_path, class: "menu-item #{controller_name == 'analytics' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "返品一覧", dashboard_refunds_path, class: "menu-item #{controller_name == 'refunds' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "レジ金履歴", dashboard_cash_logs_path, class: "menu-item #{controller_name == 'cash_logs' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "店舗在庫", dashboard_store_stocks_path, class: "menu-item #{controller_name == 'store_stocks' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "入出庫履歴", dashboard_stock_movements_path, class: "menu-item #{controller_name == 'stock_movements' ? 'active' : ''}" %>
-    </li>
-    <li>
-      <%= link_to "セキュリティ", dashboard_security_path, class: "menu-item #{controller_name == 'security' ? 'active' : ''}" %>
-    </li>
-  </ul>
-</div>
+<%# ダッシュボード: サイドメニュー（dashboard レイアウトから使う）。項目は NavigationHelper#dashboard_nav_groups で定義する。
+    目的別のグループに分け、いま開いているグループだけを展開する %>
+<nav class="side-nav" aria-label="メインメニュー" data-controller="side-nav">
+  <div class="side-nav-search">
+    <label class="visually-hidden" for="side-nav-search">メニューを検索</label>
+    <%= icon(:search, size: 18) %>
+    <input type="search" id="side-nav-search" placeholder="メニューを検索" autocomplete="off" data-side-nav-target="query" data-action="input->side-nav#filter">
+  </div>
+  <%= link_to dashboard_root_path, class: [ "side-nav-home", ("active" if controller_name == "dashboards") ], aria: { current: ("page" if controller_name == "dashboards") } do %>
+    <%= icon(:home) %><span>ホーム</span>
+  <% end %>
+  <% dashboard_nav_groups.each do |group| %>
+    <% badge = group.items.sum { |i| i.badge.to_i } %>
+    <details class="side-nav-group" data-side-nav-target="group" data-key="<%= group.key %>" <%= "open" if group == current_nav_group %>>
+      <summary><%= icon(group.icon) %><span><%= group.label %></span><% if badge.positive? %><span class="nav-badge" aria-label="未確認<%= badge %>件"><%= badge %></span><% end %><%= icon(:down, size: 16, class: "side-nav-caret") %></summary>
+      <ul>
+        <% group.items.each do |item| %>
+          <li data-side-nav-target="item" data-text="<%= [ group.label, item.label, item.keywords ].compact.join(" ") %>">
+            <%= link_to item.path, class: [ "side-nav-link", ("active" if nav_active?(item)) ], aria: { current: ("page" if nav_active?(item)) } do %>
+              <span><%= item.label %></span><% if item.badge.to_i.positive? %><span class="nav-badge"><%= item.badge %></span><% end %>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    </details>
+  <% end %>
+  <p class="side-nav-empty" data-side-nav-target="empty" hidden>見つかりませんでした。</p>
+  <%= link_to dashboard_help_path, class: [ "side-nav-home", ("active" if controller_name == "help") ] do %><%= icon(:help) %><span>使い方ガイド</span><% end %>
+</nav>

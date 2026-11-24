@@ -1,0 +1,10 @@
+<%# 客用表示（2秒ごとに更新） %>
+<% content_for :title, @store.name %>
+<% content_for :body_class, "display" %>
+<% content_for :head do %><meta http-equiv="refresh" content="2"><% end %>
+<% if @fresh && @content["items"].present? %>
+  <div class="display-lines"><table class="display-items"><% @content["items"].last(8).each do |i| %><tr><td><%= i["name"] %> <span>×<%= i["quantity"] %></span></td><td class="amount"><%= yen(i["subtotal"]) %></td></tr><% end %></table></div>
+  <div class="display-total-row"><span>合計</span><strong class="display-total"><%= yen(@content["total"]) %></strong></div>
+<% else %>
+  <div class="display-idle"><h1><%= @store.name %></h1><p><%= @content["message"].presence || "いらっしゃいませ" %></p></div>
+<% end %>

@@ -20,7 +20,7 @@ class EmployeePermissionsApiTest < ActionDispatch::IntegrationTest
       name: "POS1", ascii_name: "pos1",
       password: "PosPass1!", password_confirmation: "PosPass1!"
     )
-    @pos.update_columns(token: SecureRandom.hex(32))
+    @pos.regenerate_token
 
     @employee = @user.employees.create!(code: "P001", name: "権限なし従業員", pin: "1234")
     @employee.stores << @store
@@ -67,7 +67,7 @@ class EmployeePermissionsApiTest < ActionDispatch::IntegrationTest
 
   # ── check_operator に permissions を含む ─────────────────────
 
-  test "check_operator レスポンスに permissions が含まれる" do
+  test "check_operator はPIN未確認のため permissions を返さない" do
     @employee.employee_permissions.create!(permission: "refund")
 
     post "/api/v1/pos_devices/check_operator",
@@ -78,7 +78,7 @@ class EmployeePermissionsApiTest < ActionDispatch::IntegrationTest
     assert_response :ok
     data = JSON.parse(response.body)
     assert data["success"]
-    assert_equal [ "refund" ], data["permissions"]
+    assert_equal [], data["permissions"]
   end
 
   # ── refund 権限チェック ────────────────────────────────────────

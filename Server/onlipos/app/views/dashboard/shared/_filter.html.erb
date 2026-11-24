@@ -1,0 +1,17 @@
+<%# ダッシュボード: 一覧の検索条件（店舗・期間・追加の条件）。
+    locals: url, stores（nil なら店舗の欄を出さない）, submit（ボタン名）, chips（期間のワンクリック選択を出すか）。
+    追加の条件はブロックで渡す（フォームビルダーを受け取る） %>
+<div class="filters">
+  <%= form_with url: url, method: :get do |f| %>
+    <div class="filter-row">
+      <% if local_assigns[:stores] %>
+        <div class="filter-item"><%= f.label :store_id, "店舗" %><%= f.select :store_id, options_from_collection_for_select(stores, :id, :name, params[:store_id]), { include_blank: "すべての店舗" } %></div>
+      <% end %>
+      <%= yield f %>
+      <div class="filter-item"><%= f.label :from, "いつから" %><%= f.date_field :from, value: @from || params[:from] %></div>
+      <div class="filter-item"><%= f.label :to, "いつまで" %><%= f.date_field :to, value: @to || params[:to] %></div>
+      <div class="filter-item"><%= f.submit local_assigns[:submit] || "絞り込む", class: "btn btn-primary", name: nil %></div>
+    </div>
+  <% end %>
+  <%= period_chips unless local_assigns[:chips] == false %>
+</div>

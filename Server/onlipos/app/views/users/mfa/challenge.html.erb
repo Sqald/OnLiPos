@@ -1,8 +1,9 @@
 <%# ログインの2段階目（MFA 設定済みのユーザー）: 認証アプリのコード / パスキー / リカバリーコード %>
+<% content_for :title, "2段階認証" %>
 <div class="auth-wrapper">
   <div class="auth-container mfa-container">
     <h2>2段階認証</h2>
-    <p class="mfa-lead"><%= @user.email %> でログインしています。本人確認のため、もう1つの方法で確認してください。</p>
+    <p class="auth-lead">ご本人の確認のため、もう1つの方法で確認します。<br><%= @user.email %></p>
 
     <% if @user.passkeys.exists? %>
       <section class="mfa-section">

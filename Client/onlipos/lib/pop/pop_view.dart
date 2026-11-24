@@ -3,6 +3,10 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:onlipos/sale/cart_panel.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_theme.dart';
+import 'package:onlipos/ui/app_header.dart';
 import 'package:printing/printing.dart';
 import 'package:onlipos/pop/pop_pdf_builder.dart';
 import 'package:onlipos/product/product.dart';
@@ -52,9 +56,7 @@ class _PopViewState extends State<PopView> {
         _addProduct(p);
         _janCtrl.clear();
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('商品が見つかりませんでした: $code')));
+        showMessage(context, '商品が見つかりませんでした: $code', MessageType.info);
       }
     } finally {
       if (mounted) setState(() => _searching = false);
@@ -96,9 +98,7 @@ class _PopViewState extends State<PopView> {
   // PDFプレビュー画面を表示する
   Future<void> _showPreview() async {
     if (_items.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('印刷リストが空です')));
+      showMessage(context, '印刷リストが空です', MessageType.error);
       return;
     }
     final items = List<PopItem>.from(_items);
@@ -107,7 +107,7 @@ class _PopViewState extends State<PopView> {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => Scaffold(
-          appBar: AppBar(title: const Text('POP印刷プレビュー')),
+          appBar: const AppHeader('POPの確認'),
           body: PdfPreview(
             build: (_) => PopPdfBuilder.build(items, perPage),
             allowPrinting: true,
@@ -121,9 +121,7 @@ class _PopViewState extends State<PopView> {
   // プレビューを経由せず直接印刷する
   Future<void> _print() async {
     if (_items.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('印刷リストが空です')));
+      showMessage(context, '印刷リストが空です', MessageType.error);
       return;
     }
     final items = List<PopItem>.from(_items);
@@ -137,12 +135,7 @@ class _PopViewState extends State<PopView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1D1D1D),
-      appBar: AppBar(
-        title: const Text('POP印刷'),
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-      ),
+      appBar: const AppHeader('POP印刷', subtitle: '印刷する商品を選んでください'),
       body: Column(
         children: [
           _buildSearchSection(),
@@ -156,7 +149,7 @@ class _PopViewState extends State<PopView> {
   // JANコード検索・商品名検索の入力欄と検索結果ドロップダウンをまとめたカード
   Widget _buildSearchSection() {
     return Card(
-      margin: const EdgeInsets.all(8),
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -169,7 +162,7 @@ class _PopViewState extends State<PopView> {
                   child: TextField(
                     controller: _janCtrl,
                     decoration: const InputDecoration(
-                      labelText: 'JANコード',
+                      labelText: '商品コード（バーコード）',
                       prefixIcon: Icon(Icons.qr_code),
                       border: OutlineInputBorder(),
                       isDense: true,
@@ -182,7 +175,7 @@ class _PopViewState extends State<PopView> {
                 ElevatedButton.icon(
                   onPressed: _searching ? null : _searchByJan,
                   icon: const Icon(Icons.search),
-                  label: const Text('検索'),
+                  label: const Text('足す'),
                 ),
               ],
             ),
@@ -191,7 +184,7 @@ class _PopViewState extends State<PopView> {
             TextField(
               controller: _nameCtrl,
               decoration: const InputDecoration(
-                labelText: '商品名で検索',
+                labelText: '商品名で探す',
                 prefixIcon: Icon(Icons.manage_search),
                 border: OutlineInputBorder(),
                 isDense: true,
@@ -220,7 +213,7 @@ class _PopViewState extends State<PopView> {
                       return ListTile(
                         dense: true,
                         title: Text(p.name),
-                        subtitle: Text('¥${p.price}  ${p.code}'),
+                        subtitle: Text('${yen(p.price)}　${p.code}'),
                         trailing: const Icon(Icons.add_circle_outline),
                         onTap: () => _addProduct(p),
                       );
@@ -234,53 +227,36 @@ class _PopViewState extends State<PopView> {
     );
   }
 
-  // 印刷対象として追加した商品の一覧(枚数増減・削除操作つき)
+  // 印刷する商品の一覧（枚数の増減）
   Widget _buildPrintList() {
     if (_items.isEmpty) {
-      return const Center(
-        child: Text('商品を追加してください', style: TextStyle(color: Colors.white54)),
+      return const EmptyState(
+        icon: Icons.local_offer_outlined,
+        title: '商品を足してください',
+        message: 'バーコードを読み取るか、商品名で探します',
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+    return ListView.separated(
+      padding: const EdgeInsets.all(12),
       itemCount: _items.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 6),
       itemBuilder: (_, i) {
         final item = _items[i];
-        final p = item.product;
         return Card(
           child: ListTile(
-            title: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-            subtitle: Text('¥${p.price}  ${p.code}'),
-            leading: const Icon(Icons.crop_portrait, size: 36),
+            title: Text(item.product.name),
+            subtitle: Text('${yen(item.product.price)}　${item.product.code}'),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.remove_circle_outline),
-                  tooltip: '枚数を減らす',
-                  onPressed: () => _updateCount(i, -1),
+                QuantityStepper(
+                  quantity: item.count,
+                  removeOnMinus: item.count <= 1,
+                  onMinus: () =>
+                      item.count <= 1 ? _removeItem(i) : _updateCount(i, -1),
+                  onPlus: () => _updateCount(i, 1),
                 ),
-                SizedBox(
-                  width: 32,
-                  child: Text(
-                    '${item.count}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.add_circle_outline),
-                  tooltip: '枚数を増やす',
-                  onPressed: () => _updateCount(i, 1),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  tooltip: '削除',
-                  onPressed: () => _removeItem(i),
-                ),
+                const Text('枚'),
               ],
             ),
           ),
@@ -289,64 +265,50 @@ class _PopViewState extends State<PopView> {
     );
   }
 
-  // 面付け数の選択とプレビュー/印刷ボタンを配置する下部バー
+  // 1ページに並べる枚数と、確認・印刷のボタン
   Widget _buildBottomBar() {
     return Container(
-      color: Colors.black,
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      width: double.infinity,
+      color: AppColors.surface,
+      padding: const EdgeInsets.all(14),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 10,
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          const Text(
-            '面付け（1ページ当たりの枚数）:',
-            style: TextStyle(color: Colors.white70, fontSize: 13),
-          ),
-          const SizedBox(height: 6),
-          SegmentedButton<int>(
-            segments: const [
-              ButtonSegment(value: 1, label: Text('1面')),
-              ButtonSegment(value: 2, label: Text('2面')),
-              ButtonSegment(value: 4, label: Text('4面')),
-              ButtonSegment(value: 8, label: Text('8面')),
-              ButtonSegment(value: 16, label: Text('16面')),
-            ],
-            selected: {_perPage},
-            onSelectionChanged: (s) => setState(() => _perPage = s.first),
-            style: ButtonStyle(
-              backgroundColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.selected)) {
-                  return const Color(0xFF2D89EF);
-                }
-                return Colors.grey[800];
-              }),
-              foregroundColor: WidgetStateProperty.all(Colors.white),
-            ),
-          ),
-          const SizedBox(height: 10),
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _showPreview,
-                  icon: const Icon(Icons.preview),
-                  label: const Text('プレビュー'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white54),
-                  ),
-                ),
+              const Text('1ページに'),
+              const SizedBox(width: 10),
+              SegmentedButton<int>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(value: 1, label: Text('1枚')),
+                  ButtonSegment(value: 2, label: Text('2枚')),
+                  ButtonSegment(value: 4, label: Text('4枚')),
+                  ButtonSegment(value: 8, label: Text('8枚')),
+                  ButtonSegment(value: 16, label: Text('16枚')),
+                ],
+                selected: {_perPage},
+                onSelectionChanged: (s) => setState(() => _perPage = s.first),
+              ),
+            ],
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _items.isEmpty ? null : _showPreview,
+                icon: const Icon(Icons.preview),
+                label: const Text('確認する'),
               ),
               const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _print,
-                  icon: const Icon(Icons.print),
-                  label: const Text('印刷'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2D89EF),
-                    foregroundColor: Colors.white,
-                  ),
-                ),
+              ElevatedButton.icon(
+                onPressed: _items.isEmpty ? null : _print,
+                icon: const Icon(Icons.print),
+                label: const Text('印刷する'),
               ),
             ],
           ),

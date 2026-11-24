@@ -4,6 +4,20 @@ class Api::V1::SalesController < Api::V1::BaseController
   # 冪等キー（client_request_id）として受け付ける形式（UUID 等の英数字・ハイフン）
   CLIENT_REQUEST_ID_FORMAT = /\A[0-9A-Za-z-]{8,64}\z/
 
+  # オフライン会計で端末が先に採番できる連番の上限（サーバーの次番号からの差）。連番の食い潰しを防ぐ
+  MAX_OFFLINE_SEQUENCE_AHEAD = 10_000
+
+  # 会計を受け付けられない理由（端末側が対応を分岐できるよう code を付ける）
+  class RejectedSale < StandardError
+    attr_reader :code, :status
+
+    def initialize(message, code:, status: :unprocessable_entity)
+      super(message)
+      @code = code
+      @status = status
+    end
+  end
+
   # GET /api/v1/sales?date=YYYY-MM-DD&employee_id=... — 指定日（省略時は当日）の自店舗の売上一覧。
   # 店舗の売上を閲覧するため view_sales 権限を持つ担当者のみ。
   def index
@@ -32,6 +46,8 @@ class Api::V1::SalesController < Api::V1::BaseController
           receipt_number: s.receipt_number,
           total_amount: s.total_amount,
           payment_method: s.payment_method,
+          status: s.status,
+          voidable: s.completed? && s.register_session_id.present? && s.register_session_id == current_register_session&.id,
           employee_name: s.employee&.name.presence || s.employee&.code,
           created_at: s.created_at.strftime("%H:%M")
         }
@@ -60,12 +76,8 @@ class Api::V1::SalesController < Api::V1::BaseController
     sale_ids    = sales.select(:id)
 
     payments_scope = SalePayment.where(sale_id: sale_ids)
-    payment_breakdown = {
-      cash:    payments_scope.cash.sum(:amount),
-      card:    payments_scope.card.sum(:amount),
-      barcode: payments_scope.barcode.sum(:amount),
-      emoney:  payments_scope.emoney.sum(:amount)
-    }
+    payment_totals = payments_scope.group(:method).sum(:amount)
+    payment_breakdown = PaymentMethods::VALUES.keys.to_h { |name| [ name, payment_totals.fetch(name.to_s, 0) ] }
 
     # 客層キー（性別・年代）別の売上集計。未選択（NULL）は集計対象から除く
     customer_segment_breakdown = sales
@@ -146,11 +158,14 @@ class Api::V1::SalesController < Api::V1::BaseController
 
     # 「誰が」（担当者）と「何を」（明細）が欠けた会計は売上分析・監査で追跡できないため受け付けない
     unless operator_employee
-      return render json: { success: false, errors: [ "担当者（employee_id）が指定されていないか、存在しません" ] }, status: :unprocessable_entity
+      return render json: { success: false, errors: [ "担当者（employee_id）が指定されていないか、この店舗を操作できません" ] }, status: :unprocessable_entity
     end
     unless params[:details].is_a?(Array) && params[:details].any?
       return render json: { success: false, errors: [ "明細（details）が1件以上必要です" ] }, status: :unprocessable_entity
     end
+
+    # 適用日を迎えた価格・税率の変更を反映してから計算する
+    ScheduledProductChange.apply_due!(@current_pos.store.user)
 
     # BaseControllerのauthenticate_pos_tokenでセットされた @current_pos を使用
     payments = payment_params_array
@@ -161,26 +176,32 @@ class Api::V1::SalesController < Api::V1::BaseController
     @sale.user = @current_pos.store.user
     @sale.employee = operator_employee
     @sale.client_request_id = request_id
+    @sale.age_verified = ActiveModel::Type::Boolean.new.cast(params[:age_verified]) || false
 
-    # レジセッション・営業日・販売時刻の紐付け。
-    # sold_at はオフライン会計の後送時にクライアントの計上時刻を受け取る（なければ受信時刻）
-    session = current_register_session
-    @sale.register_session = session
-    @sale.sold_at = client_sold_at || Time.current
-    @sale.business_date = session&.business_date || Date.current
+    @sale.offline = offline_sale?
+    @review_reasons = []
+    assign_accounting_context
 
     ActiveRecord::Base.transaction do
+      assign_customer
       if @sale.save
         save_sale_details
+        apply_set_promotions
+        apply_coupon
         apply_order_discount
         save_sale_payments(payments)
         save_tax_breakdowns
+        Loyalty.apply_sale!(@sale, recorded_payments(payments))
 
         # Saleモデルのコールバックで pos_token.next_receipt_sequence がインクリメントされているため、
         # 最新の状態をリロードして取得し、クライアントへ返す（オフライン会計用）
         next_sequence = @current_pos.reload.next_receipt_sequence
         # 割引合計を明細から集計してヘッダーに反映
-        @sale.update_columns(total_discount: @sale.saledetails.sum(:discount_amount))
+        @sale.update_columns(
+          total_discount: @sale.saledetails.sum(:discount_amount),
+          discount_approver_id: @discount_approver&.id,
+          review_reasons: @review_reasons.uniq
+        )
 
         JournalEntry.create_from_sale!(@sale, @sale.saledetails, payments)
 
@@ -188,8 +209,12 @@ class Api::V1::SalesController < Api::V1::BaseController
           success: true,
           sale_id: @sale.id,
           receipt_number: @sale.receipt_number,
-          next_receipt_sequence: next_sequence
+          next_receipt_sequence: next_sequence,
+          receipt_url: digital_receipt_url(@sale),
+          points_earned: @sale.points_earned,
+          points_balance: @sale.customer&.reload&.points
         }, status: :created
+        publish_sale_created
       else
         # レシート番号の重複は再送しても解消しないため 409 で区別して返す
         status = @sale.errors.of_kind?(:receipt_number, :taken) ? :conflict : :unprocessable_entity
@@ -197,7 +222,11 @@ class Api::V1::SalesController < Api::V1::BaseController
         raise ActiveRecord::Rollback
       end
     end
-  rescue ArgumentError => e
+  rescue RejectedSale => e
+    render json: { success: false, code: e.code, errors: [ e.message ] }, status: e.status
+  rescue ActiveRecord::RecordInvalid => e
+    render json: { success: false, errors: e.record.errors.full_messages }, status: :unprocessable_entity
+  rescue ArgumentError, RangeError => e
     render json: { success: false, errors: [ e.message ] }, status: :unprocessable_entity
   rescue ActiveRecord::RecordNotUnique
     # 同じ冪等キーの同時送信は、先に登録された会計を返す。それ以外はレシート番号の重複
@@ -224,23 +253,8 @@ class Api::V1::SalesController < Api::V1::BaseController
       return render json: { success: false, message: "該当する会計が見つかりません" }, status: :not_found
     end
 
-    employee_ids = Array(params[:employee_ids]).map(&:to_i).uniq
-    if employee_ids.size < 2
-      return render json: { success: false, message: "取消には2名以上の従業員認証が必要です" }, status: :forbidden
-    end
-
-    owner = @current_pos.store.user
-    employees = owner.employees.where(id: employee_ids)
-    employees = employees.select { |e| e.can_access_store?(@current_pos.store) }
-    if employees.size < 2
-      return render json: { success: false, message: "認証された従業員が不足しているか、店舗権限がありません" }, status: :forbidden
-    end
-
-    without_permission = employees.reject { |e| e.permitted?("refund") }
-    if without_permission.any?
-      names = without_permission.map(&:name).join("、")
-      return render json: { success: false, message: "取消権限がありません: #{names}" }, status: :forbidden
-    end
+    employees = require_dual_approval!(params[:employee_ids], "refund", action_label: "取消")
+    return unless employees
 
     reason = params[:reason].to_s.strip
     if reason.blank?
@@ -267,6 +281,11 @@ class Api::V1::SalesController < Api::V1::BaseController
         raise ActiveRecord::Rollback
       end
 
+      unless consume_approvals(employees, "refund", "void:#{sale.receipt_number}")
+        error_message = "担当者の認証がすでに使用されています。もう一度認証してください"
+        raise ActiveRecord::Rollback
+      end
+
       sale.update!(
         status: :voided,
         voided_at: Time.current,
@@ -274,25 +293,14 @@ class Api::V1::SalesController < Api::V1::BaseController
         voided_by_employee: employees.first
       )
 
-      # 在庫を全明細分戻す（reason: void で監査証跡を残す）
+      # 在庫を全明細分戻し、ポイント・クーポンも元に戻す
       sale.saledetails.each do |sd|
-        product = sd.product
-        next unless product
-        store_stock = StoreStock.find_or_create_by!(store: sale.store, product: product)
-        store_stock.with_lock do
-          store_stock.increment!(:quantity, sd.quantity)
-          StockMovement.create!(
-            store: sale.store,
-            product: product,
-            store_stock: store_stock,
-            sale: sale,
-            pos_token: @current_pos,
-            employee: employees.first,
-            quantity_change: sd.quantity,
-            reason: "void"
-          )
-        end
+        next unless sd.product
+
+        StoreStock.adjust!(store: sale.store, product: sd.product, change: sd.quantity, reason: "void",
+                           employee: employees.first, pos_token: @current_pos, sale: sale)
       end
+      Loyalty.apply_void!(sale)
 
       JournalEntry.create_from_void!(sale, employees.map(&:name))
     end
@@ -301,6 +309,7 @@ class Api::V1::SalesController < Api::V1::BaseController
       return render json: { success: false, message: error_message }, status: :unprocessable_entity
     end
 
+    Webhook.publish(sale.user, "sale.voided", SalePayload.sale(sale))
     render json: {
       success: true,
       sale_id: sale.id,
@@ -328,6 +337,10 @@ class Api::V1::SalesController < Api::V1::BaseController
     end
 
     employee = operator_employee
+    unless employee
+      return render json: { success: false, message: EmployeePermissionAuthorizable::STORE_EMPLOYEE_NOT_FOUND }, status: :forbidden
+    end
+
     addressee = params[:addressee].to_s.strip
     purpose = params[:purpose].to_s.strip.presence || "お品代として"
 
@@ -391,7 +404,7 @@ class Api::V1::SalesController < Api::V1::BaseController
     # receipt_number / sold_at はオフライン同期時にクライアントから送られてくる場合がある
     params.require(:sale).permit(:total_amount, :payment_method, :receipt_number, :subtotal_ex_tax, :tax_amount, :sold_at,
                                  :order_discount_type, :order_discount_value, :order_discount_reason,
-                                 :customer_gender, :customer_age_group)
+                                 :customer_gender, :customer_age_group, :coupon_code, :promotion_discount_total)
   end
 
   # クライアントが送信した販売時刻（オフライン会計用）。不正な形式は無視する
@@ -406,7 +419,7 @@ class Api::V1::SalesController < Api::V1::BaseController
   def operator_employee
     return @operator_employee if defined?(@operator_employee)
     employee_id = params[:employee_id].presence
-    @operator_employee = employee_id ? @current_pos.store.user.employees.find_by(id: employee_id) : nil
+    @operator_employee = employee_id ? find_store_employee(employee_id) : nil
   end
 
   # 支払い明細（複数）のパラメータを配列として取得
@@ -418,7 +431,7 @@ class Api::V1::SalesController < Api::V1::BaseController
     raw.map do |p|
       attrs =
         if p.respond_to?(:permit)
-          p.permit(:method, :amount, :label)
+          p.permit(:method, :amount, :label, :external_reference, :terminal_provider)
         else
           p
         end
@@ -426,7 +439,9 @@ class Api::V1::SalesController < Api::V1::BaseController
       {
         method: attrs[:method].to_i,
         amount: attrs[:amount].to_i,
-        label: attrs[:label].presence
+        label: attrs[:label].presence,
+        external_reference: attrs[:external_reference].presence&.to_s&.slice(0, 100),
+        terminal_provider: attrs[:terminal_provider].presence&.to_s&.slice(0, 40)
       }
     end
   end
@@ -435,6 +450,31 @@ class Api::V1::SalesController < Api::V1::BaseController
   # - 複数支払いが指定されている場合は合計金額の整合性をチェックし、
   #   payment_method カラムには「主たる支払い方法」（現金が含まれていれば現金、なければ最初）を保存する。
   # - 後方互換性のため、paymentsが無い場合は従来通り sale_params をそのまま使う。
+  def recorded_payments(payments)
+    payments.presence || [ { method: @sale.payment_method_before_type_cast, amount: @sale.total_amount } ]
+  end
+
+  # トランザクションの確定後に外部へ通知する
+  def publish_sale_created
+    sale = @sale
+    ActiveRecord.after_all_transactions_commit { Webhook.publish(sale.user, "sale.created", SalePayload.sale(sale)) }
+  end
+
+  def digital_receipt_url(sale)
+    digital_receipt_full_url(sale.public_token) if sale.user.digital_receipt_enabled
+  end
+
+  def assign_customer
+    code = params[:customer_code].presence&.to_s
+    return unless code
+
+    @sale.customer = @sale.user.customers.active.find_by(code: code)
+    return if @sale.customer
+
+    message = "会員が見つかりません: #{code.slice(0, 32)}"
+    @sale.offline? ? @review_reasons << message : raise(RejectedSale.new(message, code: "customer_not_found"))
+  end
+
   def build_sale(payments)
     if payments.present?
       total_from_payments = payments.sum { |p| p[:amount].to_i }
@@ -461,7 +501,7 @@ class Api::V1::SalesController < Api::V1::BaseController
         customer_age_group: sale_params[:customer_age_group].presence
       )
     else
-      Sale.new(sale_params.merge(receipt_number: client_receipt_number))
+      Sale.new(sale_params.except(:coupon_code, :promotion_discount_total, :sold_at).merge(receipt_number: client_receipt_number))
     end
   end
 
@@ -470,83 +510,274 @@ class Api::V1::SalesController < Api::V1::BaseController
   # サーバー側で採番する。他端末・他社のレシート番号を先取りして採番を妨害されるのを防ぐ。
   def client_receipt_number
     value = sale_params[:receipt_number].to_s
-    match = value.match(/-(\d+)-\d{8}\z/)
-    value if match && match[1].to_i == @current_pos.id
+    match = value.match(/\A[A-Za-z0-9]+-[A-Za-z0-9]+-(\d+)-(\d{8})\z/)
+    return unless match && match[1].to_i == @current_pos.id
+
+    value if match[2].to_i.between?(1, @current_pos.next_receipt_sequence + MAX_OFFLINE_SEQUENCE_AHEAD)
   end
+
+  # オフライン会計の後送か（端末がレシート番号を採番済みの会計）
+  def offline_sale?
+    client_receipt_number.present?
+  end
+
+  # 販売時刻・営業日・レジセッションを決める。
+  # オンライン会計はサーバーの時刻を使う。オフライン会計は端末の販売時刻を使い、その時刻に開いていた
+  # レジセッション（＝実際に現金を受け取った営業日）に計上する。
+  def assign_accounting_context
+    now = Time.current
+    session = current_register_session
+    @sale.sold_at = now
+    if @sale.offline? && (sold_at = client_sold_at)
+      if sold_at > now + 5.minutes
+        @review_reasons << "販売時刻が未来のため、受信時刻で登録しました"
+      else
+        @sale.sold_at = sold_at
+        session = session_at(sold_at) || session
+        @review_reasons << "レジ精算の後に届いたオフライン会計です" if session&.closed?
+      end
+    end
+
+    @sale.register_session = session
+    covered = session && session.opened_at <= @sale.sold_at
+    @sale.business_date = covered ? session.business_date : @sale.sold_at.in_time_zone.to_date
+  end
+
+  def session_at(time)
+    @current_pos.register_sessions
+                .where("opened_at <= ?", time)
+                .where("closed_at IS NULL OR closed_at >= ?", time)
+                .order(opened_at: :desc).first
+  end
+
+  def price_policy
+    @price_policy ||= SalePricePolicy.new(store: @sale.store, sold_at: @sale.sold_at)
+  end
+
+  # 通常価格と異なる単価での販売を認める担当者（discount 権限＋PIN認証）。操作者と別の責任者でもよい
+  def discount_approver
+    return @discount_approver if defined?(@discount_approver)
+
+    @discount_approver = approved_employee_for("discount")
+    if @discount_approver.nil? && EmployeePermissionAuthorizable.legacy_operator_auth_allowed?
+      @discount_approver = operator_employee if operator_employee&.permitted?("discount")
+    end
+    @discount_approver
+  end
+
+  # 権限のない価格変更を拒否する。オフライン会計は販売済みの事実を失わないよう登録し、要確認にする
+  def require_discount_approval!(message)
+    return if discount_approver
+
+    if @sale.offline?
+      @review_reasons << message
+    else
+      raise RejectedSale.new("#{message}。値引き権限を持つ担当者の認証が必要です", code: "discount_approval_required", status: :forbidden)
+    end
+  end
+
+  # 明細の税率がマスタと異なる場合、オンラインなら端末のマスタ更新を促して拒否し、オフラインなら要確認にする
+  def check_tax!(product, tax_rate, tax_type, eat_in)
+    return if price_policy.tax_rate?(product, tax_rate, eat_in: eat_in) && tax_type.to_s == product.tax_type
+
+    message = "税率・税区分がマスタと異なります: #{product.name}"
+    if @sale.offline?
+      @review_reasons << message
+    else
+      raise RejectedSale.new("#{message}。商品マスタを同期してください", code: "master_outdated", status: :conflict)
+    end
+  end
+
+  DETAIL_KEYS = [ :product_id, :product_name, :product_code, :quantity, :unit_price, :subtotal, :tax_rate, :tax_amount, :tax_type, :bundle_code,
+                  :original_unit_price, :discount_reason, :weight_grams, :service_type, { options: [] } ].freeze
 
   # 送信された明細（詳細）配列を Sale に紐づけて保存する。
   # セット商品コード付きは save_bundle_detail に委譲し、それ以外は通常商品として処理する。
   def save_sale_details
-    details = params[:details]
-    return unless details.is_a?(Array)
-
-    details.each do |detail|
-      attrs = detail.respond_to?(:permit) ?
-        detail.permit(:product_id, :product_name, :product_code, :quantity, :unit_price, :subtotal,
-                      :tax_rate, :tax_amount, :tax_type, :bundle_code, :original_unit_price, :discount_reason,
-                      :weight_grams) :
-        detail
-
-      # セット商品コードが指定されている場合はセット展開
+    @promotion_lines = []
+    params[:details].each do |detail|
+      attrs = detail.respond_to?(:permit) ? detail.permit(*DETAIL_KEYS) : detail
       bundle_code = attrs[:bundle_code].presence
-      if bundle_code
-        save_bundle_detail(bundle_code, attrs)
-        next
+      # 旧バージョンの端末はセット商品を構成商品ごとの明細で送る（product_id あり）。
+      # その明細をさらにセットとして展開すると数量・在庫が重複するため、通常の商品として扱う
+      bundle_code && attrs[:product_id].blank? ? save_bundle_detail(bundle_code, attrs) : save_product_detail(attrs)
+    end
+  end
+
+  # 通常商品の明細を、価格・税率・年齢確認を検証して保存する
+  def save_product_detail(attrs)
+    product = find_detail_product(attrs)
+    eat_in = attrs[:service_type].to_s.in?(%w[eat_in 1])
+
+    # tax_rate / tax_type: クライアント送信値を優先、なければ商品マスタから取得
+    # （販売時点の値として明細に凍結する）
+    tax_rate = attrs[:tax_rate].present? ? attrs[:tax_rate].to_i : price_policy.tax_rates(product, eat_in: eat_in).first
+    tax_type = detail_tax_type(attrs[:tax_type], product)
+    unit_price = attrs[:unit_price].to_i
+    raise ArgumentError, "明細の単価が負の値です: #{product.name}" if unit_price < 0
+
+    check_tax!(product, tax_rate, tax_type, eat_in)
+    check_age!(product)
+    options = resolve_options(product, attrs[:options])
+    options_price = options.sum { |o| o["price"] }
+
+    # 量り売り（計量）商品: price は100gあたりの単価。重量(g)の入力が必須
+    weight_grams = attrs[:weight_grams].presence&.to_i if product.sold_by_weight
+    if product.sold_by_weight && (weight_grams.blank? || weight_grams <= 0)
+      raise ArgumentError, "量り売り商品には重量(g)の指定が必要です: #{product.name}"
+    end
+
+    quantity = attrs[:quantity].to_i
+    raise ArgumentError, "明細の数量は1以上を指定してください: #{product.name}" if quantity <= 0
+    subtotal = SalePricePolicy.expected_subtotal(unit_price: unit_price, quantity: quantity, weight_grams: weight_grams)
+    if attrs[:subtotal].present? && attrs[:subtotal].to_i != subtotal
+      raise ArgumentError, "明細の小計が単価・数量と一致しません: #{product.name}"
+    end
+
+    # 通常価格・タイムセール以外の単価は値引き（価格変更）。権限を確認し、割引額はサーバーの通常価格から計算する
+    price_kind = price_policy.classify(product, unit_price, eat_in: eat_in, options_price: options_price)
+    original_unit_price = nil
+    discount_amount = 0
+    unless price_kind == :regular
+      require_discount_approval!("通常と異なる価格で販売しています: #{product.name}（#{unit_price}円）") if price_kind.nil?
+      original_unit_price = price_policy.base_price(product, eat_in: eat_in) + options_price
+      regular = SalePricePolicy.expected_subtotal(unit_price: original_unit_price, quantity: quantity, weight_grams: weight_grams)
+      discount_amount = [ regular - subtotal, 0 ].max
+    end
+    promotion = price_kind if price_kind.is_a?(Promotion)
+
+    sale_detail = @sale.saledetails.create!(
+      product_id: product.id,
+      product_name: attrs[:product_name].presence || product.name,
+      quantity: quantity,
+      unit_price: unit_price,
+      subtotal: subtotal,
+      tax_rate: tax_rate,
+      tax_type: tax_type,
+      tax_amount: line_tax_amount(subtotal, tax_rate, tax_type),
+      original_unit_price: original_unit_price,
+      discount_amount: discount_amount,
+      discount_reason: attrs[:discount_reason].presence || promotion&.name,
+      promotion_name: promotion&.name,
+      weight_grams: weight_grams,
+      service_type: eat_in ? :eat_in : :takeout,
+      options: options,
+      cost_price: product.cost_price
+    )
+    @promotion_lines << PromotionLine.new(detail: sale_detail, product: product, quantity: quantity, unit_price: unit_price,
+                                          eligible: price_kind == :regular && weight_grams.nil?)
+    deduct_stock(@sale.store, product, quantity, operator_employee)
+  end
+
+  PromotionLine = Struct.new(:detail, :product, :quantity, :unit_price, :eligible, keyword_init: true)
+
+  # 商品を id または code で特定する。
+  # 特定できない明細を黙って捨てると「何を売ったか」が記録から欠落するため、会計ごと拒否する
+  def find_detail_product(attrs)
+    products = @sale.user.products
+    product = products.find_by(id: attrs[:product_id]) if attrs[:product_id].present?
+    product ||= products.find_by(code: attrs[:product_code]) if attrs[:product_code].present?
+    product || raise(ArgumentError, "明細の商品が見つかりません: #{attrs[:product_name].presence || attrs[:product_code].presence || attrs[:product_id]}")
+  end
+
+  # 選択されたオプション（トッピング等）をマスタから取得し、選択数を確認する
+  def resolve_options(product, ids)
+    ids = Array(ids).map(&:to_i)
+    groups = product.option_groups.includes(:option_items).to_a
+    return [] if ids.empty? && groups.all? { |g| g.min_select.zero? }
+
+    items = groups.flat_map { |g| g.option_items.select { |item| ids.include?(item.id) } }
+    raise ArgumentError, "選択できないオプションが含まれています: #{product.name}" if items.size != ids.uniq.size || ids.uniq.size != ids.size
+
+    groups.each do |group|
+      count = items.count { |item| item.option_group_id == group.id }
+      unless count.between?(group.min_select, group.max_select)
+        raise ArgumentError, "「#{group.name}」は#{group.min_select}〜#{group.max_select}個選択してください: #{product.name}"
       end
+    end
+    items.map { |item| { "id" => item.id, "name" => item.name, "price" => item.price } }
+  end
 
-      # 通常商品: id または code で解決
-      product = nil
-      product = @sale.user.products.find_by(id: attrs[:product_id]) if attrs[:product_id].present?
-      product = @sale.user.products.find_by(code: attrs[:product_code]) if product.nil? && attrs[:product_code].present?
-      # 商品を特定できない明細を黙って捨てると「何を売ったか」が記録から欠落するため、会計ごと拒否する
-      if product.nil?
-        raise ArgumentError, "明細の商品が見つかりません: #{attrs[:product_name].presence || attrs[:product_code].presence || attrs[:product_id]}"
+  # 年齢確認が必要な商品（酒・たばこ等）
+  def check_age!(product)
+    return if product.min_age.nil? || @sale.age_verified
+
+    message = "#{product.min_age}歳以上であることの確認が必要です: #{product.name}"
+    @sale.offline? ? @review_reasons << message : raise(RejectedSale.new(message, code: "age_verification_required"))
+  end
+
+  # まとめ買い割引。端末が計算した額（promotion_discount_total）をサーバーで再計算して照合する。
+  # 送られていない場合（未対応の端末）は適用しない
+  def apply_set_promotions
+    claimed = sale_params[:promotion_discount_total].to_i
+    return if claimed.zero?
+
+    discounts = price_policy.promotions.set_discounts(@promotion_lines)
+    expected = discounts.sum(&:amount)
+    if claimed != expected
+      message = "まとめ買い割引の額が異なります（端末 #{claimed}円 / サーバー #{expected}円）"
+      raise RejectedSale.new("#{message}。商品マスタを同期してください", code: "master_outdated", status: :conflict) unless @sale.offline?
+
+      @review_reasons << message
+      allocate_discount(@sale.saledetails.to_a, claimed, "まとめ買い割引")
+    else
+      discounts.each do |d|
+        allocate_discount(d.lines.map(&:detail), d.amount, d.promotion.name)
+        d.lines.each { |line| line.detail.update!(promotion_name: d.promotion.name) }
       end
+    end
+    @sale.update_columns(promotion_discount_total: claimed)
+  end
 
-      # tax_rate / tax_type: クライアント送信値を優先、なければ商品マスタから取得
-      # （販売時点の値として明細に凍結する）
-      tax_rate = attrs[:tax_rate].present? ? attrs[:tax_rate].to_i : product.tax_rate
-      tax_type = detail_tax_type(attrs[:tax_type], product)
-      unit_price = attrs[:unit_price].to_i
+  # クーポン（会計の小計からの割引。権限者の承認は不要）
+  def apply_coupon
+    code = sale_params[:coupon_code].presence
+    return unless code
+    raise ArgumentError, "クーポンと小計割引は併用できません" if sale_params[:order_discount_type].present?
 
-      raise ArgumentError, "明細の単価が負の値です: #{product.name}" if unit_price < 0
+    coupon = @sale.user.coupons.find_by(code: code.to_s.strip.upcase)
+    raise RejectedSale.new("クーポンが見つかりません", code: "coupon_invalid") unless coupon
 
-      # 量り売り（計量）商品: price は100gあたりの単価。重量(g)の入力が必須
-      weight_grams = attrs[:weight_grams].presence&.to_i
-      if product.sold_by_weight
-        raise ArgumentError, "量り売り商品には重量(g)の指定が必要です: #{product.name}" if weight_grams.blank? || weight_grams <= 0
-      end
+    details = @sale.saledetails.to_a
+    total = details.sum(&:subtotal)
+    discount = coupon.discount_for(total)
+    begin
+      coupon.redeem!(total, @sale.business_date)
+    rescue Coupon::Unusable => e
+      raise RejectedSale.new(e.message, code: "coupon_invalid") unless @sale.offline?
 
-      quantity = attrs[:quantity].to_i
-      raise ArgumentError, "明細の数量は1以上を指定してください: #{product.name}" if quantity <= 0
-      subtotal = attrs[:subtotal].present? ? attrs[:subtotal].to_i : unit_price * quantity
-      tax_amount = line_tax_amount(subtotal, tax_rate, tax_type)
+      @review_reasons << "#{e.message}（#{coupon.name}）"
+    end
+    allocate_discount(details, discount, coupon.name)
+    @sale.update_columns(coupon_id: coupon.id, order_discount_type: Sale.order_discount_types[coupon.discount_type],
+                         order_discount_value: coupon.discount_value, order_discount_total: discount, order_discount_reason: coupon.name)
+  end
 
-      # 割引追跡: クライアントから original_unit_price が送られた場合に割引額を計算
-      original_unit_price = attrs[:original_unit_price].present? ? attrs[:original_unit_price].to_i : nil
-      discount_amount = if original_unit_price.present? && original_unit_price > unit_price
-        (original_unit_price - unit_price) * quantity
-      else
-        0
-      end
-      discount_reason = attrs[:discount_reason].presence
+  # 割引額を明細へ按分する（端数は最後の明細に寄せる）。
+  # 明細の subtotal を「実際に請求した額」に更新するため、税率別内訳・返品・レポートすべてが割引後の金額で整合する。
+  def allocate_discount(details, discount_total, reason)
+    details = details.sort_by(&:id)
+    base_total = details.sum(&:subtotal)
+    raise ArgumentError, "割引対象の明細がありません" if details.empty?
+    raise ArgumentError, "割引額が明細合計を超えています" if discount_total > base_total
+    return if discount_total <= 0
 
-      sale_detail = @sale.saledetails.create!(
-        product_id: product.id,
-        product_name: attrs[:product_name].presence || product.name,
-        quantity: quantity,
-        unit_price: unit_price,
-        subtotal: subtotal,
-        tax_rate: tax_rate,
-        tax_type: tax_type,
-        tax_amount: tax_amount,
-        original_unit_price: original_unit_price,
-        discount_amount: discount_amount,
-        discount_reason: discount_reason,
-        weight_grams: weight_grams
+    allocated = details.map { |d| discount_total * d.subtotal / base_total }
+    remainder = discount_total - allocated.sum
+    # 端数は金額に余裕のある明細に寄せる（0円の明細が負にならないように）
+    allocated[details.rindex { |d| d.subtotal - allocated[details.index(d)] >= remainder }] += remainder
+
+    details.each_with_index do |detail, idx|
+      next if allocated[idx] <= 0
+      new_subtotal = detail.subtotal - allocated[idx]
+      detail.update!(
+        original_unit_price: detail.original_unit_price || detail.unit_price,
+        unit_price: new_subtotal / detail.quantity,
+        subtotal: new_subtotal,
+        tax_amount: line_tax_amount(new_subtotal, detail.tax_rate, detail.tax_type),
+        discount_amount: detail.discount_amount + allocated[idx],
+        discount_reason: detail.discount_reason.presence || reason
       )
-
-      deduct_stock(@sale.store, product, sale_detail.quantity, operator_employee)
     end
   end
 
@@ -587,14 +818,11 @@ class Api::V1::SalesController < Api::V1::BaseController
     value = sale_params[:order_discount_value].to_i
     raise ArgumentError, "割引値は1以上を指定してください" if value <= 0
 
-    employee = operator_employee
-    unless employee&.permitted?("discount")
-      raise ArgumentError, "小計割引の権限がありません"
-    end
+    require_discount_approval!("小計割引が適用されています")
 
     # 後続の税計算（save_tax_breakdowns）が同じインスタンスを参照するため、
     # 新規クエリではなくアソシエーションにロード済みのオブジェクトを更新する
-    details = @sale.saledetails.sort_by(&:id)
+    details = @sale.saledetails.to_a
     raise ArgumentError, "割引対象の明細がありません" if details.empty?
 
     base_total = details.sum(&:subtotal)
@@ -605,26 +833,10 @@ class Api::V1::SalesController < Api::V1::BaseController
       else
         value
       end
-
-    raise ArgumentError, "割引額が明細合計を超えています" if discount_total > base_total
     return if discount_total <= 0
 
-    allocated = details.map { |d| discount_total * d.subtotal / base_total }
-    allocated[-1] += discount_total - allocated.sum
-
     reason = sale_params[:order_discount_reason].presence
-    details.each_with_index do |detail, idx|
-      next if allocated[idx] <= 0
-      new_subtotal = detail.subtotal - allocated[idx]
-      detail.update!(
-        original_unit_price: detail.original_unit_price || detail.unit_price,
-        unit_price: new_subtotal / detail.quantity,
-        subtotal: new_subtotal,
-        tax_amount: line_tax_amount(new_subtotal, detail.tax_rate, detail.tax_type),
-        discount_amount: detail.discount_amount + allocated[idx],
-        discount_reason: detail.discount_reason.presence || reason
-      )
-    end
+    allocate_discount(details, discount_total, reason)
 
     @sale.update_columns(
       order_discount_type: Sale.order_discount_types[type],
@@ -686,8 +898,14 @@ class Api::V1::SalesController < Api::V1::BaseController
     bundle_qty = attrs[:quantity].to_i
     bundle_qty = 1 if bundle_qty <= 0
 
-    bundle_total = attrs[:subtotal].present? ? attrs[:subtotal].to_i : bundle.price * bundle_qty
+    bundle_total = attrs[:subtotal].present? ? attrs[:subtotal].to_i : (bundle.price.positive? ? bundle.price : items_total(bundle)) * bundle_qty
     raise ArgumentError, "セット商品の金額が負の値です: #{bundle.name}" if bundle_total < 0
+
+    # セット価格が0円の場合は構成商品の合計で販売する
+    expected_total = (bundle.price.positive? ? bundle.price : items_total(bundle)) * bundle_qty
+    if bundle_total != expected_total
+      require_discount_approval!("セット商品が通常と異なる価格で販売されています: #{bundle.name}（#{bundle_total}円）")
+    end
 
     items = bundle.product_bundle_items.select(&:product)
     raise ArgumentError, "セット商品に構成商品がありません: #{bundle.name}" if items.empty?
@@ -707,7 +925,7 @@ class Api::V1::SalesController < Api::V1::BaseController
       item_qty = item.quantity * bundle_qty
       subtotal = allocated[idx]
       unit_price = subtotal / item_qty
-      tax_rate = product.tax_rate
+      tax_rate = price_policy.tax_rates(product).first
       # バンドル販売価格は「支払額」なので、構成品の税区分によらず税込（内税）として扱う
       tax_amount = line_tax_amount(subtotal, tax_rate, :inclusive)
 
@@ -719,32 +937,24 @@ class Api::V1::SalesController < Api::V1::BaseController
         subtotal: subtotal,
         tax_rate: tax_rate,
         tax_type: :inclusive,
-        tax_amount: tax_amount
+        tax_amount: tax_amount,
+        cost_price: product.cost_price
       )
+      check_age!(product)
 
       deduct_stock(@sale.store, product, item_qty, operator_employee)
     end
+  end
+
+  def items_total(bundle)
+    bundle.product_bundle_items.sum { |item| item.product ? price_policy.base_price(item.product) * item.quantity : 0 }
   end
 
   # 店舗在庫を数量分だけ減らし、監査証跡として在庫変動履歴を残す
   def deduct_stock(store, product, quantity, employee = nil)
     return if store.nil? || quantity <= 0
 
-    store_stock = StoreStock.find_or_create_by!(store: store, product: product)
-    store_stock.with_lock do
-      store_stock.quantity = (store_stock.quantity || 0) - quantity
-      store_stock.save!
-      StockMovement.create!(
-        store: store,
-        product: product,
-        store_stock: store_stock,
-        sale: @sale,
-        pos_token: @sale.pos_token,
-        employee: employee,
-        quantity_change: -quantity,
-        reason: "sale"
-      )
-    end
+    StoreStock.adjust!(store: store, product: product, change: -quantity, reason: "sale", employee: employee, pos_token: @sale.pos_token, sale: @sale)
   end
 
   # 支払い情報を sale_payments に保存する。
@@ -755,7 +965,9 @@ class Api::V1::SalesController < Api::V1::BaseController
         @sale.sale_payments.create!(
           method: p[:method],
           amount: p[:amount],
-          label: p[:label]
+          label: p[:label],
+          external_reference: p[:external_reference],
+          terminal_provider: p[:terminal_provider]
         )
       end
     else

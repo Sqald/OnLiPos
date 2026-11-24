@@ -3,6 +3,9 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/credential_pad.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_header.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:onlipos/login/login_api.dart';
 import 'package:onlipos/sale/sale_scan_view.dart';
@@ -19,27 +22,20 @@ class OperatorInputView extends StatefulWidget {
 
 class _OperatorInputViewState extends State<OperatorInputView> {
   final TextEditingController _controller = TextEditingController();
-  final FocusNode _focusNode = FocusNode();
+  String? _error;
   bool _isLoading = false;
 
   @override
   void dispose() {
     _controller.dispose();
-    _focusNode.dispose();
     super.dispose();
   }
 
   // 担当者コードを検証し、店舗モードに応じて次画面(卓番入力 or 売上画面)へ遷移する
   Future<void> _login() async {
-    final operatorCode = _controller.text;
+    final operatorCode = _controller.text.trim();
     if (operatorCode.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('担当者コードを入力してください。'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      _focusNode.requestFocus();
+      setState(() => _error = '従業員番号を入力してください');
       return;
     }
 
@@ -88,62 +84,41 @@ class _OperatorInputViewState extends State<OperatorInputView> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
-        );
+        _controller.clear();
+        setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
       }
     } finally {
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
-        _focusNode.requestFocus();
       }
     }
   }
 
-  // 担当者コード入力欄と確定ボタンを表示する
+  // 従業員番号の入力欄（テンキー付き）を表示する
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('担当者コード入力'),
-        automaticallyImplyLeading: false,
+      appBar: AppHeader(
+        widget.isListView ? 'お会計（一覧から選ぶ）' : 'お会計',
+        subtitle: '担当する人の番号を入力してください',
       ),
       body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              const Text('担当者コードを入力してください', style: TextStyle(fontSize: 24)),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: 300,
-                child: TextField(
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  autofocus: true,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: '担当者コード',
-                  ),
-                  onSubmitted: (value) => _login(),
-                ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 700),
+            child: SectionCard(
+              title: 'だれが担当しますか？',
+              child: CredentialPad(
+                codeController: _controller,
+                loading: _isLoading,
+                error: _error,
+                submitLabel: '会計を始める',
+                onSubmit: _login,
               ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: 300,
-                height: 50,
-                child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : ElevatedButton(
-                        onPressed: _login,
-                        child: const Text('確定'),
-                      ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

@@ -4,17 +4,17 @@ class Dashboard::ProductCategoriesController < Dashboard::BaseController
 
   # 表示順・名前順のカテゴリ一覧
   def index
-    @categories = current_user.product_categories.order(:display_order, :name)
+    @categories = current_account.product_categories.order(:display_order, :name)
   end
 
   # 新規登録フォーム
   def new
-    @category = current_user.product_categories.build
+    @category = current_account.product_categories.build
   end
 
   # カテゴリを登録する
   def create
-    @category = current_user.product_categories.build(category_params)
+    @category = current_account.product_categories.build(category_params)
     if @category.save
       redirect_to dashboard_product_categories_path, notice: "カテゴリを作成しました"
     else
@@ -44,7 +44,7 @@ class Dashboard::ProductCategoriesController < Dashboard::BaseController
 
   # 自ユーザー配下のカテゴリをIDで取得する
   def set_category
-    @category = current_user.product_categories.find(params[:id])
+    @category = current_account.product_categories.find(params[:id])
   end
 
   # カテゴリフォームのStrong Parameters

@@ -1,0 +1,36 @@
+<%# ダッシュボード: 会員の詳細 %>
+<%= page_header @customer.name.presence || "会員 #{@customer.code}", back: true do %>
+  <% if can_write? && !@customer.anonymized_at %><%= link_to "編集", edit_dashboard_customer_path(@customer), class: "btn btn-secondary" %><% end %>
+<% end %>
+<div class="kpis">
+  <div class="kpi"><div class="kpi-label">ポイント</div><div class="kpi-value"><%= number_with_delimiter(@customer.points) %><small>pt</small></div></div>
+  <div class="kpi"><div class="kpi-label">掛売の残高</div><div class="kpi-value"><%= yen(@customer.receivable) %></div></div>
+  <div class="kpi"><div class="kpi-label">来店</div><div class="kpi-value"><%= @customer.visits_count %><small>回</small></div></div>
+</div>
+<%= detail_table([ [ "会員番号", @customer.code ], [ "名前", @customer.name ], [ "電話", @customer.phone ], [ "メール", @customer.email ], [ "誕生日", @customer.birthday && l(@customer.birthday) ], [ "メモ", @customer.note ] ]) %>
+<% if can_write? %>
+  <h3>ポイントの調整・掛売の入金</h3>
+  <div class="filters">
+    <%= form_with url: adjust_dashboard_customer_path(@customer), method: :post do |f| %>
+      <div class="filter-row">
+        <div class="filter-item wide"><%= f.label :target, "内容" %><%= f.select :target, [ [ "ポイントを増やす・減らす（減らすときは -100 のように入力）", "points" ], [ "掛売の入金を受け取った", "receivable" ] ] %></div>
+        <div class="filter-item"><%= f.label :amount, "ポイント数・金額" %><%= f.number_field :amount, required: true %></div>
+        <div class="filter-item wide"><%= f.label :note, "理由" %><%= f.text_field :note, required: true %></div>
+        <div class="filter-item"><%= f.submit "登録する", class: "btn btn-primary" %></div>
+      </div>
+    <% end %>
+  </div>
+<% end %>
+<h3>購入の履歴</h3>
+<%= data_table([ "日時", "店舗", "レシート番号", "金額" ], @sales.map { |s| [ datetime(s.sold_at), s.store.name, link_to(s.receipt_number, dashboard_sale_detail_path(s)), yen(s.total_amount) ] }, empty: "購入の履歴はありません。") %>
+<h3>ポイントの履歴</h3>
+<%= data_table([ "日時", "種類", "増減", "残り", "メモ" ], @point_transactions.map { |t| [ datetime(t.created_at), PointTransaction::KIND_LABELS[t.kind], t.points, t.balance, t.note ] }, empty: "ポイントの履歴はありません。") %>
+<h3>掛売の履歴</h3>
+<%= data_table([ "日時", "増減", "残高", "メモ" ], @receivables.map { |t| [ datetime(t.created_at), yen(t.amount), yen(t.balance), t.note ] }, empty: "掛売の履歴はありません。") %>
+<% if can_write? && !@customer.anonymized_at %>
+  <section class="danger-zone" style="margin-top: 2rem">
+    <h2>個人情報の削除</h2>
+    <p>名前・電話・メールなどを消します。取引の記録は残ります。この操作は元に戻せません。</p>
+    <%= button_to "個人情報を削除する", anonymize_dashboard_customer_path(@customer), method: :post, class: "btn btn-danger-outline", form: { data: { turbo_confirm: "元に戻せません。個人情報を削除しますか？" } } %>
+  </section>
+<% end %>

@@ -3,6 +3,9 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_theme.dart';
+import 'package:onlipos/ui/app_header.dart';
 import 'package:onlipos/inventory/stock_check_api.dart';
 
 class StockCheckView extends StatefulWidget {
@@ -71,42 +74,33 @@ class _StockCheckViewState extends State<StockCheckView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('在庫確認'),
+      appBar: AppHeader(
+        '在庫を見る',
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
+          OutlinedButton.icon(
             onPressed: _loadStocks,
-            tooltip: '再読み込み',
+            icon: const Icon(Icons.refresh, size: 20),
+            label: const Text('最新にする'),
+            style: OutlinedButton.styleFrom(minimumSize: const Size(64, 44)),
           ),
         ],
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+          Container(
+            color: AppColors.surface,
+            padding: const EdgeInsets.all(12),
             child: TextField(
               controller: _searchController,
-              decoration: const InputDecoration(
-                hintText: '商品名 / JANコードで絞り込み',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
-                isDense: true,
+              decoration: InputDecoration(
+                hintText: '商品名・商品コードで探す',
+                prefixIcon: const Icon(Icons.search),
+                contentPadding: EdgeInsets.zero,
+                suffixText: _isLoading ? null : '${_filtered.length}件　',
               ),
               onChanged: (v) => setState(() => _searchQuery = v),
             ),
           ),
-          if (!_isLoading && _errorMessage == null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  '${_filtered.length}件',
-                  style: const TextStyle(color: Colors.grey, fontSize: 13),
-                ),
-              ),
-            ),
           Expanded(child: _buildBody()),
         ],
       ),
@@ -115,49 +109,51 @@ class _StockCheckViewState extends State<StockCheckView> {
 
   // 読込中/エラー/空データ/一覧表示の各状態に応じた本体ウィジェットを返す
   Widget _buildBody() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
     if (_errorMessage != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-            const SizedBox(height: 12),
-            ElevatedButton(onPressed: _loadStocks, child: const Text('再試行')),
-          ],
+      return EmptyState(
+        icon: Icons.cloud_off,
+        title: '読み込めませんでした',
+        message: _errorMessage,
+        action: ElevatedButton(
+          onPressed: _loadStocks,
+          child: const Text('もう一度読み込む'),
         ),
       );
     }
     final items = _filtered;
     if (items.isEmpty) {
-      return const Center(child: Text('在庫データがありません'));
+      return EmptyState(
+        icon: Icons.warehouse_outlined,
+        title: _searchQuery.isEmpty ? '在庫がまだ登録されていません' : '見つかりませんでした',
+      );
     }
     return ListView.separated(
+      padding: const EdgeInsets.all(12),
       itemCount: items.length,
-      separatorBuilder: (context, index) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const SizedBox(height: 6),
       itemBuilder: (context, index) {
         final s = items[index];
-        final qty = s['quantity'] as int? ?? 0;
-        final isLow = qty <= 0;
-        return ListTile(
-          title: Text(s['product_name']?.toString() ?? ''),
-          subtitle: Text(s['product_code']?.toString() ?? ''),
-          trailing: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: isLow ? Colors.red[50] : Colors.green[50],
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: isLow ? Colors.red : Colors.green),
-            ),
-            child: Text(
-              '$qty',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: isLow ? Colors.red : Colors.green[800],
-              ),
+        final quantity = s['quantity'] as int? ?? 0;
+        return Card(
+          child: ListTile(
+            title: Text(s['product_name']?.toString() ?? ''),
+            subtitle: Text(s['product_code']?.toString() ?? ''),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (quantity <= 0)
+                  const StatusBadge('在庫なし', type: MessageType.error),
+                const SizedBox(width: 14),
+                Text(
+                  '$quantity 個',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: quantity <= 0 ? AppColors.danger : AppColors.ink,
+                  ),
+                ),
+              ],
             ),
           ),
         );

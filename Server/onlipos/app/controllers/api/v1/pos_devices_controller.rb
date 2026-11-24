@@ -2,6 +2,8 @@
 # login のみ POS トークン未取得の状態で呼ばれるため認証を除外し、それ以外のアクションは
 # BaseController の authenticate_pos_token で @current_pos がセットされている前提で動く。
 class Api::V1::PosDevicesController < Api::V1::BaseController
+  include EmployeePinAuthenticatable
+
   before_action :authenticate_pos_token, except: [ :login ]
 
   # POST /api/v1/pos_devices/login — POS端末そのもののログイン（ユーザー名・店舗名・POS名＋パスワード）。
@@ -18,7 +20,8 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     store = user&.stores&.find_by(ascii_name: login_params[:storeName])
     @pos_token = store&.pos_tokens&.find_by(ascii_name: login_params[:posName])
 
-    if @pos_token&.authenticate(login_params[:password])
+    # 認証済みの端末はパスワードが消去されている（password_digest が空）
+    if @pos_token&.password_digest.present? && @pos_token.authenticate(login_params[:password])
       reset_pos_login_failures
       # 管理画面で生成した初期パスワードは2週間で失効する（再設定で新しいパスワードを発行する）
       if @pos_token.password_expired?
@@ -26,6 +29,10 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
           success: false,
           message: "パスワードの有効期限が切れています。管理画面で端末のパスワードを再設定してください。"
         }, status: :unauthorized
+      end
+
+      if @pos_token.disabled? || user.suspended?
+        return render json: { success: false, message: "この端末（またはご契約のアカウント）は停止されています" }, status: :unauthorized
       end
 
       # 認証済みの端末はトークンで認証する（トークンは無期限）。初期パスワードは使い捨てなので消去する
@@ -65,8 +72,9 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
     owner = @current_pos.store.user
     employee = owner.employees.find_by(code: user_login_params[:code])
 
-    if employee
-      render json: { success: true, name: employee.name, employee_id: employee.id, permissions: employee.permission_keys }
+    # PINを確認していないため、権限の一覧は返さない（承認に使える担当者の探索を防ぐ）
+    if employee&.can_access_store?(@current_pos.store)
+      render json: { success: true, name: employee.name, employee_id: employee.id, permissions: [] }
     else
       render json: { success: false, message: I18n.t("api.v1.pos_devices.check_operator.failure", default: "担当者が見つかりません") }, status: :not_found
     end
@@ -233,9 +241,8 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
       return render json: { success: false, message: "担当者が見つかりません" }, status: :forbidden
     end
 
-    unless employee.permitted?("cash_pickup")
-      return render json: { success: false, message: "途中回収の権限がありません" }, status: :forbidden
-    end
+    authorize_employee!(employee, "cash_pickup")
+    return if performed?
 
     amount = pickup_params[:amount].to_i
     if amount <= 0
@@ -344,6 +351,10 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
   # 「あるべきレジ金(expected_amount)」を返し、クライアント側はそれを基準に
   # 入力中も差異計算を行える。
   def cash_check_context
+    # 理論在高は現金の過不足を隠す手掛かりになるため、レジ金を扱う担当者のみ参照できる
+    require_any_approval!("cash_check", "close_register")
+    return if performed?
+
     previous_log, _opening_log, last_amount, expected_amount = cash_check_baseline
 
     render json: {
@@ -364,8 +375,12 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
       return render json: { success: false, message: I18n.t("api.v1.pos_devices.open.employee_not_found") }, status: :forbidden
     end
 
-    unless employee.permitted?("cash_check")
-      return render json: { success: false, message: "点検・精算レポートの権限がありません" }, status: :forbidden
+    # 精算直後のZレポート印字は close_register の承認でも行える
+    if employee.permitted?("close_register") && operator_approved?(employee, "close_register")
+      nil
+    else
+      authorize_employee!(employee, "cash_check")
+      return if performed?
     end
 
     if params[:z_number].present?
@@ -395,35 +410,20 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
       return render json: { success: false, message: "不明な権限が指定されました" }, status: :bad_request
     end
 
-    # アクセス元のPOS端末が所属する店舗のオーナー配下の従業員から検索
-    employee = @current_pos.store.user.employees.find_by(code: user_login_params[:code])
-
-    # 従業員が存在しない、またはPINが空の場合は即座に失敗させる
-    if employee.nil? || user_login_params[:pin].blank?
-      return render json: { success: false, message: not_found_message }, status: :unauthorized
-    end
-
-    if employee.access_locked?
-      return render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.locked", default: "アカウントがロックされています") }, status: :forbidden
-    end
-
-    unless employee.authenticate_pin(user_login_params[:pin])
-      employee.increment_failed_attempts
-      return render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.failure", default: "PINが正しくありません") }, status: :unauthorized
-    end
-
-    employee.unlock_access!
-
-    unless employee.can_access_store?(@current_pos.store)
-      return render json: { success: false, message: I18n.t("api.v1.pos_devices.top_user_login.not_authorized_for_store", default: "店舗権限がありません") }, status: :forbidden
-    end
+    employee = authenticated_employee(not_found_message: not_found_message)
+    return unless employee
 
     if permission
-      authorize_employee!(employee, permission)
+      require_permission!(employee, permission)
       return if performed?
     end
 
-    render json: { success: true, employee_id: employee.id, employee_name: employee.name, permissions: employee.permission_keys }
+    # 以後の操作APIで提示する承認トークンを発行する
+    approval, approval_token = OperatorApproval.issue!(employee: employee, pos_token: @current_pos, permission: permission)
+    render json: {
+      success: true, employee_id: employee.id, employee_name: employee.name, permissions: employee.permission_keys,
+      approval_token: approval_token, approval_permission: permission, approval_expires_at: approval.expires_at
+    }
   end
 
   # ブルートフォース対策の失敗回数上限（1時間あたり）。
@@ -684,28 +684,12 @@ class Api::V1::PosDevicesController < Api::V1::BaseController
                 .to_i
   end
 
-  # 指定日時以降のこのPOSの現金返金合計。
-  # sale.payment_method（主たる支払い方法）ではなく、元売上の実際の現金支払い比率で按分する。
-  # 按分式: refund.total_amount × (元売上の現金支払い額 / 元売上合計)
+  # 指定日時以降のこのPOSの現金返金合計（返金の決済手段別内訳から集計）
   def refund_cash_since(since)
-    Refund
-      .joins(:sale)
-      .joins(
-        "LEFT JOIN (
-          SELECT sale_id, SUM(amount) AS cash_amount
-          FROM sale_payments
-          WHERE method = 0
-          GROUP BY sale_id
-        ) AS cash_sums ON cash_sums.sale_id = sales.id"
-      )
-      .where(sales: {
-               user_id: @current_pos.store.user_id,
-               store_id: @current_pos.store_id,
-               pos_token_id: @current_pos.id
-             })
-      .where("refunds.created_at > ?", since)
-      .where("sales.total_amount > 0")
-      .sum("ROUND(refunds.total_amount::numeric * COALESCE(cash_sums.cash_amount, 0) / sales.total_amount)")
-      .to_i
+    RefundPayment.cash
+                 .joins(:refund)
+                 .where(refunds: { pos_token_id: @current_pos.id })
+                 .where("refunds.created_at > ?", since)
+                 .sum(:amount)
   end
 end

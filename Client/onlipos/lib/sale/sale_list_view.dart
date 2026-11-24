@@ -1,62 +1,23 @@
 // 一覧選択方式の売上登録画面（バーコードスキャンではなく、商品/セット一覧から
 // タップして数量を増減させるUI）。商品タブとセット商品タブを切り替えて操作する。
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_theme.dart';
+import 'package:onlipos/ui/app_header.dart';
+import 'package:onlipos/sale/cart_panel.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:onlipos/login/operator_input_view.dart';
+import 'package:onlipos/product/catalog_service.dart';
 import 'package:onlipos/product/product.dart';
+import 'package:onlipos/product/product_image.dart';
 import 'package:onlipos/product/product_repository.dart';
+import 'package:onlipos/sale/cart_pricing.dart';
+import 'package:onlipos/sale/option_select_dialog.dart';
 import 'package:onlipos/sale/payment_view.dart';
+import 'package:onlipos/sale/weight_input_dialog.dart';
 import 'package:onlipos/sale/sale_item.dart';
 import 'package:onlipos/sale/price_edit_dialog.dart';
 import 'package:onlipos/sale/transfer_order_api.dart';
-
-// ─── データモデル ─────────────────────────────────────────────────
-
-/// 一覧表示用の単品商品1行分（選択数量・税額を保持）。
-class _ProductItem {
-  final Product product;
-  // null の場合は product.price を使用。値引き・賞味期限値変更などで上書きする
-  final int? overridePrice;
-  // 値引き理由（手動値引き時のみ）
-  final String? discountReason;
-  int quantity;
-
-  _ProductItem({
-    required this.product,
-    this.overridePrice,
-    this.discountReason,
-    this.quantity = 0,
-  });
-
-  int get effectivePrice => overridePrice ?? product.price;
-  int get subtotal => effectivePrice * quantity;
-  int get taxAmount {
-    final taxRate = product.taxRate;
-    final exTax = (subtotal * 100 / (100 + taxRate)).floor();
-    return subtotal - exTax;
-  }
-}
-
-/// 一覧表示用のセット商品1行分（構成商品を事前展開した単価・税額を保持）。
-class _BundleItem {
-  final ProductBundle bundle;
-  int quantity = 0;
-
-  /// 1セット分の実際の合計価格（bundle.price > 0 ならそれ、0なら構成商品合計）
-  final int pricePerUnit;
-
-  /// 1セット分の消費税額
-  final int taxPerUnit;
-
-  _BundleItem({
-    required this.bundle,
-    this.pricePerUnit = 0,
-    this.taxPerUnit = 0,
-  });
-
-  int get subtotal => pricePerUnit * quantity;
-  int get taxAmount => taxPerUnit * quantity;
-}
 
 // ─── ウィジェット ─────────────────────────────────────────────────
 
@@ -79,10 +40,10 @@ class _SaleListViewState extends State<SaleListView>
   final ProductRepository _repo = ProductRepository();
   final TextEditingController _searchController = TextEditingController();
 
-  List<_ProductItem> _allProductItems = [];
-  List<_ProductItem> _filteredProductItems = [];
-  List<_BundleItem> _allBundleItems = [];
-  List<_BundleItem> _filteredBundleItems = [];
+  List<ScannedItem> _allProductItems = [];
+  List<ScannedItem> _filteredProductItems = [];
+  List<ScannedItem> _allBundleItems = [];
+  List<ScannedItem> _filteredBundleItems = [];
 
   bool _isLoading = true;
   late TabController _tabController;
@@ -90,17 +51,20 @@ class _SaleListViewState extends State<SaleListView>
 
   bool get _isClient => _posRole == 'client';
 
-  int get _totalItems =>
-      _allProductItems.fold(0, (s, i) => s + i.quantity) +
-      _allBundleItems.fold(0, (s, i) => s + i.quantity);
+  // 自動値引き・税の端数処理の設定
+  CartPricing _pricing = const CartPricing();
+  static const bool _eatIn = false;
 
-  int get _totalAmount =>
-      _allProductItems.fold(0, (s, i) => s + i.subtotal) +
-      _allBundleItems.fold(0, (s, i) => s + i.subtotal);
+  // 数量が1以上の行（これがそのままカートになる）
+  List<ScannedItem> get _cart => [
+    ..._allProductItems,
+    ..._allBundleItems,
+  ].where((i) => i.quantity > 0).toList();
 
-  int get _totalTax =>
-      _allProductItems.fold(0, (s, i) => s + i.taxAmount) +
-      _allBundleItems.fold(0, (s, i) => s + i.taxAmount);
+  CartQuote get _quote => _pricing.quote(_cart);
+  int get _totalItems => _quote.itemCount;
+  int get _totalAmount => _quote.total;
+  int get _totalTax => _quote.tax;
 
   @override
   void initState() {
@@ -129,36 +93,21 @@ class _SaleListViewState extends State<SaleListView>
     final products = await _repo.getAllProducts();
     final bundles = await _repo.getAllBundles();
 
-    // バンドルごとに構成商品を展開し、税額と合計価格を事前計算する
-    final List<_BundleItem> bundleItems = [];
+    final pricing = await CatalogService.instance.cartPricing();
+    final List<ScannedItem> bundleItems = [];
     for (final b in bundles) {
-      int taxPerUnit = 0;
-      int componentTotal = 0;
-      final expandedProducts = await _repo.expandBundle(b);
-      for (final ep in expandedProducts) {
-        final bItem = b.items.firstWhere(
-          (i) => i.productId == ep.id,
-          orElse: () => BundleItem(productId: ep.id, quantity: 1),
-        );
-        final qty = bItem.quantity;
-        final sub = ep.price * qty;
-        final exTax = (sub * 100 / (100 + ep.taxRate)).floor();
-        taxPerUnit += sub - exTax;
-        componentTotal += sub;
-      }
-      final pricePerUnit = b.price > 0 ? b.price : componentTotal;
-      bundleItems.add(
-        _BundleItem(
-          bundle: b,
-          pricePerUnit: pricePerUnit,
-          taxPerUnit: taxPerUnit,
-        ),
-      );
+      final item = await _repo.bundleItem(b, quantity: 0);
+      if (item != null) bundleItems.add(item);
     }
 
     if (!mounted) return;
     setState(() {
-      _allProductItems = products.map((p) => _ProductItem(product: p)).toList();
+      _pricing = pricing;
+      _allProductItems = products
+          .map((p) => ScannedItem(product: p, quantity: 0, eatIn: _eatIn))
+          .toList();
+      // タイムセールの価格を一覧に反映する
+      _pricing.quote(_allProductItems);
       _allBundleItems = bundleItems;
       _isLoading = false;
       _applyFilter();
@@ -170,31 +119,114 @@ class _SaleListViewState extends State<SaleListView>
     final q = _searchController.text.trim().toLowerCase();
     setState(() {
       if (q.isEmpty) {
-        _filteredProductItems = List.of(_allProductItems);
+        _filteredProductItems = _groupVariants(_allProductItems);
         _filteredBundleItems = List.of(_allBundleItems);
       } else {
-        _filteredProductItems = _allProductItems
+        _filteredProductItems = _groupVariants(
+          _allProductItems.where(
+            (i) =>
+                i.product.name.toLowerCase().contains(q) ||
+                i.product.code.toLowerCase().contains(q),
+          ),
+        );
+        _filteredBundleItems = _allBundleItems
             .where(
               (i) =>
                   i.product.name.toLowerCase().contains(q) ||
                   i.product.code.toLowerCase().contains(q),
             )
             .toList();
-        _filteredBundleItems = _allBundleItems
-            .where(
-              (i) =>
-                  i.bundle.name.toLowerCase().contains(q) ||
-                  i.bundle.code.toLowerCase().contains(q),
-            )
-            .toList();
       }
     });
   }
 
-  void _incrementProduct(int indexInFiltered) {
+  Future<void> _incrementProduct(int indexInFiltered) async {
+    var item = _filteredProductItems[indexInFiltered];
+    // バリエーション（色・サイズなど）のある商品は、選んでから登録する
+    if (!_isExtraRow(item) && item.product.variantGroup != null) {
+      final chosen = await _chooseVariant(item.product);
+      if (chosen == null || !mounted) return;
+      item = chosen;
+    }
+    // 量り売り・オプションのある商品は、入力内容ごとに別の行として加える
+    if (item.weightGrams == null && item.product.soldByWeight) {
+      final grams = await showDialog<int>(
+        context: context,
+        builder: (_) => WeightInputDialog(product: item.product),
+      );
+      if (grams == null) return;
+      return _insertRow(
+        ScannedItem(product: item.product, weightGrams: grams, eatIn: _eatIn),
+      );
+    }
+    if (item.options.isEmpty && item.product.optionGroups.isNotEmpty) {
+      final options = await showOptionSelectDialog(context, item.product);
+      if (options == null) return;
+      if (options.isNotEmpty) {
+        return _insertRow(
+          ScannedItem(product: item.product, options: options, eatIn: _eatIn),
+        );
+      }
+    }
+    if (!mounted) return;
+    setState(() => item.quantity++);
+  }
+
+  Future<ScannedItem?> _chooseVariant(Product product) {
+    final variants = _allProductItems
+        .where(
+          (i) =>
+              !_isExtraRow(i) && i.product.variantGroup == product.variantGroup,
+        )
+        .toList();
+    if (variants.length == 1) return Future.value(variants.first);
+    return showDialog<ScannedItem>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text(product.variantGroup!),
+        children: [
+          for (final v in variants)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, v),
+              child: Text(
+                '${v.product.variantName ?? v.product.name}　${yen(v.price)}',
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // 同じバリエーショングループは1行にまとめる（数量のある行はすべて表示する）
+  List<ScannedItem> _groupVariants(Iterable<ScannedItem> items) {
+    final shown = <String>{};
+    return items.where((i) {
+      final group = i.product.variantGroup;
+      if (group == null || i.quantity > 0 || _isExtraRow(i)) return true;
+      return shown.add(group);
+    }).toList();
+  }
+
+  void _insertRow(ScannedItem item) {
+    if (!mounted) return;
+    _allProductItems.insert(0, item);
+    _applyFilter();
+  }
+
+  // 追加で作った行（価格変更・量り売り・オプション）か
+  bool _isExtraRow(ScannedItem item) =>
+      item.overridePrice != null ||
+      item.weightGrams != null ||
+      item.options.isNotEmpty;
+
+  void _clearCart() {
     setState(() {
-      _filteredProductItems[indexInFiltered].quantity++;
+      _allProductItems.removeWhere(_isExtraRow);
+      for (final item in [..._allProductItems, ..._allBundleItems]) {
+        item.quantity = 0;
+      }
     });
+    _applyFilter();
   }
 
   void _decrementProduct(int indexInFiltered) {
@@ -202,7 +234,7 @@ class _SaleListViewState extends State<SaleListView>
     if (item.quantity <= 0) return;
     item.quantity--;
     // カスタム価格アイテムは0になったらリストから削除する
-    if (item.quantity == 0 && item.overridePrice != null) {
+    if (item.quantity == 0 && _isExtraRow(item)) {
       _allProductItems.remove(item);
       _applyFilter();
     } else {
@@ -256,10 +288,11 @@ class _SaleListViewState extends State<SaleListView>
       // 新規カスタムアイテムを先頭に挿入し、フィルタ済みリストを再構築
       _allProductItems.insert(
         0,
-        _ProductItem(
+        ScannedItem(
           product: product,
           overridePrice: newPrice,
           discountReason: reason,
+          eatIn: _eatIn,
           quantity: 1,
         ),
       );
@@ -267,85 +300,49 @@ class _SaleListViewState extends State<SaleListView>
     }
   }
 
-  void _allClear() {
-    Navigator.of(context).pushAndRemoveUntil(
+  // 選んだ商品をすべて取り消す（担当者はそのまま続けて会計できる）
+  Future<void> _allClear() async {
+    if (_totalItems == 0) return;
+    final ok = await confirm(
+      context,
+      title: '商品をすべて取り消しますか？',
+      message: '選んだ$_totalItems点を取り消します。',
+      okLabel: 'すべて取り消す',
+      danger: true,
+    );
+    if (ok && mounted) _clearCart();
+  }
+
+  // 商品が残っているときは、消えることを確認してから画面を離れる
+  Future<bool> _confirmLeave() async {
+    if (_totalItems == 0) return true;
+    return confirm(
+      context,
+      title: '会計をやめますか？',
+      message: '選んだ$_totalItems点は取り消されます。',
+      okLabel: '会計をやめる',
+      cancelLabel: '会計を続ける',
+      danger: true,
+    );
+  }
+
+  Future<void> _leave() async {
+    if (await _confirmLeave() && mounted) Navigator.of(context).pop();
+  }
+
+  Future<void> _changeOperator() async {
+    if (!await _confirmLeave() || !mounted) return;
+    Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => const OperatorInputView(isListView: true),
       ),
-      (route) => false,
     );
   }
 
   // 選択中の商品・セットから明細を組み立て、決済画面へ遷移する
   Future<void> _subtotal() async {
-    final selectedProducts = _allProductItems
-        .where((i) => i.quantity > 0)
-        .toList();
-    final selectedBundles = _allBundleItems
-        .where((i) => i.quantity > 0)
-        .toList();
-
-    if (selectedProducts.isEmpty && selectedBundles.isEmpty) return;
-
-    // 商品明細の構築
-    final List<Map<String, dynamic>> details = [];
-    int totalAmount = 0;
-    int totalTax = 0;
-
-    for (final item in selectedProducts) {
-      final taxRate = item.product.taxRate;
-      final sub = item.subtotal;
-      final exTax = (sub * 100 / (100 + taxRate)).floor();
-      final taxAmt = sub - exTax;
-      totalAmount += sub;
-      totalTax += taxAmt;
-      final hasDiscount =
-          item.overridePrice != null &&
-          item.overridePrice! < item.product.price;
-      details.add({
-        'product_id': item.product.id,
-        'product_name': item.product.name,
-        'product_code': item.product.code,
-        'quantity': item.quantity,
-        'unit_price': item.effectivePrice,
-        'subtotal': sub,
-        'tax_rate': taxRate,
-        'tax_amount': taxAmt,
-        if (hasDiscount) 'original_unit_price': item.product.price,
-        if (hasDiscount && item.discountReason != null)
-          'discount_reason': item.discountReason,
-      });
-    }
-
-    // バンドル明細の展開：構成商品ごとに明細を作成し bundle_code を付与
-    for (final bundleItem in selectedBundles) {
-      final bundle = bundleItem.bundle;
-      final expandedProducts = await _repo.expandBundle(bundle);
-      for (final ep in expandedProducts) {
-        final bItem = bundle.items.firstWhere(
-          (i) => i.productId == ep.id,
-          orElse: () => BundleItem(productId: ep.id, quantity: 1),
-        );
-        final qty = bItem.quantity * bundleItem.quantity;
-        final taxRate = ep.taxRate;
-        final sub = ep.price * qty;
-        final exTax = (sub * 100 / (100 + taxRate)).floor();
-        final taxAmt = sub - exTax;
-        totalAmount += sub;
-        totalTax += taxAmt;
-        details.add({
-          'product_id': ep.id,
-          'product_name': ep.name,
-          'product_code': ep.code,
-          'quantity': qty,
-          'unit_price': ep.price,
-          'subtotal': sub,
-          'tax_rate': taxRate,
-          'tax_amount': taxAmt,
-          'bundle_code': bundle.code,
-        });
-      }
-    }
+    final cart = _cart;
+    if (cart.isEmpty) return;
 
     if (!mounted) return;
     final result = await Navigator.push(
@@ -354,58 +351,38 @@ class _SaleListViewState extends State<SaleListView>
         builder: (context) => PaymentView(
           operatorName: widget.operatorName,
           operatorId: widget.operatorId,
-          totalAmount: totalAmount,
-          subtotalExTax: totalAmount - totalTax,
-          taxAmount: totalTax,
-          saleDetails: details,
+          items: cart,
+          pricing: _pricing,
         ),
       ),
     );
 
-    if (result == true) {
-      setState(() {
-        for (final item in _allProductItems) {
-          item.quantity = 0;
-        }
-        for (final item in _allBundleItems) {
-          item.quantity = 0;
-        }
-        _applyFilter();
-      });
-    }
+    if (result == true) _clearCart();
+    // 商品マスタが更新されたら、新しい価格で選び直してもらう
+    if (result == 'master_updated') await _loadData();
   }
 
   // ─── クライアントモード：ホストへ転送 ────────────────────────
   Future<void> _transferToHost() async {
-    final selectedProducts = _allProductItems
-        .where((i) => i.quantity > 0)
-        .toList();
-    final selectedBundles = _allBundleItems
-        .where((i) => i.quantity > 0)
-        .toList();
+    final items = _cart;
 
-    if (selectedProducts.isEmpty && selectedBundles.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('転送する商品がありません'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    if (items.isEmpty) {
+      showMessage(context, '転送する商品がありません', MessageType.error);
       return;
     }
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('ホストに転送しますか？'),
+        title: const Text('ホスト機に送りますか？'),
         content: Text(
-          '合計 $_totalItems点\n¥$_totalAmount\n\n'
-          'ホストのレジに転送し、このカートをクリアします。',
+          '$_totalItems点　${yen(_totalAmount)}\n\n'
+          'ホスト機のレジに送り、この画面の商品を空にします。',
         ),
         actions: [
-          TextButton(
+          OutlinedButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('キャンセル'),
+            child: const Text('やめる'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -413,41 +390,12 @@ class _SaleListViewState extends State<SaleListView>
               backgroundColor: const Color(0xFF2D89EF),
               foregroundColor: Colors.white,
             ),
-            child: const Text('転送する'),
+            child: const Text('送る'),
           ),
         ],
       ),
     );
     if (confirmed != true || !mounted) return;
-
-    // _ProductItem / _BundleItem → ScannedItem に変換
-    final List<ScannedItem> items = [];
-    for (final item in selectedProducts) {
-      items.add(
-        ScannedItem(
-          product: item.product,
-          quantity: item.quantity,
-          overridePrice: item.overridePrice,
-        ),
-      );
-    }
-    for (final bundleItem in selectedBundles) {
-      final expandedProducts = await _repo.expandBundle(bundleItem.bundle);
-      for (final ep in expandedProducts) {
-        final bItem = bundleItem.bundle.items.firstWhere(
-          (i) => i.productId == ep.id,
-          orElse: () => BundleItem(productId: ep.id, quantity: 1),
-        );
-        items.add(
-          ScannedItem(
-            product: ep,
-            bundleCode: bundleItem.bundle.code,
-            bundleName: bundleItem.bundle.name,
-            quantity: bItem.quantity * bundleItem.quantity,
-          ),
-        );
-      }
-    }
 
     final capturedTotal = _totalAmount;
 
@@ -458,394 +406,272 @@ class _SaleListViewState extends State<SaleListView>
         totalAmount: capturedTotal,
         items: items,
       );
-      setState(() {
-        for (final item in _allProductItems) {
-          item.quantity = 0;
-        }
-        for (final item in _allBundleItems) {
-          item.quantity = 0;
-        }
-        _applyFilter();
-      });
+      _clearCart();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('転送しました（転送ID: $transferId）'),
-            backgroundColor: const Color(0xFF2D89EF),
-            duration: const Duration(seconds: 4),
-          ),
-        );
+        showMessage(context, '転送しました（転送ID: $transferId）', MessageType.success);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('転送に失敗しました: $e'), backgroundColor: Colors.red),
-        );
+        showMessage(context, '転送に失敗しました: $e', MessageType.error);
       }
     }
   }
 
-  // ─── 共通の右パネル（合計表示）────────────────────────────────
-  Widget _buildSummaryPanel() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      color: Colors.blue[50],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            '点数',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
+  // 商品の行（値段・税率・数量）
+  Widget _buildRow({
+    required ScannedItem item,
+    Widget? leading,
+    required String detail,
+    required VoidCallback onMinus,
+    required VoidCallback onPlus,
+    VoidCallback? onChangePrice,
+  }) {
+    final changed = item.overridePrice != null;
+    final selected = item.quantity > 0;
+    return Card(
+      color: selected ? AppColors.primarySoft : null,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onPlus,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
+          child: Row(
+            children: [
+              if (leading != null) ...[leading, const SizedBox(width: 12)],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.options.isEmpty
+                          ? item.product.name
+                          : '${item.product.name}（${item.options.map((o) => o.name).join('・')}）',
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Wrap(
+                      spacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        if (changed)
+                          Text(
+                            yen(item.product.price),
+                            style: const TextStyle(
+                              decoration: TextDecoration.lineThrough,
+                              color: AppColors.muted,
+                            ),
+                          ),
+                        Text(
+                          yen(item.price),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: changed ? AppColors.danger : null,
+                          ),
+                        ),
+                        Text(
+                          detail,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: AppColors.secondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (onChangePrice != null)
+                IconButton(
+                  icon: const Icon(Icons.sell_outlined),
+                  tooltip: '値段を変えて登録',
+                  onPressed: onChangePrice,
+                ),
+              QuantityStepper(
+                quantity: item.quantity,
+                onMinus: selected ? onMinus : null,
+                onPlus: onPlus,
+              ),
+              SizedBox(
+                width: 92,
+                child: Text(
+                  selected ? yen(item.subtotal) : '',
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
           ),
-          Text(
-            '$_totalItems',
-            style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
-          ),
-          const Divider(height: 32),
-          const Text(
-            '合計（税込）',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
-          ),
-          Text(
-            '¥ $_totalAmount',
-            style: const TextStyle(
-              fontSize: 40,
-              fontWeight: FontWeight.bold,
-              color: Colors.red,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          if (_totalTax > 0) ...[
-            const SizedBox(height: 8),
-            Text(
-              'うち消費税 ¥$_totalTax',
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-              textAlign: TextAlign.center,
-            ),
-          ],
-          const Spacer(),
-        ],
+        ),
       ),
     );
   }
 
-  // ─── 商品タブ ────────────────────────────────────────────────
   Widget _buildProductTab() {
-    if (_filteredProductItems.isEmpty) {
-      return const Center(child: Text('該当する商品はありません'));
-    }
-    return ListView.builder(
+    if (_filteredProductItems.isEmpty) return _noResult('商品');
+    return ListView.separated(
+      padding: const EdgeInsets.all(12),
       itemCount: _filteredProductItems.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final item = _filteredProductItems[index];
-        final hasOverride = item.overridePrice != null;
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          color: hasOverride ? Colors.red[50] : null,
-          child: ListTile(
-            title: Text(
-              item.product.name,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: hasOverride
-                ? Row(
-                    children: [
-                      Text(item.product.code),
-                      const SizedBox(width: 8),
-                      Text(
-                        '¥${item.product.price}',
-                        style: TextStyle(
-                          decoration: TextDecoration.lineThrough,
-                          color: Colors.grey[500],
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.red[100],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          '¥${item.overridePrice}',
-                          style: TextStyle(
-                            color: Colors.red[800],
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '(税${item.product.taxRate}%)',
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                    ],
-                  )
-                : Text(
-                    '${item.product.code}  ¥${item.product.price}  (税${item.product.taxRate}%)',
-                  ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (!hasOverride)
-                  IconButton(
-                    icon: Icon(Icons.sell, size: 20, color: Colors.orange[700]),
-                    tooltip: '価格変更で追加',
-                    onPressed: () => _addCustomPriceItem(item.product),
-                  ),
-                _quantityControl(
-                  quantity: item.quantity,
-                  subtotal: item.quantity > 0 ? item.subtotal : null,
-                  unitPrice: item.quantity == 0 ? item.effectivePrice : null,
-                  onDecrement: () => _decrementProduct(index),
-                  onIncrement: () => _incrementProduct(index),
-                ),
-              ],
-            ),
-          ),
+        return _buildRow(
+          item: item,
+          leading: item.product.imageVersion == null
+              ? null
+              : ProductImage(product: item.product),
+          detail: '税${item.product.taxRate}%　${item.product.code}',
+          onChangePrice: item.overridePrice != null
+              ? null
+              : () => _addCustomPriceItem(item.product),
+          onMinus: () => _decrementProduct(index),
+          onPlus: () => _incrementProduct(index),
         );
       },
     );
   }
 
-  // ─── セット商品タブ ──────────────────────────────────────────
   Widget _buildBundleTab() {
-    if (_allBundleItems.isEmpty) {
-      return const Center(child: Text('セット商品が登録されていません'));
-    }
-    if (_filteredBundleItems.isEmpty) {
-      return const Center(child: Text('該当するセット商品はありません'));
-    }
-    return ListView.builder(
+    if (_filteredBundleItems.isEmpty) return _noResult('セット商品');
+    return ListView.separated(
+      padding: const EdgeInsets.all(12),
       itemCount: _filteredBundleItems.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final item = _filteredBundleItems[index];
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: ListTile(
-            leading: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.orange[100],
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                'セット',
-                style: TextStyle(fontSize: 12, color: Colors.orange[900]),
-              ),
-            ),
-            title: Text(
-              item.bundle.name,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text(
-              '${item.bundle.code}  '
-              '${item.bundle.items.length}点セット'
-              '${item.bundle.price > 0 ? "  ¥${item.bundle.price}" : ""}',
-            ),
-            trailing: _quantityControl(
-              quantity: item.quantity,
-              unitPrice: item.pricePerUnit,
-              subtotal: item.quantity > 0 ? item.subtotal : null,
-              onDecrement: () => _decrementBundle(index),
-              onIncrement: () => _incrementBundle(index),
-            ),
-          ),
+        return _buildRow(
+          item: item,
+          leading: const StatusBadge('セット', type: MessageType.warning),
+          detail: '${item.components.length}点セット　${item.product.code}',
+          onMinus: () => _decrementBundle(index),
+          onPlus: () => _incrementBundle(index),
         );
       },
     );
   }
 
-  // 数量の増減ボタンと金額表示をまとめた共通ウィジェット
-  Widget _quantityControl({
-    required int quantity,
-    int? unitPrice,
-    int? subtotal,
-    required VoidCallback onDecrement,
-    required VoidCallback onIncrement,
-  }) {
-    // 数量>0 なら小計、数量=0 なら単価（参考）を表示
-    final displayAmount = quantity > 0 ? subtotal : unitPrice;
-    final isReference = quantity == 0 && unitPrice != null;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          icon: const Icon(Icons.remove_circle_outline),
-          onPressed: onDecrement,
-        ),
-        SizedBox(
-          width: 36,
-          child: Text(
-            '$quantity',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 18),
-          ),
-        ),
-        IconButton(
-          icon: const Icon(Icons.add_circle_outline),
-          onPressed: onIncrement,
-        ),
-        if (displayAmount != null)
-          SizedBox(
-            width: 90,
-            child: Text(
-              '¥$displayAmount',
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                fontSize: 16,
-                color: isReference ? Colors.grey : null,
-              ),
-            ),
-          ),
-      ],
+  Widget _noResult(String kind) {
+    final searching = _searchController.text.trim().isNotEmpty;
+    return EmptyState(
+      icon: searching ? Icons.search_off : Icons.inventory_2_outlined,
+      title: searching ? '見つかりませんでした' : '$kindが登録されていません',
+      message: searching
+          ? '別の言葉で探してみてください'
+          : '管理画面で登録してから、「設定」の「商品データを更新」を押してください',
+      action: searching
+          ? OutlinedButton(
+              onPressed: _searchController.clear,
+              child: const Text('すべて表示する'),
+            )
+          : null,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          tooltip: '戻る',
-          onPressed: () {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context);
-            } else {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const OperatorInputView(isListView: true),
-                ),
-              );
-            }
-          },
-        ),
-        title: Text('担当: ${widget.operatorName} - 売上登録(一覧)'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(96),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
-                child: TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: '商品名・コードで絞り込む',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              _searchController.clear();
-                              _applyFilter();
-                            },
-                          )
-                        : null,
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ),
-              TabBar(
-                controller: _tabController,
-                labelColor: Colors.white,
-                unselectedLabelColor: Colors.white70,
-                indicatorColor: Colors.white,
-                tabs: [
-                  Tab(text: '商品 (${_filteredProductItems.length})'),
-                  Tab(text: 'セット (${_filteredBundleItems.length})'),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [_buildProductTab(), _buildBundleTab()],
-                  ),
-                ),
-                Expanded(flex: 1, child: _buildSummaryPanel()),
-              ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _leave();
+      },
+      child: Scaffold(
+        appBar: AppHeader(
+          'お会計（一覧から選ぶ）',
+          subtitle: '担当: ${widget.operatorName}',
+          onBack: _leave,
+          actions: [
+            IconButton.outlined(
+              tooltip: '担当者を変える',
+              onPressed: _changeOperator,
+              icon: const Icon(Icons.manage_accounts_outlined),
             ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-          child: Row(
-            children: [
-              SizedBox(
-                height: 52,
-                child: ElevatedButton.icon(
-                  onPressed: _allClear,
-                  icon: const Icon(Icons.delete_sweep),
-                  label: const Text('オールクリア', style: TextStyle(fontSize: 15)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
-                  ),
+          ],
+        ),
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : LayoutBuilder(
+                builder: (context, box) => Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Container(
+                            color: AppColors.surface,
+                            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                            child: Column(
+                              children: [
+                                TextField(
+                                  controller: _searchController,
+                                  decoration: InputDecoration(
+                                    hintText: '商品名・商品コードで探す',
+                                    prefixIcon: const Icon(Icons.search),
+                                    contentPadding: EdgeInsets.zero,
+                                    suffixIcon:
+                                        _searchController.text.isNotEmpty
+                                        ? IconButton(
+                                            tooltip: '入力を消す',
+                                            icon: const Icon(Icons.clear),
+                                            onPressed: _searchController.clear,
+                                          )
+                                        : null,
+                                  ),
+                                ),
+                                TabBar(
+                                  controller: _tabController,
+                                  tabs: [
+                                    Tab(
+                                      text:
+                                          '商品（${_filteredProductItems.length}）',
+                                    ),
+                                    Tab(
+                                      text:
+                                          'セット（${_filteredBundleItems.length}）',
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: TabBarView(
+                              controller: _tabController,
+                              children: [_buildProductTab(), _buildBundleTab()],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      width: (box.maxWidth * 0.34).clamp(250, 380),
+                      child: CartSummaryPanel(
+                        itemCount: _totalItems,
+                        total: _totalAmount,
+                        tax: _totalTax,
+                        promotionDiscount: _quote.promotionDiscount,
+                        primaryLabel: _isClient ? 'ホスト機へ送る' : 'お会計へ',
+                        primaryIcon: _isClient ? Icons.send : Icons.payments,
+                        onPrimary: _totalItems == 0
+                            ? null
+                            : (_isClient ? _transferToHost : _subtotal),
+                        actions: [
+                          (
+                            icon: Icons.delete_sweep_outlined,
+                            label: 'すべて取り消す',
+                            onTap: _totalItems == 0 ? null : _allClear,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const Spacer(),
-              SizedBox(
-                height: 60,
-                width: 180,
-                child: _isClient
-                    ? ElevatedButton.icon(
-                        onPressed: _totalItems > 0 ? _transferToHost : null,
-                        icon: const Icon(Icons.send, size: 28),
-                        label: const Text(
-                          '転　送',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _totalItems > 0
-                              ? const Color(0xFF2D89EF)
-                              : Colors.grey,
-                          foregroundColor: Colors.white,
-                        ),
-                      )
-                    : ElevatedButton.icon(
-                        onPressed: _totalItems > 0 ? _subtotal : null,
-                        icon: const Icon(Icons.payment, size: 28),
-                        label: const Text(
-                          '小計',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _totalItems > 0
-                              ? Colors.green
-                              : Colors.grey,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

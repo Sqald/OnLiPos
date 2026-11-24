@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_theme.dart';
+import 'package:onlipos/ui/app_header.dart';
 import 'package:onlipos/refund/qr_scan_receipt_view.dart';
 import 'package:onlipos/refund/refund_api.dart';
 import 'package:onlipos/sale/escpos/lan_recipt_api.dart';
@@ -39,12 +42,7 @@ class _ReceiptIssueViewState extends State<ReceiptIssueView> {
   }
 
   void _showMessage(String msg, {bool error = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: error ? Colors.red : Colors.green,
-      ),
-    );
+    showMessage(context, msg, error ? MessageType.error : MessageType.success);
   }
 
   // QRコードスキャン画面を開き、読み取ったレシート番号で検索する
@@ -117,15 +115,10 @@ class _ReceiptIssueViewState extends State<ReceiptIssueView> {
     }
   }
 
-  String _fmt(int n) => n.toString().replaceAllMapped(
-    RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-    (m) => '${m[1]},',
-  );
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('領収書発行 - 担当: ${widget.operatorName}')),
+      appBar: AppHeader('領収書', subtitle: '担当: ${widget.operatorName}'),
       body: SingleChildScrollView(
         child: Center(
           child: ConstrainedBox(
@@ -155,7 +148,7 @@ class _ReceiptIssueViewState extends State<ReceiptIssueView> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const Text(
-          '対象の会計を検索',
+          '領収書を出す会計を探す',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
@@ -177,7 +170,7 @@ class _ReceiptIssueViewState extends State<ReceiptIssueView> {
               child: ElevatedButton.icon(
                 onPressed: _isLoading ? null : _search,
                 icon: const Icon(Icons.search),
-                label: const Text('検索'),
+                label: const Text('探す'),
               ),
             ),
             const SizedBox(width: 8),
@@ -186,7 +179,7 @@ class _ReceiptIssueViewState extends State<ReceiptIssueView> {
               child: OutlinedButton.icon(
                 onPressed: _isLoading ? null : _scanQr,
                 icon: const Icon(Icons.qr_code_scanner),
-                label: const Text('QR'),
+                label: const Text('QRを読み取る'),
               ),
             ),
           ],
@@ -208,14 +201,14 @@ class _ReceiptIssueViewState extends State<ReceiptIssueView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('取引No: ${sale['receipt_number']}'),
+                Text('レシート番号 ${sale['receipt_number']}'),
                 const SizedBox(height: 4),
                 Text(
                   '日時: ${sale['created_at']?.toString().substring(0, 19).replaceFirst('T', ' ') ?? ''}',
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '¥${_fmt(total)}',
+                  yen(total),
                   style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -225,8 +218,11 @@ class _ReceiptIssueViewState extends State<ReceiptIssueView> {
                   const Padding(
                     padding: EdgeInsets.only(top: 8),
                     child: Text(
-                      '※ 5万円以上のため収入印紙が必要です',
-                      style: TextStyle(color: Colors.orange),
+                      '5万円以上のため、収入印紙が必要です',
+                      style: TextStyle(
+                        color: AppColors.warning,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
               ],
@@ -237,7 +233,8 @@ class _ReceiptIssueViewState extends State<ReceiptIssueView> {
         TextField(
           controller: _addresseeController,
           decoration: const InputDecoration(
-            labelText: '宛名（空欄の場合は手書き用の下線を印字）',
+            labelText: '宛名',
+            helperText: '空欄にすると、手書き用の線を印刷します',
             border: OutlineInputBorder(),
           ),
         ),
@@ -257,11 +254,7 @@ class _ReceiptIssueViewState extends State<ReceiptIssueView> {
             icon: const Icon(Icons.print),
             label: _isIssuing
                 ? const CircularProgressIndicator(color: Colors.white)
-                : const Text('領収書を発行・印字', style: TextStyle(fontSize: 20)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-            ),
+                : const Text('領収書を印刷する', style: TextStyle(fontSize: 20)),
           ),
         ),
       ],

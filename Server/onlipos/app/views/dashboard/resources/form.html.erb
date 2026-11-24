@@ -1,0 +1,43 @@
+<%# ダッシュボード: マスタ登録・変更の共通画面（Dashboard::ResourceController） %>
+<%= page_header "#{resource_config[:title]}の#{@record.new_record? ? "登録" : "編集"}", back: [ "#{resource_config[:title]}に戻る", { action: :index } ] %>
+<div class="dashboard-content form-narrow">
+  <%= form_errors(@record) %>
+  <% url = @record.new_record? ? url_for(action: :create) : url_for(action: :update, id: @record) %>
+  <%= form_with model: @record, url: url, scope: resource_config[:model].model_name.param_key, class: "dashboard-form" do |f| %>
+    <% resource_config[:fields].each do |field| %>
+      <% opts = field.options.slice(:min, :max, :placeholder, :required, :maxlength, :rows) %>
+      <div class="field">
+        <% if field.type == :checkbox %>
+          <label><%= f.check_box field.name %> <%= field.label %></label>
+        <% else %>
+          <%= f.label field.name do %><%= field.label %><%= required_mark if field.options[:required] %><% end %>
+        <% end %>
+        <% case field.type %>
+        <% when :checkbox %>
+        <% when :checkboxes %>
+          <% choices = field_choices(field) %>
+          <div class="store-grid <%= "scroll" if choices.size > 12 %>">
+            <% choices.each do |text, value| %>
+              <label class="checkbox-item"><%= check_box_tag "#{f.object_name}[#{field.name}][]", value, Array(@record.public_send(field.name)).map(&:to_s).include?(value.to_s), id: "#{field.name}_#{value}" %> <%= text %></label>
+            <% end %>
+            <%= hidden_field_tag "#{f.object_name}[#{field.name}][]", "", id: nil %>
+          </div>
+        <% when :select %>
+          <%= f.select field.name, field_choices(field), { include_blank: field.options[:blank] } %>
+        <% when :textarea %>
+          <%= f.text_area field.name, opts %>
+        <% when :number %>
+          <%= f.number_field field.name, opts %>
+        <% when :date %>
+          <%= f.date_field field.name, opts %>
+        <% when :datetime %>
+          <%= f.datetime_local_field field.name, opts %>
+        <% else %>
+          <%= f.text_field field.name, opts %>
+        <% end %>
+        <% if field.options[:hint] %><p class="field-hint"><%= field.options[:hint] %></p><% end %>
+      </div>
+    <% end %>
+    <div class="actions"><%= f.submit @record.new_record? ? "登録する" : "変更を保存" %><%= link_to "やめる", { action: :index }, class: "link-cancel" %></div>
+  <% end %>
+</div>

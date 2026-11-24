@@ -1,52 +1,13 @@
-<%# ダッシュボード: 従業員一覧画面
-    登録済み従業員の氏名・所属店舗・登録日を表示し、編集/削除への導線を提供する %>
-<div class="dashboard-container">
-  <%= render 'dashboard/shared/menu' %>
-
-  <section class="dashboard-section">
-    <div class="section-header">
-      <h2>従業員一覧</h2>
-      <%= link_to "従業員を追加", new_dashboard_employee_path, class: "btn-signup" %>
-    </div>
-
-    <div class="card card-table">
-      <% if @employees.any? %>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>名前</th>
-              <th>所属店舗</th>
-              <th>登録日</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% @employees.each do |employee| %>
-              <tr>
-                <td><%= employee.name %></td>
-                <%# 全店舗所属フラグが立っていればバッジ表示、そうでなければ所属店舗名を列挙 %>
-                <td>
-                  <% if employee.is_all_stores? %>
-                    <span class="status-badge status-active">全店舗</span>
-                  <% else %>
-                    <%= employee.stores.map(&:name).join(', ').truncate(30) %>
-                    <span class="text-sm-muted">(<%= employee.stores.size %>店舗)</span>
-                  <% end %>
-                </td>
-                <td><%= employee.created_at.strftime('%Y/%m/%d') %></td>
-                <td>
-                  <%= link_to "編集", edit_dashboard_employee_path(employee), class: "btn-sm btn-outline" %>
-                  <%= link_to "削除", dashboard_employee_path(employee), data: { turbo_method: :delete, turbo_confirm: "本当に削除しますか？" }, class: "btn-sm btn-outline btn-danger-outline" %>
-                </td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      <% else %>
-        <div class="empty-message">
-          <p>従業員がまだ登録されていません。</p>
-        </div>
-      <% end %>
-    </div>
-  </section>
-</div>
+<%# ダッシュボード: 従業員一覧 %>
+<%= page_header "従業員", lead: "レジを操作する人を登録します。返品や値引きなどの操作には、PINと権限の設定が必要です。" do %>
+  <% if can_write? %><%= link_to new_dashboard_employee_path, class: "btn btn-primary" do %><%= icon(:plus, size: 18) %>従業員を登録<% end %><% end %>
+<% end %>
+<%= data_table([ "番号", "名前", "働く店舗", "PIN", "できる操作", "操作" ], @employees.map { |e|
+      keys = e.permission_keys
+      [ tag.span(e.code), e.name, e.is_all_stores? ? badge("全店舗") : (e.stores.map(&:name).join("、").truncate(30).presence || badge("店舗未設定", :warning)),
+        e.pin_digest.present? ? badge("設定済み") : badge("未設定", :warning),
+        keys.size == Employee::PERMISSION_CATALOG.size ? "すべて" : (keys.any? ? safe_join([ Employee::PERMISSION_CATALOG.values_at(*keys.first(3)).compact.join("、"), ("ほか#{keys.size - 3}件" if keys.size > 3) ].compact, " ") : "会計のみ"),
+        can_write? ? row_actions(
+          link_to("編集", edit_dashboard_employee_path(e), class: "btn btn-sm btn-secondary"),
+          button_to("削除", dashboard_employee_path(e), method: :delete, class: "btn btn-sm btn-danger-outline", form: { data: { turbo_confirm: "「#{e.name}」を削除しますか？" } })) : "" ] },
+      empty: "従業員がまだ登録されていません。", action: (link_to("はじめの従業員を登録する", new_dashboard_employee_path, class: "btn btn-primary") if can_write?)) %>

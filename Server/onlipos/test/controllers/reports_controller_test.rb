@@ -42,9 +42,10 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
-  test "検索条件なしではデータが表示されない" do
+  test "検索条件なしでは今月の集計を表示する" do
     get dashboard_reports_path
-    assert_select ".empty-message"
+    assert_select "input[name=from][value=?]", Date.current.beginning_of_month.to_s
+    assert_match(/¥3,300/, response.body)
   end
 
   test "期間を指定すると売上データが表示される" do

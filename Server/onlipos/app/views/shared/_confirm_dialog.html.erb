@@ -1,0 +1,10 @@
+<%# パーシャル: 確認ダイアログ（turbo_confirm で使う。表示の処理は javascript/confirm_dialog.js） %>
+<dialog class="confirm-dialog" id="confirm-dialog" aria-labelledby="confirm-dialog-message">
+  <form method="dialog">
+    <p id="confirm-dialog-message" class="confirm-message"></p>
+    <div class="confirm-actions">
+      <button type="submit" value="cancel" class="btn btn-secondary" autofocus>やめる</button>
+      <button type="submit" value="confirm" class="btn btn-primary" data-confirm-ok>実行する</button>
+    </div>
+  </form>
+</dialog>

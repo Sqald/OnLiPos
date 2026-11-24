@@ -122,26 +122,7 @@
   padding: 0.75rem;
 }
 
-/* フラッシュメッセージ */
-.admin-notice {
-  max-width: 1200px;
-  margin: 1rem auto 0;
-  padding: 0.75rem 1.25rem;
-  background: #d1fae5;
-  color: #065f46;
-  border-radius: 0.5rem;
-  font-size: 0.9rem;
-}
-
-.admin-alert {
-  max-width: 1200px;
-  margin: 1rem auto 0;
-  padding: 0.75rem 1.25rem;
-  background: #fee2e2;
-  color: #991b1b;
-  border-radius: 0.5rem;
-  font-size: 0.9rem;
-}
+.admin-flash { max-width: 1200px; margin: 1rem auto 0; padding: 0 1.25rem; }
 
 /* ログインページ */
 .admin-login-page {
@@ -174,34 +155,8 @@
   color: #6b7280;
 }
 
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 0.4rem;
-}
-
 /* プライマリボタン（管理画面用） */
-.admin-btn-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.65rem 1.5rem;
-  background: #dc2626;
-  color: #fff;
-  border: none;
-  border-radius: 0.5rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-  text-decoration: none;
-}
+.admin-btn-primary { background: #dc2626; color: #fff; }
 .admin-btn-primary:hover {
   background: #b91c1c;
   text-decoration: none;
@@ -301,9 +256,14 @@
   flex-wrap: wrap;
 }
 
-/* セクションタイトル */
-.section-title {
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: #111827;
+
+@media (max-width: 640px) {
+  .admin-nav, .admin-subnav-inner { padding-left: 1rem; padding-right: 1rem; }
+  .admin-nav { flex-wrap: wrap; gap: 0.5rem; }
+  .admin-subnav-inner { overflow-x: auto; }
+  .admin-nav-item { white-space: nowrap; }
+  .admin-danger-actions, .admin-danger-actions form { width: 100%; }
 }
+.admin-main > .dashboard-container { max-width: 1200px; margin: 0 auto; padding: 1.75rem 1.25rem 3rem; }
+.admin-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.25rem; margin-bottom: 2rem; }
+.admin-columns .card { margin: 0; }

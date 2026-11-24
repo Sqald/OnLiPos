@@ -38,14 +38,14 @@ class Dashboard::AnalyticsController < Dashboard::BaseController
 
   def index
     @from, @to = date_range
-    @stores = current_user.stores.order(:name)
-    @pos_tokens = PosToken.joins(:store).where(stores: { user_id: current_user.id }).order("stores.name", :name)
-    @employees = current_user.employees.order(:code)
-    @categories = ProductCategory.where(user_id: current_user.id).order(:display_order, :name)
-    @products = current_user.products.order(:code)
+    @stores = current_account.stores.order(:name)
+    @pos_tokens = PosToken.joins(:store).where(stores: { user_id: current_account.id }).order("stores.name", :name)
+    @employees = current_account.employees.order(:code)
+    @categories = ProductCategory.where(user_id: current_account.id).order(:display_order, :name)
+    @products = current_account.products.order(:code)
 
     @analysis = SalesAnalysis.new(
-      user: current_user,
+      user: current_account,
       from: @from, to: @to,
       row_dim: params[:row], col_dim: params[:col], metric: params[:metric],
       filters: filter_params,

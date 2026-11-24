@@ -1,0 +1,25 @@
+<%# ダッシュボード: マスタ一覧の共通画面（Dashboard::ResourceController） %>
+<%= page_header resource_config[:title], lead: resource_config[:description] do %>
+  <% if can_write? %><%= link_to({ action: :new }, class: "btn btn-primary") do %><%= icon(:plus, size: 18) %><%= resource_config[:title] %>を登録<% end %><% end %>
+<% end %>
+<%= yield :resource_tools %>
+<% if resource_config[:search] %>
+  <div class="filters">
+    <%= form_with url: url_for(action: :index), method: :get do |f| %>
+      <div class="filter-row">
+        <div class="filter-item wide"><%= f.label :q, resource_config[:search] %><%= f.search_field :q, value: params[:q] %></div>
+        <div class="filter-item"><%= f.submit "探す", class: "btn btn-primary", name: nil %></div>
+      </div>
+    <% end %>
+  </div>
+<% end %>
+<% rows = @records.map do |record|
+     cells = resource_config[:columns].values.map { |column| column.respond_to?(:call) ? column.call(record, self) : record.public_send(column) }
+     next cells unless can_write?
+     cells + [ row_actions(
+       link_to("編集", { action: :edit, id: record }, class: "btn btn-sm btn-secondary"),
+       button_to("削除", { action: :destroy, id: record }, method: :delete, class: "btn btn-sm btn-danger-outline", form: { data: { turbo_confirm: "この#{resource_config[:title]}を削除しますか？" } })) ]
+   end %>
+<%= data_table(resource_config[:columns].keys + (can_write? ? [ "操作" ] : []), rows, empty: params[:q].present? ? "条件に合うものはありません。" : "#{resource_config[:title]}はまだ登録されていません。",
+      action: (link_to("#{resource_config[:title]}を登録する", { action: :new }, class: "btn btn-primary") if can_write? && params[:q].blank?)) %>
+<div class="pagination-wrapper"><%= paginate @records %></div>

@@ -5,6 +5,7 @@
 import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:onlipos/product/database_service.dart';
+import 'package:onlipos/sale/payload_cipher.dart';
 
 class OfflineSaleRepository {
   static const statusPending = 'pending';
@@ -20,7 +21,7 @@ class OfflineSaleRepository {
     final db = await _db;
     await db.insert('offline_sales_queue', {
       'receipt_number': receiptNumber,
-      'payload': jsonEncode(payload),
+      'payload': await PayloadCipher.encrypt(jsonEncode(payload)),
       'created_at': DateTime.now().toIso8601String(),
       'status': statusPending,
     });
@@ -29,13 +30,49 @@ class OfflineSaleRepository {
   /// 再送対象（pending）の会計データを登録順に取得する。
   Future<List<Map<String, dynamic>>> getPending() async {
     final db = await _db;
-    return await db.query(
-      'offline_sales_queue',
-      where: 'status = ?',
-      whereArgs: [statusPending],
-      orderBy: 'id ASC',
+    return _decrypt(
+      await db.query(
+        'offline_sales_queue',
+        where: 'status = ?',
+        whereArgs: [statusPending],
+        orderBy: 'id ASC',
+      ),
     );
   }
+
+  /// サーバーに拒否された会計を新しい順に取得する（確認・再送画面用）。
+  Future<List<Map<String, dynamic>>> getFailed() async {
+    final db = await _db;
+    return _decrypt(
+      await db.query(
+        'offline_sales_queue',
+        where: 'status = ?',
+        whereArgs: [statusFailed],
+        orderBy: 'id DESC',
+      ),
+    );
+  }
+
+  /// 拒否された会計を再送対象に戻す。
+  Future<void> retry(int id) async {
+    final db = await _db;
+    await db.update(
+      'offline_sales_queue',
+      {'status': statusPending, 'last_error': null},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _decrypt(
+    List<Map<String, dynamic>> rows,
+  ) async => [
+    for (final row in rows)
+      {
+        ...row,
+        'payload': await PayloadCipher.decrypt(row['payload'] as String),
+      },
+  ];
 
   /// 再送対象の件数を返す（画面上のバッジ表示等に使用）。
   Future<int> getPendingCount() => _countByStatus(statusPending);
@@ -63,7 +100,7 @@ class OfflineSaleRepository {
     final db = await _db;
     await db.update(
       'offline_sales_queue',
-      {'payload': jsonEncode(payload)},
+      {'payload': await PayloadCipher.encrypt(jsonEncode(payload))},
       where: 'id = ?',
       whereArgs: [id],
     );

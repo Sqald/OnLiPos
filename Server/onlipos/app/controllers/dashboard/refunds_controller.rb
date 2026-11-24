@@ -3,17 +3,14 @@ class Dashboard::RefundsController < Dashboard::BaseController
   # 返金一覧は検索条件（店舗・期間）を指定して検索したときのみデータを取得する。
   # 自ユーザーの売上に紐づく返金のみに厳格にスコープする。
   def index
-    @stores = current_user.stores.order(:name)
+    @stores = current_account.stores.order(:name)
     @allowed_store_ids = @stores.pluck(:id)
 
-    unless search_performed?
-      @refunds = Refund.none.page(1).per(50)
-      return
-    end
+    default_period(Date.current - 6) unless search_performed?
 
     scope = Refund
       .joins(:sale)
-      .where(sales: { user_id: current_user.id })
+      .where(sales: { user_id: current_account.id })
 
     if params[:store_id].present? && @allowed_store_ids.include?(params[:store_id].to_i)
       scope = scope.where(store_id: params[:store_id])
@@ -40,7 +37,7 @@ class Dashboard::RefundsController < Dashboard::BaseController
   def show
     @refund = Refund
       .joins(:sale)
-      .where(sales: { user_id: current_user.id })
+      .where(sales: { user_id: current_account.id })
       .includes(:store, :pos_token, :refund_details, sale: :saledetails)
       .find(params[:id])
   end

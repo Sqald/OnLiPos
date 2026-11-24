@@ -1,0 +1,57 @@
+<%# ダッシュボード: 卓・セルフ注文・厨房画面 %>
+<%= page_header "卓・セルフ注文", lead: "お客様が卓のQRコードを読み取ると、スマートフォンから注文できます。注文は厨房の画面と、レジの卓の注文に届きます。" %>
+<% if @stores.none? %><%= empty_message("先に店舗を登録してください。", action: link_to("店舗を登録する", new_dashboard_store_path, class: "btn btn-primary")) %><% end %>
+<% @stores.each do |store| %>
+  <section class="card" style="margin-bottom: 1.5rem">
+    <div class="section-header">
+      <h2><%= store.name %> <%= store.self_order_enabled ? badge("セルフ注文 受付中") : badge("セルフ注文 停止中", false) %></h2>
+      <% if can_write? %>
+        <%= button_to store.self_order_enabled ? "セルフ注文を停止する" : "セルフ注文を受け付ける", settings_dashboard_table_codes_path, method: :patch, params: { store_id: store.id, self_order_enabled: store.self_order_enabled ? "0" : "1" }, class: "btn btn-sm #{store.self_order_enabled ? "btn-danger-outline" : "btn-primary"}" %>
+      <% end %>
+    </div>
+    <div class="field">
+      <p>厨房の画面</p>
+      <% if store.kitchen_display_token %>
+        <div data-controller="clipboard" data-clipboard-text-value="<%= kitchen_url(store.kitchen_display_token) %>">
+          <code><%= kitchen_url(store.kitchen_display_token) %></code>
+          <div class="row-actions" style="justify-content: flex-start; margin-top: 0.5rem">
+            <%= link_to "開く", kitchen_url(store.kitchen_display_token), target: "_blank", rel: "noopener", class: "btn btn-sm btn-secondary" %>
+            <button type="button" class="btn btn-sm btn-secondary" data-clipboard-target="button" data-action="clipboard#copy">コピー</button>
+            <% if can_write? %><%= button_to "URLを作り直す", settings_dashboard_table_codes_path, method: :patch, params: { store_id: store.id, rotate_kitchen: 1 }, class: "btn btn-sm btn-danger-outline", form: { data: { turbo_confirm: "厨房画面のURLを作り直しますか？\nいままでのURLは使えなくなります。" } } %><% end %>
+          </div>
+          <p class="field-hint">厨房に置いたタブレットなどのブラウザで開いてください。このURLを知っている人は誰でも見られます。</p>
+        </div>
+      <% elsif can_write? %>
+        <%= button_to "厨房画面のURLを発行する", settings_dashboard_table_codes_path, method: :patch, params: { store_id: store.id, rotate_kitchen: 1 }, class: "btn btn-sm btn-secondary" %>
+      <% end %>
+    </div>
+    <div class="field">
+      <p>卓のQRコード</p>
+      <% codes = store.table_codes.sort_by { |c| [ c.table_number.to_i, c.table_number ] } %>
+      <% if codes.any? %>
+        <div class="qr-grid">
+          <% codes.each do |c| %>
+            <div class="qr-item">
+              <strong>卓 <%= c.table_number %></strong>
+              <%= mfa_qr_svg(self_order_url(c.token), alt: "卓#{c.table_number}の注文用QRコード") %>
+              <% if can_write? %><%= row_actions(
+                button_to("作り直す", rotate_dashboard_table_code_path(c, store_id: store.id), class: "btn btn-sm btn-secondary", form: { data: { turbo_confirm: "卓#{c.table_number}のQRコードを作り直しますか？\nいままでのQRコードは使えなくなります。" } }),
+                button_to("削除", dashboard_table_code_path(c, store_id: store.id), method: :delete, class: "btn btn-sm btn-danger-outline", form: { data: { turbo_confirm: "卓#{c.table_number}を削除しますか？" } })) %><% end %>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <p class="text-sm-muted">卓はまだ登録されていません。</p>
+      <% end %>
+    </div>
+    <% if can_write? %>
+      <%= form_with url: dashboard_table_codes_path do |f| %>
+        <%= f.hidden_field :store_id, value: store.id, id: nil %>
+        <div class="filter-row">
+          <div class="filter-item wide"><%= f.label :table_numbers, "卓を追加（空白やカンマで区切って複数入力できます）", for: "tables_#{store.id}" %><%= f.text_field :table_numbers, id: "tables_#{store.id}", placeholder: "例: 1 2 3" %></div>
+          <div class="filter-item"><%= f.submit "追加する", class: "btn btn-primary" %></div>
+        </div>
+      <% end %>
+    <% end %>
+  </section>
+<% end %>

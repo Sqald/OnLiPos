@@ -1,46 +1,7 @@
-<%# ダッシュボード: 端末設定(プロビジョニング)一覧画面
-    POS端末の初期設定(店舗モード・ロール・プリンター設定等)のプリセットを一覧表示する %>
-<div class="dashboard-container">
-  <%= render 'dashboard/shared/menu' %>
-
-  <section class="dashboard-section">
-    <div class="section-header">
-      <h2>端末設定 (プロビジョニング)</h2>
-      <%= link_to "設定を追加", new_dashboard_provisioning_path, class: "btn-signup" %>
-    </div>
-
-    <div class="card card-table">
-      <% if @provisionings.any? %>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>設定名</th>
-              <th>対象店舗</th>
-              <th>対象POS</th>
-              <th>作成日</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% @provisionings.each do |prov| %>
-              <tr>
-                <td><%= prov.name %></td>
-                <td><%= prov.store.name %></td>
-                <td><%= prov.pos_tokens.map(&:name).join(', ').presence || '-' %></td>
-                <td><%= prov.created_at.strftime('%Y/%m/%d %H:%M') %></td>
-                <td>
-                  <%= link_to "削除", dashboard_provisioning_path(prov), data: { turbo_method: :delete, turbo_confirm: "本当に削除しますか？" }, class: "btn-sm btn-outline btn-danger-outline" %>
-                </td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      <% else %>
-        <div class="empty-message">
-          <p>プロビジョニングデータがありません。</p>
-          <p class="text-sm-muted">新しい端末をセットアップするための設定データを作成してください。</p>
-        </div>
-      <% end %>
-    </div>
-  </section>
-</div>
+<%# ダッシュボード: 端末の初期設定（プロビジョニング）一覧 %>
+<%= page_header "端末の初期設定", lead: "店舗モードやレシートプリンターなどの設定をまとめて登録し、POS端末に適用できます。" do %>
+  <% if can_write? %><%= link_to new_dashboard_provisioning_path, class: "btn btn-primary" do %><%= icon(:plus, size: 18) %>設定を追加<% end %><% end %>
+<% end %>
+<%= data_table([ "設定の名前", "店舗", "使っている端末", "作成日", "操作" ], @provisionings.map { |p| [ p.name, p.store.name, p.pos_tokens.map(&:name).join("、").presence || "-", l(p.created_at.to_date),
+      can_write? ? row_actions(button_to("削除", dashboard_provisioning_path(p), method: :delete, class: "btn btn-sm btn-danger-outline", form: { data: { turbo_confirm: "「#{p.name}」を削除しますか？" } })) : "" ] },
+      empty: "端末の初期設定はまだありません。", action: (link_to("設定を追加する", new_dashboard_provisioning_path, class: "btn btn-primary") if can_write?)) %>

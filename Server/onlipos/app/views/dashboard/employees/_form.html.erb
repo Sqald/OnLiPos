@@ -1,85 +1,42 @@
-<%# ダッシュボード: 従業員登録/編集フォーム(new/editの両画面から render される共通パーシャル)
-    従業員番号・氏名・PIN・所属店舗・操作権限を入力する %>
-<%= form_with(model: [:dashboard, employee], local: true, class: "auth-container dashboard-form-card") do |f| %>
-  <% if employee.errors.any? %>
-    <div id="error_explanation">
-      <h2>入力内容にエラーがあります:</h2>
-      <ul>
-        <% employee.errors.full_messages.each do |message| %>
-          <li><%= message %></li>
-        <% end %>
-      </ul>
+<%# ダッシュボード: 従業員の登録/編集フォーム（番号・氏名・PIN・働く店舗・できる操作） %>
+<%= form_with(model: [ :dashboard, employee ], class: "dashboard-form") do |f| %>
+  <%= form_errors(employee) %>
+  <fieldset class="form-section">
+    <legend>基本</legend>
+    <div class="field"><label for="employee_code">従業員番号<%= required_mark %></label><%= f.text_field :code, placeholder: "例: 1001", autofocus: true, inputmode: "numeric" %><p class="field-hint">1〜12桁。レジで担当者を選ぶときに入力します。</p></div>
+    <div class="field"><label for="employee_name">名前<%= required_mark %></label><%= f.text_field :name, placeholder: "例: 山田 太郎" %></div>
+    <div class="field-pair">
+      <div class="field"><label for="employee_pin">PIN（4〜6桁の数字）</label><%= f.password_field :pin, placeholder: employee.persisted? ? "変更するときだけ入力" : "数字のみ", inputmode: "numeric", autocomplete: "new-password" %></div>
+      <div class="field"><label for="employee_pin_confirmation">PIN（確認のためもう一度）</label><%= f.password_field :pin_confirmation, inputmode: "numeric", autocomplete: "new-password" %></div>
     </div>
-  <% end %>
+    <p class="field-hint">PINがない従業員は、レジ開設・返品・値引きなど、本人確認が必要な操作ができません。</p>
+  </fieldset>
 
-  <div class="field">
-    <%= f.label :code, "従業員番号 (1-12桁)" %>
-    <%= f.text_field :code, placeholder: "例: 1001", autofocus: true %>
-  </div>
-
-  <div class="field">
-    <%= f.label :name, "従業員名" %>
-    <%= f.text_field :name, placeholder: "例: 山田 太郎" %>
-  </div>
-
-  <div class="field">
-    <%= f.label :pin, "PINコード (4-6桁の数字)" %>
-    <%= f.password_field :pin, placeholder: "数字のみ" %>
-    <p class="field-hint">※ 空欄のままにすると「PINなし従業員」として登録されます。PINなし従業員はPOS端末へのログインおよび返品認証には使用できません。</p>
-  </div>
-
-  <div class="field">
-    <%= f.label :pin_confirmation, "PINコード (確認)" %>
-    <%= f.password_field :pin_confirmation, placeholder: "確認のため再入力" %>
-  </div>
-
-  <%# 所属店舗の選択(全店舗一括選択チェックボックス + 個別選択) %>
-  <div class="field">
-    <label>所属店舗</label>
-
-    <%# 「全店舗を選択」との連動は store_select_controller.js（Stimulus）で行う %>
+  <fieldset class="form-section">
+    <legend>働く店舗</legend>
+    <%# 「全店舗」との連動は store_select_controller.js（Stimulus）で行う %>
     <div class="store-selection-box" data-controller="store-select">
       <div class="store-selection-header">
-        <label class="checkbox-label-bold">
-          <%= f.check_box :is_all_stores, id: "select-all-stores", class: "store-checkbox-master",
-                data: { store_select_target: "all", action: "store-select#toggleAll" } %>
-          全店舗を選択
-        </label>
+        <label class="checkbox-label-bold"><%= f.check_box :is_all_stores, id: "select-all-stores", class: "store-checkbox-master", data: { store_select_target: "all", action: "store-select#toggleAll" } %> すべての店舗</label>
       </div>
-      
       <div class="store-grid">
         <%= f.collection_check_boxes :store_ids, @stores, :id, :name do |b| %>
-          <div class="checkbox-item">
-            <%= b.check_box(class: "store-checkbox", data: { store_select_target: "store", action: "store-select#toggleStore" }) %>
-            <%= b.label(class: "store-label") %>
-          </div>
+          <div class="checkbox-item"><%= b.check_box(class: "store-checkbox", data: { store_select_target: "store", action: "store-select#toggleStore" }) %><%= b.label(class: "store-label") %></div>
         <% end %>
       </div>
     </div>
-  </div>
+  </fieldset>
 
-  <%# 操作権限の選択(Employee::PERMISSION_CATALOG の各項目をチェックボックスで表示) %>
-  <div class="field">
-    <label>操作権限</label>
-    <p class="field-hint">チェックした操作のみ許可されます。</p>
+  <fieldset class="form-section">
+    <legend>できる操作</legend>
+    <p class="field-hint">チェックした操作だけできます。ふつうの会計には権限は必要ありません。</p>
     <% current_permissions = employee.new_record? ? Set.new : employee.permission_keys.to_set %>
     <div class="store-grid">
       <% Employee::PERMISSION_CATALOG.each do |key, label| %>
-        <div class="checkbox-item">
-          <input type="checkbox"
-                 name="employee[permission_keys][]"
-                 value="<%= key %>"
-                 id="permission_<%= key %>"
-                 class="store-checkbox"
-                 <%= current_permissions.include?(key) ? 'checked' : '' %>>
-          <label for="permission_<%= key %>" class="store-label"><%= label %></label>
-        </div>
+        <div class="checkbox-item"><%= check_box_tag "employee[permission_keys][]", key, current_permissions.include?(key), id: "permission_#{key}", class: "store-checkbox" %><label for="permission_<%= key %>" class="store-label"><%= label %></label></div>
       <% end %>
     </div>
-  </div>
+  </fieldset>
 
-  <div class="actions">
-    <%= f.submit "保存する", class: "btn-signup" %>
-    <%= link_to "キャンセル", dashboard_employees_path, class: "link-cancel" %>
-  </div>
+  <div class="actions"><%= f.submit employee.new_record? ? "登録する" : "変更を保存" %><%= link_to "やめる", dashboard_employees_path, class: "link-cancel" %></div>
 <% end %>

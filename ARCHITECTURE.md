@@ -2040,3 +2040,62 @@ Response:
 
 *このドキュメントは OnLiPos リポジトリの全コードを分析して作成されました。*
 *最終更新: 2026-06-30（電子ジャーナル機能追加）*
+
+---
+
+## 付録: 2026年11月のセキュリティ強化・機能追加
+
+この章は、上の各章の記述より優先します。
+
+### 認証・認可
+
+| 対象 | 仕組み |
+|---|---|
+| POS端末 | `Authorization: Bearer`。DBには `token_digest`（SHA-256）のみ保存。URL・本文のパラメータでは受け付けない。`disabled_at` で遠隔停止、`MIN_APP_VERSION` で古いアプリを拒否 |
+| 担当者 | PIN認証（`verify_employee` 等に `permission` を指定）で `OperatorApproval` を発行。操作APIは `X-Operator-Approval` の提示が必須。返品・取消は2名分・使い捨て |
+| ダッシュボード | メンバーの役割（owner / manager / viewer）を `Dashboard::BaseController` の `requires_role` で確認。セキュリティ設定はパスワード再入力（10分有効）。無操作60分でログアウト |
+| コントロールセンター | パスワード＋認証アプリ（必須）。`bin/rails "admin:reset_mfa[username]"` でリセット |
+| 外部API | `/api/external/v1`。`ApiKey`（scope・ダイジェスト保存） |
+
+### 会計の検証（サーバー）
+
+1. `ScheduledProductChange.apply_due!` で適用日を迎えた価格・税率を反映
+2. 税率は**販売時点**で有効だったものに限る（不一致は 409 `master_outdated`）
+3. 単価は `SalePricePolicy` が判定（店舗価格・定価・24時間以内の旧価格・タイムセール・店内価格＋オプション）。それ以外は `discount` の承認が必要（403 `discount_approval_required`）
+4. 小計 = 単価 × 数量（量り売りは 100g 単価）でなければ 422
+5. まとめ買い割引・クーポン・小計割引をサーバーで再計算し、明細へ按分
+6. オフライン会計（端末採番のレシート番号付き）は価格相違でも登録し、`review_reasons` に理由を残す（ダッシュボード「要確認の会計」）
+
+端末側の計算は `lib/sale/cart_pricing.dart`。**両者の按分・端数処理・明細順は必ず一致させる**こと。
+
+### 返金
+
+`RefundCalculator` が「支払われた額（明細の小計）」を基準に計算し、残額を返し切る返品では残額をそのまま返す。決済手段別の返金額は `refund_payments` に記録し、理論在高はこれを使う。
+
+### 主な追加テーブル
+
+`operator_approvals` / `refund_payments` / `product_price_histories` / `scheduled_product_changes` / `audit_logs` / `journal_anchors` / `option_groups`・`option_items` / `product_imports` / `customers`・`point_transactions`・`receivable_transactions` / `coupons` / `promotions` / `suppliers` / `purchase_orders`・`purchase_order_items` / `stocktakes`・`stocktake_items` / `attendances` / `reservations` / `table_codes` / `kitchen_orders` / `customer_displays` / `api_keys` / `webhooks`
+
+### 公開ページ（ログイン不要・推測できないURL）
+
+| パス | 内容 |
+|---|---|
+| `/r/:token` | 電子レシート |
+| `/order/:token` | 卓のQRコードからのセルフ注文 |
+| `/kitchen/:token` | 厨房画面 |
+| `/display/:token` | 客用表示 |
+
+### 定期ジョブ（`config/recurring.yml`、日本時間）
+
+00:01 予約変更の反映 / 03:30 ジャーナルの検証と控え / 04:30 期限切れデータの削除
+
+### リリース手順（この変更を本番に適用するとき）
+
+1. 現在のバックアップ対象が空だったため、**適用前に `pg_dump <DB_NAME>_prod` を手動で取得**する
+2. 端末より先にサーバーを更新する。旧バージョンの端末が残る間だけ `ALLOW_LEGACY_OPERATOR_AUTH=true`（この間はPIN認証の強制が効かない）
+3. 端末アプリ（1.1.0 以降）へ更新し、マスタを再同期する
+4. 全端末の更新後、`ALLOW_LEGACY_OPERATOR_AUTH` を空に戻し、`MIN_APP_VERSION=1.1.0` を設定する
+5. `docker compose exec backup sh /scripts/restore_test.sh` で復元を確認する
+6. 管理者は次回ログイン時に認証アプリの登録が必要。ダッシュボード利用者は全員再ログインになる場合がある
+
+マイグレーション `20261124000005` は端末トークンの平文を削除するため、ロールバックすると全端末の再認証が必要になる。

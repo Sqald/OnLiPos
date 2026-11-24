@@ -1,0 +1,14 @@
+<%# ダッシュボード: 電子ジャーナル %>
+<%= page_header "電子ジャーナル", lead: "会計や返品の控えです。後から書き換えられないように保存されています。" do %>
+  <%= link_to verify_dashboard_journals_path, class: "btn btn-secondary" do %><%= icon(:shield, size: 18) %>改ざんがないか調べる<% end %>
+  <%= link_to dashboard_journals_path(request.query_parameters.merge(format: :csv)), class: "btn btn-secondary", data: { turbo: false } do %><%= icon(:download, size: 18) %>CSVで出力<% end %>
+<% end %>
+<%= render layout: "dashboard/shared/filter", locals: { url: dashboard_journals_path, stores: @stores } do |f| %>
+  <div class="filter-item"><%= f.label :pos_token_id, "端末" %><%= f.select :pos_token_id, options_for_select(@stores.flat_map { |s| s.pos_tokens.map { |p| [ "#{s.name} / #{p.name}", p.id ] } }, params[:pos_token_id]), { include_blank: "すべて" } %></div>
+  <div class="filter-item"><%= f.label :type, "種類" %><%= f.select :type, options_for_select(Dashboard::JournalsController::TYPE_LABELS.invert, params[:type]), { include_blank: "すべて" } %></div>
+  <div class="filter-item"><%= f.label :receipt, "レシート番号の末尾" %><%= f.text_field :receipt, value: params[:receipt] %></div>
+<% end %>
+<%= data_table([ "連番", "日時", "店舗 / 端末", "種類", "レシート番号", "担当者", "金額", "" ],
+      @entries.map { |e| [ e.sequence_number, datetime(e.printed_at), "#{e.store.name} / #{e.pos_token.name}", type_label(e.entry_type), e.receipt_number, e.employee&.name || "-",
+                           yen(e.payload["total_amount"] || e.payload["amount"]), row_actions(link_to("くわしく", dashboard_journal_path(e), class: "btn btn-sm btn-secondary")) ] }, empty: "この条件の記録はありません。") %>
+<div class="pagination-wrapper"><%= paginate @entries %></div>

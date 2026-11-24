@@ -2,6 +2,9 @@
 // 5秒ごとに転送注文一覧をポーリングして表示し、受け取り操作を提供する。
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_theme.dart';
+import 'package:onlipos/ui/app_header.dart';
 import 'package:onlipos/sale/transfer_order_api.dart';
 import 'package:onlipos/sale/sale_scan_view.dart';
 
@@ -70,7 +73,7 @@ class _HostWaitingViewState extends State<HostWaitingView> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('転送注文を受け取りますか？'),
+        title: const Text('この会計を受け取りますか？'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -81,20 +84,20 @@ class _HostWaitingViewState extends State<HostWaitingView> {
             ),
             if (entry.tableNumber != null)
               Text(
-                '卓番: ${entry.tableNumber}',
-                style: const TextStyle(color: Colors.orange),
+                '卓 ${entry.tableNumber}',
+                style: const TextStyle(color: AppColors.warning),
               ),
             const SizedBox(height: 8),
             Text(
-              '${entry.itemCount}点  ¥${entry.totalAmount}',
+              '${entry.itemCount}点　${yen(entry.totalAmount)}',
               style: const TextStyle(fontSize: 16),
             ),
           ],
         ),
         actions: [
-          TextButton(
+          OutlinedButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('キャンセル'),
+            child: const Text('やめる'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -127,12 +130,7 @@ class _HostWaitingViewState extends State<HostWaitingView> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('受け取りに失敗しました: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        showMessage(context, '受け取りに失敗しました: $e', MessageType.error);
       }
     }
   }
@@ -147,142 +145,72 @@ class _HostWaitingViewState extends State<HostWaitingView> {
 
   @override
   Widget build(BuildContext context) {
-    // AppBarに次回更新までの秒数と手動更新ボタンを表示
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('待ち受けモード'),
-        backgroundColor: const Color(0xFF1D1D1D),
-        foregroundColor: Colors.white,
+      appBar: AppHeader(
+        '待ち受け',
+        subtitle: '$_secondsUntilRefresh秒後に更新します',
         actions: [
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: Text(
-                '$_secondsUntilRefresh秒後に更新',
-                style: const TextStyle(fontSize: 13, color: Colors.grey),
-              ),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
+          OutlinedButton.icon(
             onPressed: _loadTransfers,
-            tooltip: '今すぐ更新',
+            icon: const Icon(Icons.refresh, size: 20),
+            label: const Text('いま更新する'),
+            style: OutlinedButton.styleFrom(minimumSize: const Size(64, 44)),
           ),
         ],
       ),
-      backgroundColor: const Color(0xFF2A2A2A),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.white))
+          ? const Center(child: CircularProgressIndicator())
           : _transfers.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.inbox_outlined, size: 80, color: Colors.grey[600]),
-                  const SizedBox(height: 16),
-                  Text(
-                    '転送待ちの注文はありません',
-                    style: TextStyle(fontSize: 20, color: Colors.grey[400]),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'クライアント機からの転送を待っています',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                  ),
-                ],
-              ),
+          ? const EmptyState(
+              icon: Icons.inbox_outlined,
+              title: '送られてきた会計はありません',
+              message: 'クライアント機から送られると、ここに表示されます',
             )
-          // 転送注文一覧をカード形式で表示
-          : ListView.builder(
+          : ListView.separated(
               padding: const EdgeInsets.all(16),
               itemCount: _transfers.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
               itemBuilder: (context, index) {
                 final t = _transfers[index];
                 return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  color: const Color(0xFF3A3A3A),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Row(
                       children: [
-                        // アイコン
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF2D89EF),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.send,
-                            color: Colors.white,
-                            size: 28,
-                          ),
+                        const Icon(
+                          Icons.move_to_inbox,
+                          size: 36,
+                          color: AppColors.primary,
                         ),
                         const SizedBox(width: 16),
-                        // 情報
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '担当: ${t.operatorName}',
+                                '${yen(t.totalAmount)}（${t.itemCount}点）',
                                 style: const TextStyle(
-                                  fontSize: 18,
+                                  fontSize: 22,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white,
                                 ),
                               ),
-                              if (t.tableNumber != null)
-                                Text(
-                                  '卓 ${t.tableNumber}',
-                                  style: const TextStyle(
-                                    color: Colors.orange,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              const SizedBox(height: 4),
                               Text(
-                                '${t.itemCount}点  ¥${t.totalAmount}',
+                                [
+                                  if (t.tableNumber != null)
+                                    '卓 ${t.tableNumber}',
+                                  '担当: ${t.operatorName}',
+                                  _elapsed(t.createdAt),
+                                ].join('　'),
                                 style: const TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.white70,
-                                ),
-                              ),
-                              Text(
-                                _elapsed(t.createdAt),
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey[500],
+                                  color: AppColors.secondary,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        // 受け取るボタン
-                        SizedBox(
-                          width: 120,
-                          height: 56,
-                          child: ElevatedButton(
-                            onPressed: () => _claimTransfer(t),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: const Text(
-                              '受け取る',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
+                        ElevatedButton(
+                          onPressed: () => _claimTransfer(t),
+                          child: const Text('受け取る'),
                         ),
                       ],
                     ),

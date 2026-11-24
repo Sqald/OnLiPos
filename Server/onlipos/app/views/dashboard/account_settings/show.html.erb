@@ -1,0 +1,23 @@
+<%# ダッシュボード: 契約アカウントの設定 %>
+<%= page_header "お店の基本設定", lead: "すべての店舗に共通する設定です。" %>
+<% unless role_at_least?(:owner) %><p class="readonly-note"><%= icon(:info, size: 18) %>変更できるのは契約者だけです。</p><% end %>
+<div class="dashboard-content form-narrow">
+  <%= form_errors(@account) %>
+  <%= form_with model: @account, url: dashboard_account_settings_path, method: :patch, scope: :user, class: "dashboard-form" do |f| %>
+    <fieldset class="form-section">
+      <legend>インボイス・消費税</legend>
+      <div class="field"><%= f.label :invoice_registration_number, "インボイスの登録番号" %><%= f.text_field :invoice_registration_number, placeholder: "T1234567890123", maxlength: 14 %><p class="field-hint">「T」と13桁の数字。レシートと領収書に印字されます。免税事業者の場合は空欄にしてください。</p></div>
+      <div class="field"><%= f.label :tax_rounding_method, "消費税の1円未満" %><%= f.select :tax_rounding_method, [ [ "切り捨て", "round_down" ], [ "四捨五入", "round_half_up" ], [ "切り上げ", "round_up" ] ] %></div>
+    </fieldset>
+    <fieldset class="form-section">
+      <legend>ポイント</legend>
+      <div class="field"><%= f.label :point_yen_per_point, "いくらで1ポイント付けるか" %><div class="input-unit"><%= f.number_field :point_yen_per_point, min: 0 %><span>円ごと</span></div><p class="field-hint">0 にするとポイントを使いません。1ポイントは1円として使えます。</p></div>
+    </fieldset>
+    <fieldset class="form-section">
+      <legend>レシート</legend>
+      <div class="field"><%= f.label :receipt_footer, "レシートの最後に入れる文" %><%= f.text_field :receipt_footer, maxlength: 200, placeholder: "例: またのご来店をお待ちしております" %></div>
+      <div class="field"><label><%= f.check_box :digital_receipt_enabled %> 電子レシート（QRコード）を使う</label></div>
+    </fieldset>
+    <% if role_at_least?(:owner) %><div class="actions"><%= f.submit "変更を保存" %></div><% end %>
+  <% end %>
+</div>

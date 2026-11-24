@@ -1,57 +1,7 @@
-<%#
-  ダッシュボード: 店舗別価格設定画面
-  商品ごとに、この店舗だけで使う価格（基本価格の上書き）を設定する。
-  空欄のままなら商品の基本価格がそのまま適用される。
-%>
-<div class="dashboard-container">
-  <%= render 'dashboard/shared/menu' %>
-
-  <div class="dashboard-content card">
-    <div class="subtitle d-flex justify-content-between align-items-center">
-      <h2><%= @store.name %> — 店舗別価格設定</h2>
-      <%= link_to "← 店舗一覧に戻る", dashboard_stores_path, class: "btn-sm btn-outline" %>
-    </div>
-
-    <p style="color: #666; margin-bottom: 16px;">
-      空欄の場合は商品の基本価格が使われます。基本価格と同じ値を入力した場合も基本価格扱いになります。
-    </p>
-
-    <%# 商品一覧 + 店舗別価格の入力欄をまとめて送信するフォーム %>
-    <%= form_with url: update_prices_dashboard_store_path(@store), method: :patch, local: true do |f| %>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>商品コード</th>
-            <th>商品名</th>
-            <th class="text-right">基本価格</th>
-            <th class="text-right" style="min-width: 140px;">この店舗の価格</th>
-          </tr>
-        </thead>
-        <tbody>
-          <%# 商品ごとに、既存の価格上書き設定（@prices_by_product_id）があれば初期値として表示 %>
-          <% @products.each do |product| %>
-            <% override = @prices_by_product_id[product.id] %>
-            <tr>
-              <td><%= product.code %></td>
-              <td><%= product.name %></td>
-              <td class="text-right">¥<%= product.price %></td>
-              <td class="text-right">
-                <%= text_field_tag "price_overrides[#{product.id}]",
-                      override&.amount,
-                      placeholder: product.price.to_s,
-                      class: "form-control text-right",
-                      style: "width: 120px; display: inline-block;",
-                      type: "number",
-                      min: "0" %>
-              </td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-
-      <div style="margin-top: 24px;">
-        <%= f.submit "保存する", class: "btn-signup" %>
-      </div>
-    <% end %>
-  </div>
-</div>
+<%# ダッシュボード: 店舗別の価格（商品の基本価格を、この店舗だけ上書きする）。空欄なら基本価格を使う %>
+<%= page_header "#{@store.name} の価格", back: true, lead: "この店舗だけ値段を変えたい商品に入力してください。空欄の商品は、基本価格のまま販売します。" %>
+<%= form_with url: update_prices_dashboard_store_path(@store), method: :patch do |f| %>
+  <%= data_table([ "商品コード", "商品名", "基本価格", "この店舗の価格（円）" ], @products.map { |p|
+        [ p.code, p.name, yen(p.price), text_field_tag("price_overrides[#{p.id}]", @prices_by_product_id[p.id]&.amount, placeholder: p.price.to_s, type: "number", min: "0", style: "max-width: 150px", "aria-label": "#{p.name} のこの店舗の価格") ] }, empty: "商品がまだ登録されていません。") %>
+  <% if @products.any? && can_write? %><div class="sticky-actions card" style="margin-top: 1rem"><%= f.submit "価格を保存", class: "btn btn-primary" %></div><% end %>
+<% end %>

@@ -5,8 +5,11 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:onlipos/login/login_top_view.dart';
 import 'package:onlipos/setup/setup_view.dart';
+import 'package:onlipos/ui/app_theme.dart';
+import 'package:onlipos/ui/status_footer.dart';
 import 'dart:io';
 
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -77,7 +80,7 @@ class _MyAppState extends State<MyApp> {
 
       WindowOptions windowOptions = const WindowOptions(
         size: Size(1280, 720),
-        title: 'OnliPos Client',
+        title: 'OnLiPos',
         center: true,
         skipTaskbar: false,
       );
@@ -106,10 +109,14 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'OnliPos Client',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
+      title: 'OnLiPos',
+      theme: buildAppTheme(),
+      navigatorKey: appNavigatorKey,
+      // 日付の選択画面などを日本語で表示する
+      locale: const Locale('ja'),
+      supportedLocales: const [Locale('ja')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      builder: withStatusFooter,
       // initialViewが決まるまではローディングインジケーターを出しておく
       home:
           initialView ??

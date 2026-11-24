@@ -3,18 +3,15 @@ class Dashboard::CashLogsController < Dashboard::BaseController
   # レジ金履歴は検索条件（店舗・端末・日付・種別）を指定して検索したときのみデータを取得する。
   # 自ユーザー配下の店舗・POS端末のログのみに厳格にスコープする。
   def index
-    @stores = current_user.stores.includes(:pos_tokens).order(:name)
-    @allowed_store_ids = current_user.stores.pluck(:id)
-    @allowed_pos_token_ids = PosToken.joins(:store).where(stores: { user_id: current_user.id }).pluck(:id)
+    @stores = current_account.stores.includes(:pos_tokens).order(:name)
+    @allowed_store_ids = current_account.stores.pluck(:id)
+    @allowed_pos_token_ids = PosToken.joins(:store).where(stores: { user_id: current_account.id }).pluck(:id)
 
-    unless search_performed?
-      @cash_logs = CashLog.none.page(1).per(50)
-      return
-    end
+    default_period(Date.current - 6) unless search_performed?
 
     scope = CashLog
       .joins(pos_token: :store)
-      .where(stores: { user_id: current_user.id })
+      .where(stores: { user_id: current_account.id })
 
     if params[:store_id].present? && @allowed_store_ids.include?(params[:store_id].to_i)
       scope = scope.where(pos_tokens: { store_id: params[:store_id] })

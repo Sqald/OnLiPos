@@ -121,20 +121,8 @@ class RegisterSession < ApplicationRecord
                .sum(:amount)
   end
 
-  # 返品の現金分。元売上の現金支払い比率で按分する（cash_check_baseline と同式）
+  # 返品の現金分（返金の決済手段別内訳から集計）
   def allocated_cash_refund_total
-    Refund.joins(:sale)
-          .joins(
-            "LEFT JOIN (
-              SELECT sale_id, SUM(amount) AS cash_amount
-              FROM sale_payments
-              WHERE method = 0
-              GROUP BY sale_id
-            ) AS cash_sums ON cash_sums.sale_id = sales.id"
-          )
-          .where(refunds: { register_session_id: id })
-          .where("sales.total_amount > 0")
-          .sum("ROUND(refunds.total_amount::numeric * COALESCE(cash_sums.cash_amount, 0) / sales.total_amount)")
-          .to_i
+    RefundPayment.cash.joins(:refund).where(refunds: { register_session_id: id }).sum(:amount)
   end
 end

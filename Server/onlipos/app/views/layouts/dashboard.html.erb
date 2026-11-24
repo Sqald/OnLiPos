@@ -1,0 +1,50 @@
+<%#
+  レイアウト: ダッシュボード（ログイン後の管理画面）共通
+  上部バー（ロゴ・ヘルプ・アカウント）、目的別のサイドメニュー、本文、フッターを持つ。
+  スマートフォンではサイドメニューを引き出し式にし、よく使う項目を画面下に固定する。
+%>
+<!DOCTYPE html>
+<html lang="ja">
+  <head><%= render "shared/head" %></head>
+  <body class="app-body" data-controller="app-shell tables" data-action="keydown.esc@window->app-shell#close turbo:before-cache@document->app-shell#close">
+    <a class="skip-link" href="#main">本文へ移動</a>
+    <header class="topbar">
+      <button type="button" class="topbar-menu" aria-label="メニューを開く" aria-controls="sidebar" aria-expanded="false" data-app-shell-target="toggle" data-action="app-shell#toggle"><%= icon(:menu, size: 24) %><span>メニュー</span></button>
+      <%= link_to dashboard_root_path, class: "brand" do %><span class="brand-mark" aria-hidden="true">O</span>OnLiPos<% end %>
+      <span class="topbar-account" title="契約アカウント"><%= current_account.company_name.presence || [ current_account.last_name, current_account.first_name ].compact_blank.join(" ") %></span>
+      <div class="topbar-right">
+        <%= link_to dashboard_help_path, class: "topbar-link" do %><%= icon(:help) %><span>使い方</span><% end %>
+        <details class="user-menu" data-controller="popover" data-action="click@window->popover#outside">
+          <summary><%= icon(:user) %><span class="user-menu-name"><%= [ current_user.last_name, current_user.first_name ].compact_blank.join(" ").presence || current_user.login_name %></span><%= icon(:down, size: 16) %></summary>
+          <div class="user-menu-panel">
+            <p class="user-menu-info"><strong><%= [ current_user.last_name, current_user.first_name ].compact_blank.join(" ").presence || current_user.login_name %></strong><br><span><%= dashboard_role_label %></span></p>
+            <%= link_to "マイページ（氏名・メール・パスワード）", edit_user_registration_path %>
+            <%= link_to "セキュリティ（2段階認証）", dashboard_security_path %>
+            <%= button_to destroy_user_session_path, method: :delete, class: "user-menu-logout" do %><%= icon(:logout, size: 18) %>ログアウト<% end %>
+          </div>
+        </details>
+      </div>
+    </header>
+    <div class="app-shell">
+      <div class="sidebar-backdrop" data-action="click->app-shell#close"></div>
+      <aside class="sidebar" id="sidebar" data-app-shell-target="sidebar"><%= render "dashboard/shared/menu" %></aside>
+      <div class="app-main">
+        <main id="main" tabindex="-1">
+          <%= render "shared/flash" %>
+          <% if respond_to?(:can_write?) && !can_write? && controller_name != "dashboards" && !role_at_least?(:manager) %>
+            <p class="readonly-note"><%= icon(:info, size: 18) %>閲覧のみの権限です。登録や変更はできません。</p>
+          <% end %>
+          <%= yield %>
+        </main>
+        <%= render "shared/footer" %>
+      </div>
+    </div>
+    <nav class="bottom-nav" aria-label="よく使うメニュー">
+      <% dashboard_bottom_nav.each do |label, path, icon_name, controllers| %>
+        <%= link_to path, class: ("active" if controllers.include?(controller_name)), aria: { current: ("page" if controllers.include?(controller_name)) } do %><%= icon(icon_name, size: 22) %><span><%= label %></span><% end %>
+      <% end %>
+      <button type="button" aria-controls="sidebar" aria-expanded="false" data-app-shell-target="toggle" data-action="app-shell#toggle"><%= icon(:menu, size: 22) %><span>すべて</span></button>
+    </nav>
+    <%= render "shared/confirm_dialog" %>
+  </body>
+</html>

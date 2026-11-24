@@ -76,6 +76,9 @@ module MfaSignIn
     user.remember_me = true if remember && user.respond_to?(:remember_me=)
     sign_in(:user, user)
     warden.session(:user)[SESSION_MARK] = true
+    session[:reauthenticated_at] = Time.current.to_i
+    Current.ip_address = request.remote_ip
+    AuditLog.record("sign_in", target: user, account: user.account, actor: user)
   end
 
   # セッション固定化対策: 認証状態が変わる前にセッションIDを振り直す

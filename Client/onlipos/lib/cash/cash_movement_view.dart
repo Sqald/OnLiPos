@@ -3,6 +3,10 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:onlipos/ui/num_pad.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_header.dart';
 
 import 'cash_log_api.dart';
 import '../sale/escpos/lan_recipt_api.dart';
@@ -61,14 +65,12 @@ class _CashMovementViewState extends State<CashMovementView> {
   Future<void> _submit() async {
     final amount = int.tryParse(_amountController.text.replaceAll(',', ''));
     if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('金額を正しく入力してください')));
+      showMessage(context, '金額を正しく入力してください', MessageType.error);
       return;
     }
 
     final directionLabel = _kind.isInbound ? '入金' : '出金';
-    final confirm = await showDialog<bool>(
+    final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('${_kind.label}の確認'),
@@ -89,9 +91,9 @@ class _CashMovementViewState extends State<CashMovementView> {
           ],
         ),
         actions: [
-          TextButton(
+          OutlinedButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('キャンセル'),
+            child: const Text('やめる'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -107,7 +109,7 @@ class _CashMovementViewState extends State<CashMovementView> {
       ),
     );
 
-    if (confirm != true || !mounted) return;
+    if (ok != true || !mounted) return;
 
     setState(() => _isLoading = true);
 
@@ -124,121 +126,111 @@ class _CashMovementViewState extends State<CashMovementView> {
     if (result['success'] == true) {
       // ドロア開放（現金を実際に動かすため）
       ReceiptPrinter.openDrawer();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${_kind.label} ¥${_formatCurrency(amount)} を記録しました'),
-        ),
+      showMessage(
+        context,
+        '${_kind.label} ¥${_formatCurrency(amount)} を記録しました',
+        MessageType.info,
       );
       Navigator.of(context).pop();
     } else {
       final msg = result['message']?.toString() ?? 'エラーが発生しました';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      showMessage(context, msg, MessageType.error);
     }
   }
 
-  // 種別選択・金額入力・事由入力と実行ボタンをまとめた画面を構築する
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('レジ入出金')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final fields = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
           children: [
-            Text(
-              '担当者: ${widget.employeeName}',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              '入出金の種別',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: CashMovementKind.values.map((kind) {
-                final selected = _kind == kind;
-                return ChoiceChip(
-                  avatar: Icon(
-                    kind.icon,
-                    size: 20,
-                    color: selected ? Colors.white : Colors.grey[700],
-                  ),
-                  label: Text(kind.label),
-                  selected: selected,
-                  selectedColor: kind.isInbound
-                      ? Colors.teal[700]
-                      : Colors.orange[800],
-                  labelStyle: TextStyle(
-                    color: selected ? Colors.white : Colors.black87,
-                    fontSize: 16,
-                  ),
-                  onSelected: (_) => setState(() => _kind = kind),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              '${_kind.isInbound ? '入金' : '出金'}金額（円）',
-              style: const TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _amountController,
-              keyboardType: TextInputType.number,
-              autofocus: true,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                prefixText: '¥',
-                hintText: '例: 10000',
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 16,
-                ),
+            for (final kind in CashMovementKind.values)
+              ChoiceChip(
+                avatar: Icon(kind.icon, size: 20),
+                showCheckmark: false,
+                label: Text(kind.label),
+                selected: _kind == kind,
+                onSelected: (_) => setState(() => _kind = kind),
               ),
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              '事由（任意）',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _reasonController,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: '例: 釣銭補充 / 備品購入',
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 16,
-                ),
-              ),
-            ),
-            const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              height: 60,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _kind.isInbound
-                      ? Colors.teal[700]
-                      : Colors.orange[800],
-                  foregroundColor: Colors.white,
-                ),
-                child: _isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : Text(
-                        '${_kind.label}を実行',
-                        style: const TextStyle(fontSize: 20),
-                      ),
-              ),
-            ),
           ],
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _amountController,
+          keyboardType: TextInputType.none,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          autofocus: true,
+          textAlign: TextAlign.right,
+          decoration: InputDecoration(
+            labelText: _kind.isInbound ? '入れる金額' : '出す金額',
+            prefixText: '¥ ',
+          ),
+          style: const TextStyle(fontSize: 34, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _reasonController,
+          decoration: const InputDecoration(
+            labelText: '理由（なくても可）',
+            hintText: '例: 釣銭の補充 / 備品の購入',
+          ),
+        ),
+        const SizedBox(height: 20),
+        SizedBox(
+          height: 64,
+          child: ElevatedButton(
+            onPressed: _isLoading ? null : _submit,
+            child: _isLoading
+                ? const CircularProgressIndicator()
+                : Text(
+                    '${_kind.label}を記録する',
+                    style: const TextStyle(fontSize: 20),
+                  ),
+          ),
+        ),
+      ],
+    );
+    return Scaffold(
+      appBar: AppHeader(
+        '入出金',
+        subtitle: 'レジに現金を足したり、出したりした記録をします。　担当: ${widget.employeeName}',
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 860),
+            child: LayoutBuilder(
+              builder: (context, box) {
+                final pad = NumPad(
+                  controller: _amountController,
+                  showDoubleZero: true,
+                  maxLength: 8,
+                );
+                if (box.maxWidth < 640) {
+                  return Column(
+                    children: [
+                      SectionCard(child: fields),
+                      const SizedBox(height: 12),
+                      pad,
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: SectionCard(child: fields)),
+                    const SizedBox(width: 16),
+                    SizedBox(width: 290, child: pad),
+                  ],
+                );
+              },
+            ),
+          ),
         ),
       ),
     );

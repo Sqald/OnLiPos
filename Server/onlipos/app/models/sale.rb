@@ -13,10 +13,20 @@ class Sale < ApplicationRecord
   has_many :sale_payments, dependent: :destroy
   has_many :sale_tax_breakdowns, dependent: :destroy
   has_many :refunds, dependent: :restrict_with_exception
+  belongs_to :discount_approver, class_name: "Employee", optional: true
 
-  # 支払い方法: 0:現金, 1:カード, 2:バーコード決済, 3:電子マネー
-  # 将来的に支払い方法が増えた場合はここに追記する
-  enum :payment_method, { cash: 0, card: 1, barcode: 2, emoney: 3 }
+  belongs_to :customer, optional: true
+  belongs_to :coupon, optional: true
+  has_many :point_transactions, dependent: :restrict_with_exception
+
+  # 電子レシートのURLに使う推測できない文字列
+  before_create { self.public_token ||= SecureRandom.urlsafe_base64(24) }
+
+  # 要確認の会計（オフライン会計の価格相違など）のうち、まだ確認していないもの
+  scope :needing_review, -> { where("review_reasons <> '[]'::jsonb").where(reviewed_at: nil) }
+
+  # 支払い方法（PaymentMethods を参照）
+  enum :payment_method, PaymentMethods::VALUES
 
   # 0: 有効な売上, 1: 確定後取消（VOID）。取消は削除ではなく状態遷移で記録する
   enum :status, { completed: 0, voided: 1 }
@@ -52,9 +62,24 @@ class Sale < ApplicationRecord
     self.business_date ||= sold_at.in_time_zone.to_date
   end
 
+  # 端末採番のレシート番号に合わせて、サーバーの次の連番を進める（戻すことはない）
+  def advance_receipt_sequence
+    return if pos_token.nil?
+
+    match = receipt_number.match(/-(\d+)-(\d{8})\z/)
+    return unless match && match[1].to_i == pos_token.id
+
+    pos_token.with_lock do
+      following = match[2].to_i + 1
+      pos_token.update_columns(next_receipt_sequence: following) if following > pos_token.next_receipt_sequence
+    end
+  end
+
   # レシート番号を採番する（POS端末経由なら連番方式、手動登録なら日時+ランダム方式）
   def set_receipt_number
-    return if receipt_number.present?
+    # オフライン会計で端末が採番した番号は、サーバーの連番にも反映する。
+    # 反映しないと、次のオンライン会計で同じ番号を払い出して登録できなくなる
+    return advance_receipt_sequence if receipt_number.present?
 
     # 企業識別子 (User.login_name)
     user_part = user&.login_name || "NO_USER"
@@ -63,20 +88,16 @@ class Sale < ApplicationRecord
 
     # POS端末が紐付いている場合（通常のPOS操作）は、連番ベースの番号を生成
     if pos_token.present?
-      sequence = nil
-      # トランザクション内でPOSトークンをロックし、安全にシーケンス番号を採番・更新
-      # これにより、複数の会計が同時に発生しても番号の重複を防ぎます。
+      # 新フォーマット: {企業Login名}-{店舗Ascii名}-{POS端末ID}-{8桁ゼロ埋めの連番}
+      prefix = "#{user_part}-#{store_part}-#{pos_token.id}-"
+      # POSトークンをロックし、同時会計でも番号が重複しないように採番する。
+      # 使用済みの番号（過去に反映されなかったオフライン採番など）は飛ばす
       pos_token.with_lock do
         sequence = pos_token.next_receipt_sequence
-        pos_token.increment!(:next_receipt_sequence)
+        sequence += 1 while Sale.exists?(receipt_number: prefix + sequence.to_s.rjust(8, "0"))
+        pos_token.update_columns(next_receipt_sequence: sequence + 1)
+        self.receipt_number = prefix + sequence.to_s.rjust(8, "0")
       end
-
-      # 8桁ゼロ埋め
-      sequence_part = sequence.to_s.rjust(8, "0")
-      pos_part = pos_token.id
-
-      # 新フォーマット: {企業Login名}-{店舗Ascii名}-{POS端末ID}-{連番}
-      self.receipt_number = "#{user_part}-#{store_part}-#{pos_part}-#{sequence_part}"
     else
       # POS端末が紐付かない場合（Web管理画面からの手動登録など）は、
       # 競合しないように日時+ランダムベースの番号を生成

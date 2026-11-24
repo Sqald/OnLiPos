@@ -1,0 +1,5 @@
+<%# ダッシュボード: 在庫が不足している商品 %>
+<%= page_header "在庫不足", lead: "商品ごとに決めた「在庫が少ないと知らせる数」以下になった商品です。" %>
+<%= data_table([ "店舗", "商品", "在庫", "知らせる数", "仕入先", "" ], @stocks.map { |s| [ s.store.name, "#{s.product.name}（#{s.product.code}）", s.quantity, s.product.low_stock_threshold, s.product.supplier&.name || "-",
+      s.product.supplier && can_write? ? row_actions(link_to("発注する", new_dashboard_purchase_order_path(store_id: s.store_id, supplier_id: s.product.supplier_id), class: "btn btn-sm btn-primary")) : "" ] }, empty: "在庫が不足している商品はありません。") %>
+<div class="pagination-wrapper"><%= paginate @stocks %></div>

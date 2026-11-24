@@ -1,0 +1,38 @@
+<%# 電子レシート（適格簡易請求書の記載事項: 発行者・登録番号・日付・内容・税率別の対価と消費税額） %>
+<% content_for :title, "レシート #{@sale.store.name}" %>
+<div class="public-card">
+  <h1><%= @sale.store.name %></h1>
+  <p class="public-muted">
+    <%= @sale.user.company_name.presence || [ @sale.user.last_name, @sale.user.first_name ].join(" ") %><br>
+    <% if @sale.store.address.present? %><%= @sale.store.address %><br><% end %>
+    <% if @sale.store.phone_number.present? %>TEL <%= @sale.store.phone_number %><br><% end %>
+    <% if @sale.user.invoice_registration_number.present? %>登録番号 <%= @sale.user.invoice_registration_number %><br><% end %>
+    <%= l(@sale.sold_at.in_time_zone, format: "%Y年%m月%d日 %H:%M") %><br>
+    レシート番号 <%= @sale.receipt_number %>
+  </p>
+  <% if @sale.voided? %><p class="public-alert">この会計は取り消されました。</p><% end %>
+  <% if @sale.refunds.any? %><p class="public-alert">返品があります（返金合計 <%= yen(@sale.refunds.sum(&:total_amount)) %>）。</p><% end %>
+  <table>
+    <% @sale.saledetails.sort_by(&:id).each do |d| %>
+      <tr>
+        <td>
+          <%= d.product_name %><%= " ※" if d.tax_rate.between?(1, 9) %>
+          <% if d.options.any? %><br><span class="public-muted"><%= d.options.map { |o| o["name"] }.join("、") %></span><% end %>
+          <br><span class="public-muted"><%= d.weight_grams ? "#{d.weight_grams}g" : "#{d.quantity}点" %><%= "・店内" if d.eat_in? %></span>
+        </td>
+        <td class="amount"><%= yen(d.subtotal) %></td>
+      </tr>
+    <% end %>
+    <tr class="public-total"><td>合計</td><td class="amount"><%= yen(@sale.total_amount) %></td></tr>
+    <% @sale.sale_tax_breakdowns.sort_by(&:tax_rate).each do |b| %>
+      <tr class="public-muted">
+        <td><%= b.tax_free? ? "非課税" : "#{b.tax_rate}%対象" %></td>
+        <td class="amount"><%= yen(b.taxable_amount) %>（内消費税 <%= yen(b.tax_amount) %>）</td>
+      </tr>
+    <% end %>
+    <% @sale.sale_payments.each do |p| %>
+      <tr><td><%= PaymentMethods.label(p.method) %></td><td class="amount"><%= yen(p.amount) %></td></tr>
+    <% end %>
+  </table>
+  <p class="public-muted">※は軽減税率の対象です。<% if @sale.user.receipt_footer.present? %><br><%= @sale.user.receipt_footer %><% end %></p>
+</div>

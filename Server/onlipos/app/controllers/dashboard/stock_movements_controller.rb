@@ -1,20 +1,16 @@
 # 在庫移動履歴（入出庫・移動）の閲覧画面。
 class Dashboard::StockMovementsController < Dashboard::BaseController
-  # 検索条件（店舗・期間）を指定して検索したときのみデータを取得する
   def index
-    @stores = current_user.stores.order(:name)
-    @allowed_store_ids = current_user.stores.pluck(:id)
+    @stores = current_account.stores.order(:name)
+    @allowed_store_ids = current_account.stores.pluck(:id)
 
-    # 検索条件が1つも指定されていない場合はクエリを実行せず、空のページを返す（負荷軽減）
-    unless search_performed?
-      @movements = StockMovement.none.page(1).per(50)
-      return
-    end
+    # 検索条件が無ければ過去7日分を表示する
+    default_period(Date.current - 6) unless search_performed?
 
     # 自ユーザー配下の店舗の在庫移動のみ（他ユーザーデータを絶対に含めない）
     scope = StockMovement
       .joins(:store)
-      .where(stores: { user_id: current_user.id })
+      .where(stores: { user_id: current_account.id })
 
     if params[:store_id].present? && @allowed_store_ids.include?(params[:store_id].to_i)
       scope = scope.where(store_id: params[:store_id])

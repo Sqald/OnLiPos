@@ -1,13 +1,10 @@
 <%# ダッシュボード: 発行したリカバリーコードを一度だけ表示する %>
-<div class="dashboard-container">
-  <%= render 'dashboard/shared/menu' %>
-  <div class="dashboard-content card mfa-settings">
-    <div class="subtitle"><h2>リカバリーコード</h2></div>
-    <p class="mfa-warning">このコードはこの画面でしか表示されません。印刷するかパスワードマネージャーなどに保存し、安全な場所に保管してください。</p>
-    <p>パスキーや認証アプリが使えなくなったとき、ログインの2段階目でこのコードを1つ入力するとログインできます（各コード1回限り）。</p>
-    <ul class="mfa-codes">
-      <% @codes.each do |code| %><li><code><%= code %></code></li><% end %>
-    </ul>
-    <%= link_to "保存しました（セキュリティ設定へ）", dashboard_security_path, class: "btn-signup" %>
+<%= page_header "リカバリーコード", lead: "スマートフォンをなくしたときなどに、ログインの2段階目で使うコードです（各コード1回だけ使えます）。" %>
+<div class="dashboard-content form-narrow">
+  <p class="mfa-warning"><strong>この画面でしか表示されません。</strong>印刷するか、パスワードマネージャーなどの安全な場所に保管してください。</p>
+  <ul class="mfa-codes"><% @codes.each do |code| %><li><code><%= code %></code></li><% end %></ul>
+  <div class="actions" data-controller="clipboard" data-clipboard-text-value="<%= @codes.join("\n") %>">
+    <%= link_to "保管しました", dashboard_root_path, class: "btn btn-primary" %>
+    <button type="button" class="btn btn-secondary" data-clipboard-target="button" data-action="clipboard#copy">コピー</button>
   </div>
 </div>

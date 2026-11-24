@@ -3,13 +3,13 @@
 class Dashboard::ProvisioningsController < Dashboard::BaseController
   # プロビジョニング一覧
   def index
-    @provisionings = Provisioning.where(user: current_user).order(created_at: :desc)
+    @provisionings = Provisioning.where(user: current_account).order(created_at: :desc)
   end
 
   # 新規作成フォーム
   def new
     @provisioning = Provisioning.new
-    @stores = current_user.stores
+    @stores = current_account.stores
     @pos_tokens = PosToken.where(store: @stores)
   end
 
@@ -17,10 +17,10 @@ class Dashboard::ProvisioningsController < Dashboard::BaseController
   # hardware_settings（プリンタIP等）をJSONとして組み立てて保存する。
   def create
     @provisioning = Provisioning.new(provisioning_params)
-    @provisioning.user = current_user
+    @provisioning.user = current_account
 
     # 店舗情報の取得とstore_contextの構築
-    store = current_user.stores.find_by(id: provisioning_params[:store_id])
+    store = current_account.stores.find_by(id: provisioning_params[:store_id])
     if store
       store_mode = params.dig(:provisioning, :store_mode).presence || "standard"
       @provisioning.store_context = {
@@ -45,7 +45,7 @@ class Dashboard::ProvisioningsController < Dashboard::BaseController
     if @provisioning.save
       redirect_to dashboard_provisionings_path, notice: "プロビジョニングデータを作成しました。"
     else
-      @stores = current_user.stores
+      @stores = current_account.stores
       @pos_tokens = PosToken.where(store: @stores)
       render :new, status: :unprocessable_entity
     end
@@ -53,7 +53,7 @@ class Dashboard::ProvisioningsController < Dashboard::BaseController
 
   # プロビジョニングデータを削除する。自ユーザー配下のデータのみ対象。
   def destroy
-    @provisioning = Provisioning.where(user: current_user).find_by(id: params[:id])
+    @provisioning = Provisioning.where(user: current_account).find_by(id: params[:id])
     if @provisioning
       @provisioning.destroy
       redirect_to dashboard_provisionings_path, notice: "削除しました。", status: :see_other

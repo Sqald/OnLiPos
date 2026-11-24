@@ -16,7 +16,7 @@ class BundleSalesApiTest < ActionDispatch::IntegrationTest
     )
     @store = @user.stores.create!(name: "テスト店舗", ascii_name: "bundleteststore")
     @pos_token = @store.pos_tokens.create!(name: "POS1", ascii_name: "pos1", password: "PosPass1!", password_confirmation: "PosPass1!")
-    @pos_token.update_columns(token: SecureRandom.hex(32))
+    @pos_token.regenerate_token
 
     @product_a = @user.products.create!(code: "BP001", name: "構成品A", price: 300, tax_rate: 10)
     @product_b = @user.products.create!(code: "BP002", name: "構成品B", price: 700, tax_rate: 10)
@@ -28,6 +28,7 @@ class BundleSalesApiTest < ActionDispatch::IntegrationTest
     @bundle.product_bundle_items.create!(product: @product_a, quantity: 1)
     @bundle.product_bundle_items.create!(product: @product_b, quantity: 1)
     @employee = @user.employees.create!(code: "B001", name: "セット担当")
+    @employee.employee_permissions.create!(permission: "discount")
     @employee.stores << @store
   end
 

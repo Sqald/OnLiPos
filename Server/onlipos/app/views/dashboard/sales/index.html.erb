@@ -1,107 +1,13 @@
-<%# ダッシュボード: 売上一覧画面
-    店舗・期間で絞り込んで売上履歴を検索・表示し、CSVダウンロードや詳細画面への導線を提供する %>
-<div class="dashboard-container">
-  <%= render 'dashboard/shared/menu' %>
-
-  <div class="dashboard-content card">
-    <div class="subtitle d-flex justify-content-between align-items-center">
-      <h2>売上一覧</h2>
-      <% if params[:store_id].present? || params[:from].present? || params[:to].present? %>
-        <%= link_to "CSVダウンロード",
-              dashboard_sales_path(format: :csv, store_id: params[:store_id], from: params[:from], to: params[:to]),
-              class: "btn-signup" %>
-      <% end %>
-    </div>
-
-    <%# 検索条件フォーム(店舗・期間) %>
-    <div class="filters mb-3">
-      <%= form_with url: dashboard_sales_path, method: :get, local: true do |f| %>
-        <div class="filter-row">
-          <div class="filter-item">
-            <%= f.label :store_id, "店舗" %><br>
-            <%= f.select :store_id,
-                  options_from_collection_for_select(@stores, :id, :name, params[:store_id]),
-                  include_blank: "すべて",
-                  class: "form-control" %>
-          </div>
-          <div class="filter-item">
-            <%= f.label :from, "期間（自）" %><br>
-            <%= f.date_field :from, value: params[:from], class: "form-control" %>
-          </div>
-          <div class="filter-item">
-            <%= f.label :to, "期間（至）" %><br>
-            <%= f.date_field :to, value: params[:to], class: "form-control" %>
-          </div>
-          <div class="filter-item">
-            <br>
-            <%= f.submit "検索", class: "btn-signup" %>
-          </div>
-        </div>
-      <% end %>
-    </div>
-
-    <%# 検索条件が未指定・該当なし・結果ありの3パターンで表示を切り替え %>
-    <% if !params[:store_id].present? && !params[:from].present? && !params[:to].present? %>
-      <div class="empty-message">
-        <p>店舗または期間を指定して検索してください。</p>
-      </div>
-    <% elsif @sales.empty? %>
-      <div class="empty-message">
-        <p>該当する売上はありません。</p>
-      </div>
-    <% else %>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>日時</th>
-            <th>店舗</th>
-            <th>POS端末</th>
-            <th>担当者</th>
-            <th>レシート番号</th>
-            <th>支払方法</th>
-            <th class="text-right">割引</th>
-            <th class="text-right">金額</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% @sales.each do |sale| %>
-            <tr>
-              <td><%= l sale.created_at, format: :short %></td>
-              <td><%= sale.store.name %></td>
-              <td><%= sale.pos_token&.ascii_name || "-" %></td>
-              <td><%= sale.employee ? "#{sale.employee.name}(#{sale.employee.code})" : "-" %></td>
-              <td><%= link_to sale.receipt_number, dashboard_sale_detail_path(sale), class: "link" %></td>
-              <%# 複数決済がある場合は内訳を列挙、無ければ単一の支払方法を表示 %>
-              <td>
-                <% if sale.sale_payments.any? %>
-                  <ul class="list-unstyled mb-0">
-                    <% sale.sale_payments.each do |p| %>
-                      <li>
-                        <%= I18n.t("enum.sale.payment_method.#{p.method}", default: p.method) %>
-                        (<%= number_to_currency(p.amount, unit: "¥") %>)
-                      </li>
-                    <% end %>
-                  </ul>
-                <% else %>
-                  <%= I18n.t("enum.sale.payment_method.#{sale.payment_method}", default: sale.payment_method) %>
-                <% end %>
-              </td>
-              <td class="text-right">
-                <% if sale.total_discount > 0 %>
-                  <span style="color: #e53935;">-<%= number_to_currency(sale.total_discount, unit: "¥") %></span>
-                <% else %>
-                  -
-                <% end %>
-              </td>
-              <td class="text-right"><%= number_to_currency(sale.total_amount, unit: "¥") %></td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-
-      <div class="pagination-wrapper">
-        <%= paginate @sales %>
-      </div>
-    <% end %>
-  </div>
-</div>
+<%# ダッシュボード: 売上一覧（店舗・期間で絞り込み。初期表示は過去7日） %>
+<%= page_header "売上一覧" do %>
+  <%= link_to dashboard_sales_path(format: :csv, store_id: params[:store_id], from: params[:from], to: params[:to]), class: "btn btn-secondary", data: { turbo: false } do %><%= icon(:download, size: 18) %>CSVで出力<% end %>
+<% end %>
+<%= render layout: "dashboard/shared/filter", locals: { url: dashboard_sales_path, stores: @stores } do |f| %><% end %>
+<%= result_count(@sales) %>
+<%= data_table([ "日時", "店舗", "端末", "担当者", "レシート番号", "支払方法", "割引", "金額", "" ], @sales.map { |s|
+      [ datetime(s.sold_at || s.created_at), s.store.name, s.pos_token&.name || "-", s.employee&.name || "-", s.receipt_number, sale_payment_label(s),
+        s.total_discount.positive? ? "-#{yen(s.total_discount)}" : "-",
+        s.voided? ? safe_join([ tag.s(yen(s.total_amount)), badge("取消", :danger) ], " ") : yen(s.total_amount),
+        row_actions(link_to("くわしく", dashboard_sale_detail_path(s), class: "btn btn-sm btn-secondary", aria: { label: "#{s.receipt_number} をくわしく見る" })) ] },
+      empty: "この条件の売上はありません。期間を広げてみてください。") %>
+<div class="pagination-wrapper"><%= paginate @sales %></div>

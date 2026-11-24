@@ -1,0 +1,67 @@
+<%# ダッシュボード: 使い方ガイド %>
+<%= page_header "使い方ガイド", lead: "はじめの準備から毎日の使い方、画面に出てくる言葉の意味までをまとめています。" %>
+<div class="guide">
+  <div class="guide-grid">
+    <section class="card">
+      <h2>1. はじめの準備</h2>
+      <ol>
+        <li><%= link_to "店舗を登録する", dashboard_stores_path %></li>
+        <li><%= link_to "商品を登録する", dashboard_products_path %>（CSVでまとめて登録もできます）</li>
+        <li><%= link_to "従業員を登録する", dashboard_employees_path %>（番号・PIN・できる操作を決めます）</li>
+        <li><%= link_to "POS端末を追加する", dashboard_pos_devices_path %>（パスワードを控えます）</li>
+        <li><%= link_to "お店の基本設定", dashboard_account_settings_path %>でインボイス登録番号などを入れます</li>
+      </ol>
+    </section>
+    <section class="card" id="terminal">
+      <h2>2. 端末アプリにログインする</h2>
+      <ol>
+        <li>端末アプリを開き、「初期設定」を表示します。</li>
+        <li>企業ID「<strong><%= current_account.login_name %></strong>」、店舗ID、端末ID、パスワードを入力します。</li>
+        <li>商品の読み込みが終わったら、従業員番号とPINで業務を開始します。</li>
+      </ol>
+    </section>
+    <section class="card">
+      <h2>3. 毎日の流れ（端末）</h2>
+      <ol>
+        <li><strong>レジ開設</strong>：はじめの釣銭を数えて入力します。</li>
+        <li><strong>会計</strong>：商品を読み取り、「お会計へ」を押します。</li>
+        <li><strong>レジ精算</strong>：閉店後に現金を数え、過不足を確認します。</li>
+      </ol>
+    </section>
+    <section class="card">
+      <h2>4. 毎日の流れ（この管理画面）</h2>
+      <ol>
+        <li><%= link_to "ホーム", dashboard_root_path %>で今日の売上と「やること」を確認します。</li>
+        <li><%= link_to "レジ精算", dashboard_register_sessions_path %>で過不足がないか見ます。</li>
+        <li><%= link_to "在庫不足", dashboard_low_stocks_path %>を見て、必要なら発注します。</li>
+      </ol>
+    </section>
+  </div>
+
+  <section class="card" style="margin-top: 1.25rem">
+    <h2>困ったとき</h2>
+    <dl class="glossary">
+      <dt>端末のパスワードがわからない</dt><dd><%= link_to "POS端末", dashboard_pos_devices_path %>の「パスワード再設定」を押すと、新しいパスワードが表示されます。</dd>
+      <dt>端末をなくした・盗まれた</dt><dd><%= link_to "POS端末", dashboard_pos_devices_path %>の「停止」を押してください。その端末はすぐに使えなくなります。</dd>
+      <dt>従業員が返品や値引きをできない</dt><dd><%= link_to "従業員", dashboard_employees_path %>の編集画面で、PINと「できる操作」を確認してください。</dd>
+      <dt>値段や税率を先に予約したい</dt><dd><%= link_to "価格・税率の予約", dashboard_scheduled_changes_path %>で適用日を指定できます。</dd>
+      <dt>スマートフォンをなくしてログインできない</dt><dd>リカバリーコードでログインし、<%= link_to "セキュリティ", dashboard_security_path %>で登録し直してください。</dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>言葉の意味</h2>
+    <dl class="glossary">
+      <dt>レジ精算（Z）</dt><dd>1日の終わりにレジを締める操作です。Z番号は精算のたびに1つずつ増えます。</dd>
+      <dt>理論在高（りろんざいだか）</dt><dd>記録から計算した「レジにあるはずの現金」です。数えた金額との差が過不足になります。</dd>
+      <dt>釣銭準備金</dt><dd>レジを開けるときに入れておくお釣り用の現金です。</dd>
+      <dt>途中回収・入出金</dt><dd>営業中にレジから現金を抜いたり、釣銭を足したりした記録です。</dd>
+      <dt>電子ジャーナル</dt><dd>会計や返品の控えです。後から書き換えられないように保存されています。</dd>
+      <dt>要確認の会計</dt><dd>通信が切れている間に値段を変えた会計など、確認してほしい会計です。</dd>
+      <dt>内税・外税・非課税</dt><dd>内税は税込の値段、外税は税抜の値段で登録し会計で税を足します。非課税は税がかかりません。</dd>
+      <dt>従業員とメンバー</dt><dd>従業員は「レジを操作する人」、メンバーは「この管理画面を使う人」です。</dd>
+      <dt>卓・セルフ注文</dt><dd>お客様が席のQRコードから注文できる、飲食店向けの機能です。</dd>
+      <dt>Webhook / APIキー</dt><dd>ほかのシステムとつなぐための設定です。使わない場合はそのままで問題ありません。</dd>
+    </dl>
+  </section>
+</div>

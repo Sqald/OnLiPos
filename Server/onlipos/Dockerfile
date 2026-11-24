@@ -21,10 +21,12 @@ RUN apt-get update -qq && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
 # Set production environment variables and enable jemalloc for reduced memory usage and latency.
+# 検証用にテストの gem も入れる場合: docker build --build-arg BUNDLE_WITHOUT=development
+ARG BUNDLE_WITHOUT="development:test"
 ENV RAILS_ENV="production" \
     BUNDLE_DEPLOYMENT="1" \
     BUNDLE_PATH="/usr/local/bundle" \
-    BUNDLE_WITHOUT="development" \
+    BUNDLE_WITHOUT="${BUNDLE_WITHOUT}" \
     LD_PRELOAD="/usr/local/lib/libjemalloc.so"
 
 # Throw-away build stage to reduce size of final image
@@ -32,14 +34,8 @@ FROM base AS build
 
 # Install packages needed to build gems
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y build-essential git libyaml-dev libpq-dev pkg-config && \
+    apt-get install --no-install-recommends -y build-essential git libyaml-dev libffi-dev libpq-dev pkg-config && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
-
-# Dockerfile の例
-RUN apt-get update -qq && \
-    apt-get install -y build-essential libvips bash bash-completion libffi-dev tzdata postgresql-client && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /usr/share/doc /usr/share/man
 
 # Install application gems
 COPY vendor/* ./vendor/
@@ -65,7 +61,7 @@ RUN SECRET_KEY_BASE_DUMMY=1 ./bin/rails assets:precompile
 
 # Final stage for app image
 FROM base
-RUN apt-get update -qq && apt-get install -y build-essential libpq-dev
+RUN apt-get update -qq && apt-get install --no-install-recommends -y libpq5 && rm -rf /var/lib/apt/lists
 # Run and own only the runtime files as a non-root user for security
 RUN groupadd --system --gid 1000 rails && \
     useradd rails --uid 1000 --gid 1000 --create-home --shell /bin/bash

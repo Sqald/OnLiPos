@@ -1,0 +1,12 @@
+<%# ダッシュボード: レジ精算（Z） %>
+<%= page_header "レジ精算（Z）", lead: "レジを締めた記録です。過不足があるものは色を付けて表示します。" do %>
+  <%= link_to dashboard_register_sessions_path(request.query_parameters.merge(format: :csv)), class: "btn btn-secondary", data: { turbo: false } do %><%= icon(:download, size: 18) %>CSVで出力<% end %>
+<% end %>
+<%= render layout: "dashboard/shared/filter", locals: { url: dashboard_register_sessions_path, stores: @stores } do |f| %>
+  <div class="filter-item"><label><%= f.check_box :diff_only, { checked: params[:diff_only] == "1" }, "1", nil %> 過不足があるものだけ</label></div>
+<% end %>
+<%= data_table([ "営業日", "店舗 / 端末", "Z番号", "状態", "売上", "返品", "理論在高", "数えた金額", "過不足", "" ],
+      @sessions.map { |s| [ l(s.business_date), "#{s.store.name} / #{s.pos_token.name}", s.z_number, s.closed? ? badge("精算済み") : badge("営業中", :warning), yen(s.sales_total), yen(s.refund_total),
+                            yen(s.expected_cash_amount), yen(s.closing_counted_amount), s.cash_diff_amount.to_i.zero? ? yen(s.cash_diff_amount) : badge(yen(s.cash_diff_amount), :danger),
+                            row_actions(link_to("くわしく", dashboard_register_session_path(s), class: "btn btn-sm btn-secondary")) ] }, empty: "この条件のレジ精算はありません。") %>
+<div class="pagination-wrapper"><%= paginate @sessions %></div>

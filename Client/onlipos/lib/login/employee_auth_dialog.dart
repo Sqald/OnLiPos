@@ -6,26 +6,39 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/credential_pad.dart';
+import 'package:onlipos/api/pos_api_client.dart';
 import 'package:onlipos/login/login_api.dart';
 
 /// 認証に成功した担当者を返す。キャンセル時は null。
+/// [allowOffline] の場合、通信できないときに認証なしで続行できる（id は 0。サーバーでは要確認として記録される）。
 Future<({int id, String name})?> showEmployeeAuthDialog(
   BuildContext context, {
   required String title,
   required String permission,
+  bool allowOffline = false,
 }) {
   return showDialog<({int id, String name})>(
     context: context,
     barrierDismissible: false,
-    builder: (_) => _EmployeeAuthDialog(title: title, permission: permission),
+    builder: (_) => _EmployeeAuthDialog(
+      title: title,
+      permission: permission,
+      allowOffline: allowOffline,
+    ),
   );
 }
 
 class _EmployeeAuthDialog extends StatefulWidget {
-  const _EmployeeAuthDialog({required this.title, required this.permission});
+  const _EmployeeAuthDialog({
+    required this.title,
+    required this.permission,
+    required this.allowOffline,
+  });
 
   final String title;
   final String permission;
+  final bool allowOffline;
 
   @override
   State<_EmployeeAuthDialog> createState() => _EmployeeAuthDialogState();
@@ -35,6 +48,7 @@ class _EmployeeAuthDialogState extends State<_EmployeeAuthDialog> {
   final _codeController = TextEditingController();
   final _pinController = TextEditingController();
   bool _loading = false;
+  bool _offline = false;
   String? _error;
 
   @override
@@ -49,7 +63,7 @@ class _EmployeeAuthDialogState extends State<_EmployeeAuthDialog> {
     final code = _codeController.text.trim();
     final pin = _pinController.text.trim();
     if (code.isEmpty || pin.isEmpty) {
-      setState(() => _error = '担当者コードとPINを入力してください');
+      setState(() => _error = '従業員番号とPINを入力してください');
       return;
     }
 
@@ -72,57 +86,79 @@ class _EmployeeAuthDialogState extends State<_EmployeeAuthDialog> {
       return;
     }
 
+    _pinController.clear();
     setState(() {
       _loading = false;
+      _offline = const {
+        PosApiClient.offlineMessage,
+        PosApiClient.timeoutMessage,
+      }.contains(result['message']);
       _error = result['message']?.toString() ?? '認証に失敗しました';
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.title),
-      content: SizedBox(
-        width: 320,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _codeController,
-              autofocus: true,
-              decoration: const InputDecoration(labelText: '担当者コード'),
-              textInputAction: TextInputAction.next,
-            ),
-            TextField(
-              controller: _pinController,
-              obscureText: true,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'PIN'),
-              onSubmitted: (_) => _loading ? null : _submit(),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(_error!, style: const TextStyle(color: Colors.red)),
+    final size = MediaQuery.sizeOf(context);
+    final short = size.height < 520;
+    return Dialog(
+      insetPadding: EdgeInsets.all(short ? 6 : 16),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: size.width >= 640 ? 660 : 400),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            24,
+            short ? 10 : 20,
+            24,
+            short ? 10 : 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  OutlinedButton(
+                    onPressed: _loading
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(64, 44),
+                    ),
+                    child: const Text('やめる'),
+                  ),
+                ],
+              ),
+              SizedBox(height: short ? 8 : 18),
+              CredentialPad(
+                codeController: _codeController,
+                pinController: _pinController,
+                loading: _loading,
+                error: _error,
+                submitLabel: '確認する',
+                keyHeight: short ? 46 : 54,
+                onSubmit: _submit,
+              ),
+              if (widget.allowOffline && _offline) ...[
+                const SizedBox(height: 10),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop((id: 0, name: '')),
+                  child: const Text('確認せずに続ける（あとで確認が必要な会計になります）'),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _loading ? null : () => Navigator.of(context).pop(),
-          child: const Text('キャンセル'),
-        ),
-        ElevatedButton(
-          onPressed: _loading ? null : _submit,
-          child: _loading
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('認証'),
-        ),
-      ],
     );
   }
 }

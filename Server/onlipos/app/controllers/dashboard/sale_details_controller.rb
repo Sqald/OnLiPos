@@ -2,7 +2,7 @@
 class Dashboard::SaleDetailsController < Dashboard::BaseController
   # 自ユーザーの売上を明細・支払情報つきで取得して表示する
   def show
-    @sale = Sale.where(user: current_user)
+    @sale = Sale.where(user: current_account)
                 .includes(:store, :pos_token, :saledetails, :sale_payments)
                 .find(params[:id])
   end

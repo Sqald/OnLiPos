@@ -4,6 +4,10 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_theme.dart';
+import 'package:onlipos/ui/app_session.dart';
+import 'package:onlipos/setup/setup_view.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../product/master_sync_api.dart';
 import '../login/login_top_view.dart';
@@ -35,6 +39,12 @@ class _ProvisioningPageState extends State<ProvisioningPage> {
 
   // 端末設定の取得、商品マスタ同期、オフライン会計送信を順に実行する
   Future<void> _exec() async {
+    if (_hasError) {
+      setState(() {
+        _hasError = false;
+        _processedCount = 0;
+      });
+    }
     try {
       const storage = FlutterSecureStorage();
       final String? baseUrl = await storage.read(key: 'AccessUrl');
@@ -47,11 +57,14 @@ class _ProvisioningPageState extends State<ProvisioningPage> {
       if (authToken == null || authToken.isEmpty) {
         // トークンがない場合は同期不要（またはエラー）と判断し、次の画面へ
         // ここではエラーにせず、そのままログイン画面に進む
-        setState(() => _statusMessage = '認証情報がありません。');
-        await Future.delayed(const Duration(milliseconds: 500));
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const SetupPage(title: '初期設定')),
+          (route) => false,
+        );
       } else {
         // プロビジョニング（端末設定）の取得
-        setState(() => _statusMessage = '端末設定を取得中...');
+        setState(() => _statusMessage = '端末の設定を読み込んでいます…');
         try {
           final provisioningData = await ProvisioningApi.getProvisioning();
           if (provisioningData['hardware_settings'] != null) {
@@ -59,12 +72,11 @@ class _ProvisioningPageState extends State<ProvisioningPage> {
             if (hw['receipt_printer_ip'] != null) {
               final val = hw['receipt_printer_ip'].toString();
               await storage.write(key: 'PrinterIP', value: val);
-              _syncedSettings['プリンターIP'] = val;
+              _syncedSettings['プリンター'] = val;
             }
             if (hw['drawer_kick_command'] != null) {
               final val = hw['drawer_kick_command'].toString();
               await storage.write(key: 'DrawerKickCommand', value: val);
-              _syncedSettings['ドロワーキック'] = val;
             }
             if (hw['pos_role'] != null) {
               final val = hw['pos_role'].toString();
@@ -74,7 +86,7 @@ class _ProvisioningPageState extends State<ProvisioningPage> {
                   : val == 'client'
                   ? 'クライアント機'
                   : '標準';
-              _syncedSettings['POSロール'] = roleLabel;
+              _syncedSettings['端末の役割'] = roleLabel;
             }
           }
           if (provisioningData['store_context'] != null) {
@@ -82,7 +94,7 @@ class _ProvisioningPageState extends State<ProvisioningPage> {
             if (storeCtx['store_name'] != null) {
               final val = storeCtx['store_name'].toString();
               await storage.write(key: 'StoreName', value: val);
-              _syncedSettings['店舗名'] = val;
+              _syncedSettings['店舗'] = val;
             }
             if (storeCtx['tax_rate_standard'] != null) {
               await storage.write(
@@ -104,7 +116,7 @@ class _ProvisioningPageState extends State<ProvisioningPage> {
                   : val == 'retail'
                   ? '小売店'
                   : '標準';
-              _syncedSettings['店舗モード'] = modeLabel;
+              _syncedSettings['お店の種類'] = modeLabel;
             }
           }
         } catch (e) {
@@ -112,7 +124,7 @@ class _ProvisioningPageState extends State<ProvisioningPage> {
           // 設定取得に失敗してもマスタ同期は続行する
         }
 
-        setState(() => _statusMessage = '商品マスタを確認中...');
+        setState(() => _statusMessage = '商品データを確認しています…');
 
         final syncService = ProductSyncService(
           baseUrl: baseUrl,
@@ -124,27 +136,30 @@ class _ProvisioningPageState extends State<ProvisioningPage> {
             if (!mounted) return;
             setState(() {
               _processedCount = count;
-              _statusMessage = '商品マスタ同期中...';
+              _statusMessage = '商品データを読み込んでいます…';
             });
           },
         );
 
         // オフライン会計キューの送信を試みる
-        setState(() => _statusMessage = 'オフライン会計を送信中...');
+        setState(() => _statusMessage = '未送信の会計を送っています…');
         try {
           final drained = await SentToApi().drainOfflineQueue();
           if (drained > 0) {
-            _syncedSettings['オフライン送信'] = '$drained 件';
+            _syncedSettings['送信した会計'] = '$drained 件';
           }
           final failed = await OfflineSaleRepository().getFailedCount();
           if (failed > 0) {
-            _syncedSettings['オフライン送信失敗'] = '$failed 件（要確認）';
+            _syncedSettings['送信できなかった会計'] = '$failed 件（要確認）';
           }
         } catch (_) {
           // オフライン送信に失敗しても続行（次回の同期時に再試行）
         }
 
-        setState(() => _statusMessage = '同期完了');
+        setState(() => _statusMessage = '完了しました');
+        AppSession.instance
+          ..loadStore()
+          ..refreshCounts();
         setState(() => _isFinished = true);
       }
     } catch (e) {
@@ -152,15 +167,8 @@ class _ProvisioningPageState extends State<ProvisioningPage> {
       if (!mounted) return;
       setState(() {
         _hasError = true;
-        _statusMessage = 'エラーが発生しました';
+        _statusMessage = '通信できる状態か確認して、もう一度お試しください';
       });
-      await Future.delayed(const Duration(seconds: 2));
-
-      if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const LoginTopView()),
-        (route) => false,
-      );
     }
   }
 
@@ -176,124 +184,96 @@ class _ProvisioningPageState extends State<ProvisioningPage> {
     }
   }
 
-  // 同期完了後は結果サマリーを、進行中は進捗インジケーターを表示する
+  // 同期完了後は結果を、進行中は進捗を、失敗したらやり直しのボタンを表示する
   @override
   Widget build(BuildContext context) {
-    if (_isFinished) {
-      return Scaffold(
-        backgroundColor: Colors.grey[200],
-        body: Center(
-          child: SingleChildScrollView(
-            child: Container(
-              padding: const EdgeInsets.all(32),
-              constraints: const BoxConstraints(maxWidth: 400),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: const [
-                  BoxShadow(color: Colors.black26, blurRadius: 10),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.green, size: 64),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'セットアップ完了',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 24),
-                  if (_syncedSettings.isNotEmpty) ...[
-                    const Text(
-                      '取得した設定',
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Divider(),
-                    ..._syncedSettings.entries.map(
-                      (e) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(e.key),
-                            Text(
-                              e.value,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  const Text(
-                    'マスタ同期',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Divider(),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('処理件数'),
-                      Text(
-                        '$_processedCount 件',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 32),
-                  ElevatedButton(
-                    onPressed: _onOkPressed,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child: const Text('OK'),
-                  ),
-                ],
+    return Scaffold(
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: _isFinished
+                      ? _finished()
+                      : _hasError
+                      ? _failed()
+                      : _progress(),
+                ),
               ),
             ),
           ),
         ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: Colors.grey[200],
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (_hasError)
-              const Icon(Icons.error_outline, color: Colors.red, size: 48)
-            else
-              const CircularProgressIndicator(),
-            const SizedBox(height: 24),
-            Text(
-              _statusMessage,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            if (_processedCount > 0 && !_hasError)
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: Text(
-                  '$_processedCount 件処理済み',
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-              ),
-          ],
-        ),
       ),
     );
   }
+
+  Widget _headline(String text) => Text(
+    text,
+    textAlign: TextAlign.center,
+    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+  );
+
+  List<Widget> _finished() => [
+    const Icon(Icons.check_circle, color: AppColors.success, size: 64),
+    const SizedBox(height: 12),
+    _headline('準備ができました'),
+    const SizedBox(height: 16),
+    for (final e in _syncedSettings.entries) LabelValue(e.key, e.value),
+    LabelValue('読み込んだ商品データ', '$_processedCount 件'),
+    const SizedBox(height: 24),
+    ElevatedButton(onPressed: _onOkPressed, child: const Text('次へ')),
+  ];
+
+  List<Widget> _failed() => [
+    const Icon(Icons.cloud_off, color: AppColors.danger, size: 64),
+    const SizedBox(height: 12),
+    _headline('更新できませんでした'),
+    const SizedBox(height: 8),
+    Text(_statusMessage, textAlign: TextAlign.center),
+    const SizedBox(height: 24),
+    ElevatedButton.icon(
+      onPressed: _exec,
+      icon: const Icon(Icons.refresh),
+      label: const Text('もう一度'),
+    ),
+    const SizedBox(height: 10),
+    OutlinedButton(
+      onPressed: () {
+        // 業務中や設定から開いた場合は、元の画面に戻る
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        } else {
+          _onOkPressed();
+        }
+      },
+      child: const Text('あとで行う'),
+    ),
+  ];
+
+  List<Widget> _progress() => [
+    const Center(
+      child: SizedBox.square(
+        dimension: 56,
+        child: CircularProgressIndicator(strokeWidth: 5),
+      ),
+    ),
+    const SizedBox(height: 20),
+    Text(
+      _statusMessage,
+      textAlign: TextAlign.center,
+      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+    ),
+    if (_processedCount > 0)
+      Text(
+        '$_processedCount 件',
+        textAlign: TextAlign.center,
+        style: const TextStyle(color: AppColors.secondary),
+      ),
+  ];
 }

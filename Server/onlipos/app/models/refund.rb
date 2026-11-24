@@ -9,6 +9,7 @@ class Refund < ApplicationRecord
   belongs_to :register_session, optional: true
   has_many :refund_details, dependent: :destroy
   has_many :refund_tax_breakdowns, dependent: :destroy
+  has_many :refund_payments, dependent: :destroy
 
   # バリデーション
   validates :total_amount, presence: true, numericality: { greater_than_or_equal_to: 0 }

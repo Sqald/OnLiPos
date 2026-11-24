@@ -1,0 +1,9 @@
+<%# ダッシュボード: 電子ジャーナルの詳細 %>
+<%= page_header "電子ジャーナルの詳細", back: true %>
+<%= detail_table([ [ "連番", @entry.sequence_number ], [ "日時", datetime(@entry.printed_at) ], [ "店舗 / 端末", "#{@entry.store.name} / #{@entry.pos_token.name}" ], [ "種類", type_label(@entry.entry_type) ],
+      [ "レシート番号", @entry.receipt_number ], [ "担当者", @entry.employee&.name ],
+      [ "改ざんの確認", @entry.sequence_number.nil? ? "対象外（旧形式）" : (@entry.entry_hash == @entry.compute_entry_hash ? badge("正常") : badge("不一致", :danger)) ] ]) %>
+<%= help_note("記録の内容（システム用のデータ）") do %>
+  <p>ハッシュ: <code><%= @entry.entry_hash %></code><br>直前のハッシュ: <code><%= @entry.previous_hash %></code></p>
+  <pre><%= JSON.pretty_generate(@entry.payload) %></pre>
+<% end %>

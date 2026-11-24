@@ -1,8 +1,32 @@
-/* --- 共通変数定義 --- */
-/* アプリケーション全体で使用する色や設定をここで管理します */
-
+/* --- 共通変数（色・余白・影） --- */
 :root {
-  --primary: #2563eb;   /* メインカラー: 青 */
-  --secondary: #4b5563; /* サブカラー: グレー */
-  --bg-light: #f9fafb;  /* 背景色: 薄いグレー */
+  --font: system-ui, -apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Noto Sans CJK JP", "BIZ UDPGothic", "Yu Gothic UI", Meiryo, sans-serif;
+
+  --primary: #1d5fd1;        /* 主要ボタン・選択中 */
+  --primary-hover: #174ea9;
+  --primary-ink: #1a56bd;    /* 白地の上の文字リンク */
+  --primary-soft: #e8f0fd;
+  --focus: #f5a524;
+
+  --ink: #1b2430;            /* 本文 */
+  --secondary: #4a5566;      /* 補足の文字 */
+  --muted: #647084;
+  --line: #dde3ec;
+  --line-strong: #b9c3d2;
+
+  --bg: #f4f6fa;
+  --bg-light: #f9fafb;
+  --bg-sunken: #eef1f6;
+  --surface: #ffffff;
+
+  --success: #146c43; --success-soft: #e3f5ec; --success-line: #a9dbc2;
+  --warning: #8a5300; --warning-soft: #fff4dc; --warning-line: #f0cf8a;
+  --danger: #c0262d;  --danger-hover: #9d1c22; --danger-soft: #fdebec; --danger-line: #f2b8bb;
+
+  --radius: 10px;
+  --radius-sm: 7px;
+  --shadow: 0 1px 2px rgb(20 30 50 / 6%), 0 2px 8px rgb(20 30 50 / 5%);
+  --topbar-h: 60px;
+  --sidebar-w: 256px;
+  --bottom-nav-h: 62px;
 }

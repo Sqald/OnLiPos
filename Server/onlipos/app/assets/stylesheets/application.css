@@ -1,13 +1,1 @@
-/*
- * This is a manifest file that'll be compiled into application.css.
- *
- * With Propshaft, assets are served efficiently without preprocessing steps. You can still include
- * application-wide styles in this file, but keep in mind that CSS precedence will follow the standard
- * cascading order, meaning styles declared later in the document or manifest will override earlier ones,
- * depending on specificity.
- *
- * Consider organizing styles into separate files for maintainability.
- */
-body {
-    margin: 0px;
-}
+/* 互換のため残しているファイル。スタイルは app.css（土台）・layout.css（枠）・components.css（部品）に書く */

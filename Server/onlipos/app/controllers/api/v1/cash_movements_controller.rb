@@ -4,6 +4,9 @@
 class Api::V1::CashMovementsController < Api::V1::BaseController
   # GET /api/v1/cash_movements — 現在のセッション（なければ当日）の入出金一覧
   def index
+    require_any_approval!("cash_pickup", "cash_check", "close_register")
+    return if performed?
+
     session = current_register_session
     scope =
       if session
@@ -35,9 +38,8 @@ class Api::V1::CashMovementsController < Api::V1::BaseController
     employee = require_store_employee!(movement_params[:employee_id], message: "担当者が見つかりません")
     return unless employee
 
-    unless employee.permitted?("cash_pickup")
-      return render json: { success: false, message: "レジ入出金の権限がありません" }, status: :forbidden
-    end
+    authorize_employee!(employee, "cash_pickup")
+    return if performed?
 
     # 入出金種別・金額のバリデーション
     kind = normalize_kind(movement_params[:kind])

@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_header.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 /// レシートのQRコードを読み取り、レシート番号を返す画面
@@ -43,24 +45,14 @@ class _QrScanReceiptViewState extends State<QrScanReceiptView> {
     if (!_isMobile) {
       // デスクトップなどモバイル非対応環境では説明のみ表示
       return Scaffold(
-        appBar: AppBar(title: const Text('レシートQRを読み取る')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'QRコード読み取りはモバイル端末でのみ利用できます。\nレシート番号を手入力してください。',
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('戻る'),
-                ),
-              ],
-            ),
+        appBar: const AppHeader('レシートのQRを読み取る'),
+        body: EmptyState(
+          icon: Icons.qr_code_scanner,
+          title: 'この端末ではカメラでの読み取りを使えません',
+          message: 'レシート番号を入力してください。',
+          action: ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('戻る'),
           ),
         ),
       );
@@ -73,10 +65,12 @@ class _QrScanReceiptViewState extends State<QrScanReceiptView> {
     );
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('レシートQRを読み取る'),
+      appBar: AppHeader(
+        'レシートのQRを読み取る',
+        subtitle: 'レシートのQRコードをカメラに映してください',
         actions: [
           IconButton(
+            tooltip: 'ライト',
             icon: const Icon(Icons.flash_on),
             onPressed: () => _controller?.toggleTorch(),
           ),

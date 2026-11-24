@@ -4,7 +4,7 @@ class Dashboard::StoresController < Dashboard::BaseController
 
   # 自ユーザー配下の店舗一覧
   def index
-    @stores = current_user.stores.order(created_at: :desc)
+    @stores = current_account.stores.order(created_at: :desc)
   end
 
   # 新規登録フォーム
@@ -14,7 +14,7 @@ class Dashboard::StoresController < Dashboard::BaseController
 
   # 店舗を登録する
   def create
-    @store = current_user.stores.build(store_params)
+    @store = current_account.stores.build(store_params)
 
     if @store.save
       redirect_to dashboard_stores_path, notice: "店舗を登録しました。"
@@ -51,7 +51,7 @@ class Dashboard::StoresController < Dashboard::BaseController
 
   # 店舗別価格一覧・編集
   def prices
-    @products = current_user.products.where(status: :active).order(:code)
+    @products = current_account.products.where(status: :active).order(:code)
     @prices_by_product_id = Price.where(store: @store).index_by(&:product_id)
   end
 
@@ -61,7 +61,7 @@ class Dashboard::StoresController < Dashboard::BaseController
     Price.transaction do
       price_params = params[:price_overrides] || {}
       product_ids = price_params.keys.map(&:to_i)
-      products_by_id = current_user.products.where(id: product_ids).index_by { |p| p.id.to_s }
+      products_by_id = current_account.products.where(id: product_ids).index_by { |p| p.id.to_s }
       existing_prices = Price.where(store: @store, product_id: product_ids).index_by(&:product_id)
 
       price_params.each do |product_id_str, amount_str|
@@ -84,7 +84,7 @@ class Dashboard::StoresController < Dashboard::BaseController
     end
     redirect_to prices_dashboard_store_path(@store), notice: "店舗別価格を更新しました。"
   rescue ActiveRecord::RecordInvalid => e
-    @products = current_user.products.where(status: :active).order(:code)
+    @products = current_account.products.where(status: :active).order(:code)
     @prices_by_product_id = Price.where(store: @store).index_by(&:product_id)
     flash.now[:alert] = "更新に失敗しました: #{e.message}"
     render :prices, status: :unprocessable_entity
@@ -94,7 +94,7 @@ class Dashboard::StoresController < Dashboard::BaseController
 
   # 自ユーザー配下の店舗をIDで取得する
   def set_store
-    @store = current_user.stores.find(params[:id])
+    @store = current_account.stores.find(params[:id])
   end
 
   # 店舗フォームのStrong Parameters

@@ -18,7 +18,7 @@ class CashPickupApiTest < ActionDispatch::IntegrationTest
       name: "POS1", ascii_name: "pos1",
       password: "PosPass1!", password_confirmation: "PosPass1!"
     )
-    @pos.update_columns(token: SecureRandom.hex(32))
+    @pos.regenerate_token
 
     # 途中回収権限なし従業員
     @emp_no_perm = @user.employees.create!(code: "E001", name: "権限なし", pin: "1111")
@@ -27,7 +27,7 @@ class CashPickupApiTest < ActionDispatch::IntegrationTest
     # 途中回収権限あり従業員
     @emp_with_perm = @user.employees.create!(code: "E002", name: "回収担当", pin: "2222")
     @emp_with_perm.stores << @store
-    @emp_with_perm.employee_permissions.create!(permission: "cash_pickup")
+    %w[cash_pickup cash_check].each { |p| @emp_with_perm.employee_permissions.create!(permission: p) }
 
     @auth_header = { "Authorization" => "Bearer #{@pos.token}" }
   end

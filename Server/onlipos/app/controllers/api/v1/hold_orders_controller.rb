@@ -24,7 +24,7 @@ class Api::V1::HoldOrdersController < Api::V1::BaseController
       operator_name: hold_params[:operator_name],
       operator_id: hold_params[:operator_id],
       total_amount: hold_params[:total_amount],
-      items: hold_params[:items] || []
+      items: cart_items(params[:items])
     )
     if hold_order.save
       render json: { success: true, hold_number: hold_order.id }, status: :created
@@ -42,6 +42,8 @@ class Api::V1::HoldOrdersController < Api::V1::BaseController
       return render json: { success: false, message: "保留が見つかりません" }, status: :not_found
     end
 
+    # 2台の端末が同時に取り出しても、片方だけが受け取れるようにする
+    hold_order.with_lock { hold_order.destroy! }
     data = {
       success: true,
       hold_number: hold_order.id,
@@ -50,13 +52,14 @@ class Api::V1::HoldOrdersController < Api::V1::BaseController
       total_amount: hold_order.total_amount,
       items: hold_order.items
     }
-    hold_order.destroy
     render json: data
+  rescue ActiveRecord::RecordNotFound
+    render json: { success: false, message: "保留が見つかりません" }, status: :not_found
   end
 
   private
 
   def hold_params
-    params.permit(:operator_name, :operator_id, :total_amount, items: [ {} ])
+    params.permit(:operator_name, :operator_id, :total_amount)
   end
 end

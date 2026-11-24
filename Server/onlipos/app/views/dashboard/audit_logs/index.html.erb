@@ -1,0 +1,10 @@
+<%# ダッシュボード: 操作履歴 %>
+<%= page_header "操作履歴", lead: "この管理画面で、いつ・誰が・何を変えたかの記録です。" %>
+<%= render layout: "dashboard/shared/filter", locals: { url: dashboard_audit_logs_path } do |f| %>
+  <div class="filter-item"><%= f.label :target_type, "対象" %><%= f.select :target_type, options_for_select(AuditLog::TARGET_LABELS.invert, params[:target_type]), { include_blank: "すべて" } %></div>
+  <div class="filter-item"><%= f.label :actor, "操作した人" %><%= f.text_field :actor, value: params[:actor] %></div>
+<% end %>
+<%= data_table([ "日時", "操作した人", "操作", "対象", "内容", "IPアドレス" ],
+      @logs.map { |log| [ datetime(log.created_at), log.actor_name, log.action_label, "#{log.target_label} #{log.target_name}",
+                          safe_join(log.details.map { |k, v| "#{k}: #{v.is_a?(Array) ? v.map { |x| x.nil? ? "（なし）" : x }.join(" → ") : v}" }, tag.br), log.ip_address ] }, empty: "この条件の記録はありません。") %>
+<div class="pagination-wrapper"><%= paginate @logs %></div>

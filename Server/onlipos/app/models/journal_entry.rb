@@ -90,7 +90,30 @@ class JournalEntry < ApplicationRecord
         previous = entry
       end
 
-    issues
+    issues.concat(verify_tail(pos_token, previous)).concat(verify_anchors(pos_token))
+  end
+
+  # 末尾の削除: 端末の次の連番と、最後のエントリの連番が続いていること
+  def self.verify_tail(pos_token, last)
+    next_sequence = PosToken.where(id: pos_token.id).pick(:next_journal_sequence).to_i
+    expected = last ? last.sequence_number + 1 : 1
+    return [] if next_sequence == expected
+
+    [ "末尾の欠落: 次の連番は #{next_sequence} ですが、最後のエントリは #{last&.sequence_number || 'なし'} です" ]
+  end
+
+  # 控え（JournalAnchor）との照合: 署名が正しく、控えた連番のハッシュが今も同じであること
+  def self.verify_anchors(pos_token)
+    anchors = JournalAnchor.where(pos_token_id: pos_token.id).to_a
+    hashes = where(pos_token_id: pos_token.id, sequence_number: anchors.map(&:sequence_number)).pluck(:sequence_number, :entry_hash).to_h
+
+    anchors.filter_map do |anchor|
+      if !anchor.valid_signature?
+        "控えの署名が不正: 連番 #{anchor.sequence_number}"
+      elsif hashes[anchor.sequence_number] != anchor.entry_hash
+        "控えとの不一致: 連番 #{anchor.sequence_number} のエントリが失われたか、書き換えられています"
+      end
+    end
   end
 
   # Sale 作成と同一トランザクション内で呼ぶ

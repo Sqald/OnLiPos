@@ -1,0 +1,14 @@
+<%# ダッシュボード: 会計ソフト用の仕訳データ出力 %>
+<%= page_header "会計ソフト出力", lead: "日ごと・店舗ごとに、支払方法別の入金と税率別の売上を仕訳のCSVにします。" %>
+<p class="callout"><%= icon(:info) %><span>取り込む前に、お使いの会計ソフトの勘定科目・税区分の名前と合っているか、税理士などにご確認ください。</span></p>
+<div class="dashboard-content form-narrow">
+  <%= form_with url: dashboard_accounting_export_path, method: :get, data: { turbo: false } do |f| %>
+    <div class="field"><%= f.label :export, "会計ソフト" %><%= f.select :export, AccountingExport::FORMATS.map { |k, v| [ v, k ] } %></div>
+    <div class="field"><%= f.label :store_id, "店舗" %><%= f.select :store_id, options_from_collection_for_select(@stores, :id, :name), { include_blank: "すべての店舗" } %></div>
+    <div class="field-pair">
+      <div class="field"><%= f.label :from, "いつから" %><%= f.date_field :from, value: @from %></div>
+      <div class="field"><%= f.label :to, "いつまで" %><%= f.date_field :to, value: @to %></div>
+    </div>
+    <div class="actions"><%= f.submit "CSVをダウンロード" %></div>
+  <% end %>
+</div>

@@ -3,6 +3,9 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_theme.dart';
+import 'package:onlipos/ui/app_header.dart';
 import 'package:onlipos/journal/journal_api.dart';
 import 'package:onlipos/sale/escpos/lan_recipt_api.dart';
 
@@ -69,15 +72,11 @@ class _JournalDetailViewState extends State<JournalDetailView> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('再印字しました')));
+        showMessage(context, '再印字しました', MessageType.info);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('印字エラー: $e'), backgroundColor: Colors.red),
-        );
+        showMessage(context, '印字エラー: $e', MessageType.error);
       }
     } finally {
       if (mounted) setState(() => _printing = false);
@@ -145,25 +144,16 @@ class _JournalDetailViewState extends State<JournalDetailView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          _entryTypeLabel(widget.summary['entry_type'] as String? ?? ''),
-        ),
+      appBar: AppHeader(
+        _entryTypeLabel(widget.summary['entry_type'] as String? ?? ''),
+        subtitle: 'ジャーナルの詳細',
         actions: [
           if (_canReprint)
-            TextButton.icon(
+            ElevatedButton.icon(
               onPressed: _printing ? null : _reprint,
-              icon: _printing
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.print, color: Colors.white),
-              label: const Text('再印字', style: TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(minimumSize: const Size(64, 44)),
+              icon: const Icon(Icons.print, size: 20),
+              label: Text(_printing ? '印刷しています…' : 'もう一度印刷する'),
             ),
         ],
       ),
@@ -175,17 +165,11 @@ class _JournalDetailViewState extends State<JournalDetailView> {
   Widget _buildBody() {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.red),
-            const SizedBox(height: 8),
-            Text(_error!, style: const TextStyle(color: Colors.red)),
-            const SizedBox(height: 12),
-            ElevatedButton(onPressed: _load, child: const Text('再試行')),
-          ],
-        ),
+      return EmptyState(
+        icon: Icons.cloud_off,
+        title: '読み込めませんでした',
+        message: _error,
+        action: ElevatedButton(onPressed: _load, child: const Text('もう一度読み込む')),
       );
     }
 
@@ -256,7 +240,7 @@ class _Row extends StatelessWidget {
             width: 110,
             child: Text(
               label,
-              style: const TextStyle(color: Colors.grey, fontSize: 13),
+              style: const TextStyle(color: Colors.grey, fontSize: 15),
             ),
           ),
           Expanded(
@@ -300,7 +284,7 @@ class _SalePayloadCard extends StatelessWidget {
           _AmountRow(
             '値引合計',
             -((payload['total_discount'] as num?)?.toInt() ?? 0),
-            color: Colors.orange,
+            color: AppColors.warning,
           ),
         _AmountRow(
           '合計',
@@ -342,8 +326,8 @@ class _DetailRow extends StatelessWidget {
             children: [
               Expanded(child: Text(name)),
               Text(
-                '$qty個 × ¥${_fmt(price)} = ¥${_fmt(sub)}',
-                style: const TextStyle(fontSize: 13),
+                '$qty個 × ${yen(price)} = ${yen(sub)}',
+                style: const TextStyle(fontSize: 15),
               ),
             ],
           ),
@@ -351,8 +335,8 @@ class _DetailRow extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(left: 8),
               child: Text(
-                '値引: -¥${_fmt(disc)}${reason != null ? "（$reason）" : ""}',
-                style: const TextStyle(fontSize: 12, color: Colors.orange),
+                '値引: ${yen(-disc)}${reason != null ? "（$reason）" : ""}',
+                style: const TextStyle(fontSize: 14, color: AppColors.warning),
               ),
             ),
         ],
@@ -365,7 +349,15 @@ class _PaymentRow extends StatelessWidget {
   final Map<String, dynamic> p;
   const _PaymentRow(this.p);
 
-  static const _methodNames = {0: '現金', 1: 'カード', 2: 'バーコード決済'};
+  static const _methodNames = {
+    0: '現金',
+    1: 'カード',
+    2: 'バーコード決済',
+    3: '電子マネー',
+    4: 'ポイント',
+    5: '商品券',
+    6: '掛売',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -378,7 +370,7 @@ class _PaymentRow extends StatelessWidget {
           Text(_methodNames[method] ?? '不明'),
           const Spacer(),
           Text(
-            '¥${_fmt(amount)}',
+            yen(amount),
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ],
@@ -406,7 +398,7 @@ class _RefundPayloadCard extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
               '元レシート番号: ${payload['original_receipt_number']}',
-              style: const TextStyle(color: Colors.grey, fontSize: 13),
+              style: const TextStyle(color: Colors.grey, fontSize: 15),
             ),
           ),
         const Text(
@@ -423,10 +415,7 @@ class _RefundPayloadCard extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(child: Text(name)),
-                Text(
-                  '$qty個  ¥${_fmt(sub)}',
-                  style: const TextStyle(fontSize: 13),
-                ),
+                Text('$qty個　${yen(sub)}', style: const TextStyle(fontSize: 15)),
               ],
             ),
           );
@@ -437,7 +426,7 @@ class _RefundPayloadCard extends StatelessWidget {
           (payload['total_amount'] as num?)?.toInt() ?? 0,
           bold: true,
           large: true,
-          color: Colors.pink,
+          color: AppColors.danger,
         ),
       ],
     );
@@ -463,7 +452,7 @@ class _PickupPayloadCard extends StatelessWidget {
               (payload['pickup_amount'] as num?)?.toInt() ?? 0,
               bold: true,
               large: true,
-              color: const Color(0xFFE65100),
+              color: AppColors.warning,
             ),
             if (payload['pickup_reason'] != null)
               Padding(
@@ -555,7 +544,7 @@ class _AmountRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = TextStyle(
       fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-      fontSize: large ? 18 : 14,
+      fontSize: large ? 22 : 16,
       color: color,
     );
     return Padding(
@@ -564,7 +553,7 @@ class _AmountRow extends StatelessWidget {
         children: [
           Text(label, style: style),
           const Spacer(),
-          Text('¥${_fmt(amount)}', style: style),
+          Text(yen(amount), style: style),
         ],
       ),
     );
@@ -578,17 +567,11 @@ String _entryTypeLabel(String type) => switch (type) {
   'sale' => '売上',
   'refund' => '返品',
   'register_open' => 'レジ開設',
-  'cash_check' => 'レジ金確認',
+  'cash_check' => 'レジ金の点検',
   'cash_pickup' => '途中回収',
   'register_close' => 'レジ精算',
   _ => type,
 };
-
-// 金額を3桁区切りのカンマ付き文字列に整形する
-String _fmt(int n) => n.toString().replaceAllMapped(
-  RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-  (m) => '${m[1]},',
-);
 
 // ISO8601文字列を"YYYY-MM-DD HH:mm"形式のローカル時刻表示に変換する
 String _fmtTime(String iso) {

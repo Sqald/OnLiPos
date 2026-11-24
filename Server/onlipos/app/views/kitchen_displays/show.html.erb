@@ -1,0 +1,17 @@
+<%# 厨房画面（10秒ごとに更新） %>
+<% content_for :title, "厨房 | #{@store.name}" %>
+<% content_for :body_class, "wide" %>
+<% content_for :head do %><meta http-equiv="refresh" content="10"><% end %>
+<header class="kitchen-header"><h1>厨房　<%= @store.name %></h1><p><%= @orders.size %>件の注文　<%= l(Time.current, format: "%H:%M:%S") %> 現在</p></header>
+<div class="kitchen-grid">
+  <% @orders.each do |o| %>
+    <% minutes = ((Time.current - o.created_at) / 60).floor %>
+    <div class="public-card <%= o.status %> <%= "late" if minutes >= 15 %>">
+      <div class="kitchen-title"><h2>卓 <%= o.table_number.presence || "-" %><%= "（セルフ）" if o.self_order? %></h2><span class="kitchen-status"><%= KitchenOrder::STATUS_LABELS[o.status] %></span></div>
+      <p class="public-muted"><%= l(o.created_at.in_time_zone, format: "%H:%M") %> 注文 ・ <strong><%= minutes %>分経過</strong></p>
+      <ul class="kitchen-items"><% o.items.each do |i| %><li><span><%= i["name"] %><% if i["options"].present? %><small><%= Array(i["options"]).join("、") %></small><% end %><% if i["note"].present? %><small><%= i["note"] %></small><% end %></span><strong>×<%= i["quantity"] %></strong></li><% end %></ul>
+      <%= button_to o.waiting? ? "調理を始める" : "提供済みにする", kitchen_advance_path(params[:token], o), class: "public-button #{"done" unless o.waiting?}" %>
+    </div>
+  <% end %>
+</div>
+<% if @orders.empty? %><p class="kitchen-empty">いま待っている注文はありません。</p><% end %>

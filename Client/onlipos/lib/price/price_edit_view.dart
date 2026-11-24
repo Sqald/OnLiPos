@@ -4,8 +4,11 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:onlipos/ui/common.dart';
+import 'package:onlipos/ui/app_theme.dart';
+import 'package:onlipos/ui/app_header.dart';
+import 'package:onlipos/login/operator_sign_in_panel.dart';
 import 'package:onlipos/api/pos_api_client.dart';
-import 'package:onlipos/login/login_api.dart';
 import 'package:onlipos/price/price_api.dart';
 import 'package:onlipos/product/master_sync_api.dart';
 
@@ -18,11 +21,8 @@ class PriceEditView extends StatefulWidget {
 
 class _PriceEditViewState extends State<PriceEditView> {
   // 認証
-  final _codeController = TextEditingController();
-  final _pinController = TextEditingController();
   int? _employeeId;
   String? _employeeName;
-  bool _authLoading = false;
 
   // 商品リスト
   final _searchController = TextEditingController();
@@ -33,40 +33,11 @@ class _PriceEditViewState extends State<PriceEditView> {
 
   @override
   void dispose() {
-    _codeController.dispose();
-    _pinController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
   bool get _authenticated => _employeeId != null;
-
-  // 担当者コード・パスワードで認証し、店舗価格編集権限を確認する
-  Future<void> _authenticate() async {
-    final code = _codeController.text.trim();
-    final pin = _pinController.text.trim();
-    if (code.isEmpty || pin.isEmpty) {
-      _showError('担当者コードとパスワードを入力してください');
-      return;
-    }
-    setState(() => _authLoading = true);
-    final result = await LoginApi.verifyEmployee(
-      code: code,
-      pin: pin,
-      permission: 'edit_prices',
-    );
-    setState(() => _authLoading = false);
-
-    if (result['success'] == true) {
-      setState(() {
-        _employeeId = result['employee_id'] as int?;
-        _employeeName = result['employee_name'] as String?;
-      });
-      _loadProducts(reset: true);
-    } else {
-      _showError(result['message']?.toString() ?? '認証に失敗しました');
-    }
-  }
 
   // 商品価格一覧を取得する。resetがtrueなら検索条件をリセットして先頭から取得する
   Future<void> _loadProducts({bool reset = false}) async {
@@ -122,12 +93,7 @@ class _PriceEditViewState extends State<PriceEditView> {
     if (!mounted) return;
 
     if (res['success'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('価格を更新しました'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      showMessage(context, '価格を更新しました', MessageType.success);
       _resyncInBackground();
       _loadProducts(reset: true);
     } else {
@@ -150,83 +116,50 @@ class _PriceEditViewState extends State<PriceEditView> {
 
   void _showError(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
+    showMessage(context, msg, MessageType.error);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('店舗価格設定')),
-      body: _authenticated ? _buildPriceList() : _buildAuthForm(),
-    );
-  }
-
-  // 担当者コード・パスワード入力フォームを表示する
-  Widget _buildAuthForm() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            '担当者認証（店舗価格編集権限が必要です）',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _codeController,
-            decoration: const InputDecoration(
-              labelText: '担当者コード',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _pinController,
-            obscureText: true,
-            decoration: const InputDecoration(
-              labelText: 'パスワード',
-              border: OutlineInputBorder(),
-            ),
-            onSubmitted: (_) => _authenticate(),
-          ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _authLoading ? null : _authenticate,
-            child: _authLoading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Text('認証'),
-          ),
-        ],
+      appBar: AppHeader(
+        '店舗の価格',
+        subtitle: _employeeName == null ? null : '担当: $_employeeName',
       ),
+      body: _authenticated
+          ? _buildPriceList()
+          : OperatorSignInPanel(
+              icon: Icons.price_change,
+              message: 'この店舗の値段を変えるには、「店舗価格編集」の権限を持つ人の確認が必要です。',
+              permission: 'edit_prices',
+              onAuthenticated: (id, name) {
+                setState(() {
+                  _employeeId = id;
+                  _employeeName = name;
+                });
+                _loadProducts(reset: true);
+              },
+            ),
     );
   }
 
-  // 検索欄と商品価格一覧(無限スクロール読み込みつき)を表示する
+  // 検索欄と商品価格一覧（続きはボタンで読み込む）
   Widget _buildPriceList() {
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+        Container(
+          color: AppColors.surface,
+          padding: const EdgeInsets.all(12),
           child: Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    hintText: 'コード・商品名で検索',
-                    border: const OutlineInputBorder(),
-                    isDense: true,
+                    hintText: '商品名・商品コードで探す',
+                    prefixIcon: const Icon(Icons.search),
                     suffixIcon: IconButton(
+                      tooltip: '入力を消す',
                       icon: const Icon(Icons.clear),
                       onPressed: () {
                         _searchController.clear();
@@ -237,80 +170,71 @@ class _PriceEditViewState extends State<PriceEditView> {
                   onSubmitted: (_) => _loadProducts(reset: true),
                 ),
               ),
-              const SizedBox(width: 8),
-              FilledButton(
+              const SizedBox(width: 10),
+              ElevatedButton(
                 onPressed: _listLoading
                     ? null
                     : () => _loadProducts(reset: true),
-                child: const Text('検索'),
+                child: const Text('探す'),
               ),
             ],
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              '担当: ${_employeeName ?? ''}',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ),
-        ),
         Expanded(
-          child: _products.isEmpty && !_listLoading
-              ? const Center(child: Text('商品が見つかりません'))
-              : ListView.builder(
+          child: _products.isEmpty
+              ? (_listLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : const EmptyState(
+                        icon: Icons.search_off,
+                        title: '商品が見つかりませんでした',
+                      ))
+              : ListView.separated(
+                  padding: const EdgeInsets.all(12),
                   itemCount: _products.length + (_hasMore ? 1 : 0),
+                  separatorBuilder: (_, _) => const SizedBox(height: 6),
                   itemBuilder: (context, index) {
                     if (index == _products.length) {
-                      return Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: FilledButton(
-                          onPressed: _listLoading
-                              ? null
-                              : () => _loadProducts(),
-                          child: _listLoading
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text('さらに読み込む'),
-                        ),
+                      return OutlinedButton(
+                        onPressed: _listLoading ? null : () => _loadProducts(),
+                        child: Text(_listLoading ? '読み込んでいます…' : '続きを読み込む'),
                       );
                     }
                     final p = _products[index];
                     final listPrice = (p['list_price'] as num?)?.toInt() ?? 0;
                     final storePrice = (p['store_price'] as num?)?.toInt();
-                    final hasCustomPrice = storePrice != null;
-                    return ListTile(
-                      title: Text(p['name'] as String? ?? ''),
-                      subtitle: Text(
-                        '${p['code'] ?? ''}　'
-                        '定価: ¥$listPrice　'
-                        '${hasCustomPrice ? '店舗売価: ¥$storePrice' : '店舗売価: なし（定価を使用）'}',
+                    return Card(
+                      clipBehavior: Clip.antiAlias,
+                      child: ListTile(
+                        title: Text(p['name'] as String? ?? ''),
+                        subtitle: Text(
+                          '${p['code'] ?? ''}　基本価格 ${yen(listPrice)}',
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (storePrice != null)
+                              const StatusBadge(
+                                'この店舗の価格',
+                                type: MessageType.warning,
+                              ),
+                            const SizedBox(width: 12),
+                            Text(
+                              yen(storePrice ?? listPrice),
+                              style: const TextStyle(
+                                fontSize: 19,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.edit_outlined),
+                          ],
+                        ),
+                        onTap: () => _editPrice(p),
                       ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.edit),
-                        tooltip: '価格を編集',
-                        onPressed: () => _editPrice(p),
-                      ),
-                      tileColor: hasCustomPrice
-                          ? Colors.blue.withValues(alpha: 0.05)
-                          : null,
                     );
                   },
                 ),
         ),
-        if (_listLoading && _products.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(32),
-            child: CircularProgressIndicator(),
-          ),
       ],
     );
   }
@@ -355,7 +279,7 @@ class _PriceEditDialogState extends State<_PriceEditDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '定価: ¥$listPrice',
+            '基本価格 ${yen(listPrice)}',
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
@@ -365,13 +289,13 @@ class _PriceEditDialogState extends State<_PriceEditDialog> {
             child: Column(
               children: [
                 RadioListTile<String>(
-                  title: const Text('定価を使う'),
-                  subtitle: Text('¥$listPrice が適用されます'),
+                  title: const Text('基本価格のまま売る'),
+                  subtitle: Text(yen(listPrice)),
                   value: 'list',
                   contentPadding: EdgeInsets.zero,
                 ),
                 RadioListTile<String>(
-                  title: const Text('店舗売価を設定'),
+                  title: const Text('この店舗だけ値段を変える'),
                   value: 'store',
                   contentPadding: EdgeInsets.zero,
                 ),
@@ -394,9 +318,9 @@ class _PriceEditDialogState extends State<_PriceEditDialog> {
         ],
       ),
       actions: [
-        TextButton(
+        OutlinedButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('キャンセル'),
+          child: const Text('やめる'),
         ),
         FilledButton(onPressed: _save, child: const Text('保存')),
       ],
@@ -408,12 +332,7 @@ class _PriceEditDialogState extends State<_PriceEditDialog> {
     if (_mode == 'store') {
       final amount = int.tryParse(_amountController.text.trim());
       if (amount == null || amount < 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('0以上の正しい金額を入力してください'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        showMessage(context, '0以上の正しい金額を入力してください', MessageType.error);
         return;
       }
       Navigator.pop(context, {'mode': 'store', 'amount': amount});

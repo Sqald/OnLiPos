@@ -25,7 +25,7 @@ class Api::V1::TableOrdersController < Api::V1::BaseController
   def upsert
     table_order = @current_pos.store.table_orders
                                .find_or_initialize_by(table_number: params[:table_number])
-    table_order.items = params[:items] || []
+    table_order.items = cart_items(params[:items])
     if table_order.save
       render json: { success: true }
     else
@@ -40,12 +40,5 @@ class Api::V1::TableOrdersController < Api::V1::BaseController
     table_order = @current_pos.store.table_orders.find_by(table_number: params[:table_number])
     table_order&.destroy
     render json: { success: true }
-  end
-
-  private
-
-  # upsert アクション用のストロングパラメータ（未使用: upsert では params[:items] を直接使用）
-  def upsert_params
-    params.permit(items: [ {} ])
   end
 end

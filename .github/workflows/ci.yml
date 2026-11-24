@@ -11,6 +11,9 @@ on:
       - ".github/workflows/ci.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   scan:
     name: Security & Style
@@ -21,9 +24,9 @@ jobs:
         working-directory: Server/onlipos
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1
         with:
           ruby-version: .ruby-version
           bundler-cache: true
@@ -69,9 +72,9 @@ jobs:
       SECRET_KEY_BASE: dummy_secret_key_base_for_ci_only
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1
         with:
           ruby-version: .ruby-version
           bundler-cache: true
