@@ -4,7 +4,7 @@
 /// カード番号などの決済情報は OnLiPos では扱わない（非保持）。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/common.dart';
 
 class TerminalResult {

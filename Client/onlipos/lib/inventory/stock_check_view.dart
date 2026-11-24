@@ -2,7 +2,7 @@
 /// 店舗在庫の一覧をサーバーから取得し、商品名/JANコードで絞り込んで表示する。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/common.dart';
 import 'package:onlipos/ui/app_theme.dart';
 import 'package:onlipos/ui/app_header.dart';

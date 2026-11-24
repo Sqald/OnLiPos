@@ -2,7 +2,7 @@
 /// 権限の有無はサーバーで確認する。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/login/login_api.dart';
 import 'package:onlipos/ui/app_theme.dart';
 import 'package:onlipos/ui/credential_pad.dart';

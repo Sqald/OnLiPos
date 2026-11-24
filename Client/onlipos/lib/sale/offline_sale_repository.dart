@@ -3,6 +3,7 @@
 // サーバーに拒否された（再送しても成功しない）会計は削除せず failed として残し、
 // 売上データが失われないようにする。
 import 'dart:convert';
+
 import 'package:sqflite/sqflite.dart';
 import 'package:onlipos/product/database_service.dart';
 import 'package:onlipos/sale/payload_cipher.dart';

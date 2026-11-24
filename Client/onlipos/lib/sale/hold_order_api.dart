@@ -1,7 +1,9 @@
 // 小売店モード用：サーバー側に保留注文を保存・取得・削除するAPIクライアント。
 // 保留一覧の取得、新規保留の作成、保留の呼び出し（削除）を提供する。
 import 'dart:convert';
+
 import 'package:onlipos/api/pos_api_client.dart';
+
 import 'sale_item.dart';
 
 /// サーバーから取得した保留情報（アイテムなし、一覧表示用）。

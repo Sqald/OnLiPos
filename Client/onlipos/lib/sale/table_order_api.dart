@@ -1,5 +1,7 @@
 import 'dart:convert';
+
 import 'package:onlipos/api/pos_api_client.dart';
+
 import 'sale_item.dart';
 
 /// 飲食店モード用：サーバー上のテーブル注文 API ラッパー。

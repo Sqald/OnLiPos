@@ -2,7 +2,7 @@
 /// 認証したうえで、日付・端末・種別でフィルタしたジャーナル一覧を表示する。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/common.dart';
 import 'package:onlipos/ui/app_theme.dart';
 import 'package:onlipos/ui/app_header.dart';

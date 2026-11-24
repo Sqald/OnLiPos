@@ -1,7 +1,7 @@
 /// 会計画面（読み取り・一覧）で共通に使う、合計の表示とカートの行。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/app_theme.dart';
 import 'package:onlipos/ui/common.dart';
 

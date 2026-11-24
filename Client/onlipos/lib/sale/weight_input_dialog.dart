@@ -1,5 +1,5 @@
 // 量り売り商品の重量(g)入力ダイアログ
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/num_pad.dart';
 import 'package:onlipos/ui/common.dart';
 import 'package:flutter/services.dart';

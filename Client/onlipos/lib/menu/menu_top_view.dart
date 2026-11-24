@@ -3,7 +3,7 @@
 /// 担当者の権限に応じて表示するタイルを出し分ける。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/login/login_top_view.dart';
 import 'package:onlipos/operations/failed_sales_view.dart';
 import 'package:onlipos/ui/common.dart';

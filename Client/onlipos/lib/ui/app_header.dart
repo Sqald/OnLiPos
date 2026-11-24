@@ -1,7 +1,7 @@
 /// 全画面共通のヘッダー。左に「戻る」、中央寄りに画面名（と補足）、右に操作を置く。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/app_theme.dart';
 
 class AppHeader extends StatelessWidget implements PreferredSizeWidget {

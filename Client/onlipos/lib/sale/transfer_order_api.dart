@@ -1,6 +1,7 @@
 // ホスト/クライアントモード用：クライアント機からホスト機へ会計を転送する
 // サーバー上の転送注文 API ラッパー。転送の作成・一覧取得・受け取り（削除）を提供する。
 import 'dart:convert';
+
 import 'package:onlipos/api/pos_api_client.dart';
 import 'package:onlipos/sale/sale_item.dart';
 

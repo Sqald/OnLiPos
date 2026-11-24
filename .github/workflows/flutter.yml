@@ -28,7 +28,7 @@ jobs:
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
-          flutter-version: 3.41.6
+          flutter-version: 3.50.1
           cache: true
 
       - name: pub get
@@ -47,7 +47,8 @@ jobs:
     name: Build APK (release)
     runs-on: ubuntu-latest
     needs: test
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    # 手動実行ならブランチでもビルドだけ行える（公開は main のみ）
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     defaults:
       run:
         working-directory: Client/onlipos
@@ -55,7 +56,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # ランナー既定のJDK（ubuntu-latest=26.04 では 25）は Gradle 8.14 が未対応のため、
+      # ランナー既定のJDK（ubuntu-latest=26.04 では 25）は Gradle の対応外になり得るため、
       # android/app/build.gradle.kts の設定に合わせて JDK 17 を使う
       - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
@@ -65,7 +66,7 @@ jobs:
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
-          flutter-version: 3.41.6
+          flutter-version: 3.50.1
           cache: true
 
       - name: pub get
@@ -98,7 +99,8 @@ jobs:
     name: Build Windows (zip)
     runs-on: windows-latest
     needs: test
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    # 手動実行ならブランチでもビルドだけ行える（公開は main のみ）
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     defaults:
       run:
         working-directory: Client/onlipos
@@ -109,7 +111,7 @@ jobs:
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
-          flutter-version: 3.41.6
+          flutter-version: 3.50.1
           cache: true
 
       - name: pub get
@@ -132,7 +134,8 @@ jobs:
     name: Build macOS (.app)
     runs-on: macos-latest
     needs: test
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    # 手動実行ならブランチでもビルドだけ行える（公開は main のみ）
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     defaults:
       run:
         working-directory: Client/onlipos
@@ -143,7 +146,7 @@ jobs:
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
-          flutter-version: 3.41.6
+          flutter-version: 3.50.1
           cache: true
 
       - name: pub get
@@ -168,7 +171,8 @@ jobs:
     name: Build Linux (tar.gz)
     runs-on: ubuntu-latest
     needs: test
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    # 手動実行ならブランチでもビルドだけ行える（公開は main のみ）
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     defaults:
       run:
         working-directory: Client/onlipos
@@ -184,7 +188,7 @@ jobs:
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
-          flutter-version: 3.41.6
+          flutter-version: 3.50.1
           cache: true
 
       - name: pub get

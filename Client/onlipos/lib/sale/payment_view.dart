@@ -3,7 +3,7 @@
 // 現金払いがある場合はお預かり金入力（CashTenderView）を経由する。
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/app_session.dart';
 import 'package:onlipos/ui/num_pad.dart';
 import 'package:onlipos/ui/common.dart';

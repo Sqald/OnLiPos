@@ -4,12 +4,12 @@
 /// デスクトップ環境ではウィンドウの全画面化、モバイル環境では横画面固定も行う。
 library;
 
-import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/login/login_top_view.dart';
 import 'package:onlipos/setup/setup_view.dart';
 import 'package:onlipos/ui/app_theme.dart';
 import 'package:onlipos/ui/status_footer.dart';
+
 import 'dart:io';
 
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';

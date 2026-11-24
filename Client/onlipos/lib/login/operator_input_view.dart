@@ -2,7 +2,7 @@
 /// 卓番入力画面または売上（スキャン/一覧）画面へ遷移する画面。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/credential_pad.dart';
 import 'package:onlipos/ui/common.dart';
 import 'package:onlipos/ui/app_header.dart';

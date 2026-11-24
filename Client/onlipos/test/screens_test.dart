@@ -4,10 +4,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -52,10 +51,12 @@ import 'package:onlipos/settings/settings_view.dart';
 import 'package:onlipos/setup/setup_view.dart';
 import 'package:onlipos/startup/open_view.dart';
 import 'package:onlipos/ui/amount_dialog.dart';
+import 'package:onlipos/ui/app_header.dart';
 import 'package:onlipos/ui/app_session.dart';
 import 'package:onlipos/ui/app_theme.dart';
 import 'package:onlipos/ui/common.dart';
 import 'package:onlipos/ui/status_footer.dart';
+import 'package:printing/printing.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 final _screenshotDir = Platform.environment['SCREENSHOT_DIR'];
@@ -514,6 +515,12 @@ void main() {
     '24_receiving': () => const _Pushed(ReceivingView(employeeId: 1)),
     '25_stocktake': () => const _Pushed(StocktakeView(employeeId: 1)),
     '26_pop': () => const _Pushed(PopView()),
+    '26b_pop_preview': () => _Pushed(
+      Scaffold(
+        appBar: const AppHeader('POPの確認'),
+        body: PdfPreview(build: (_) async => Uint8List(0)),
+      ),
+    ),
     '27_price': () => const _Pushed(PriceEditView()),
     '28_attendance': () => const _Pushed(AttendanceView()),
     '29_reservation': () => const _Pushed(ReservationView()),

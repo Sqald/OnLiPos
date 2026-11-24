@@ -1,7 +1,8 @@
 // ホスト機の待ち受けモード画面（Widget定義）。
 // 5秒ごとに転送注文一覧をポーリングして表示し、受け取り操作を提供する。
 import 'dart:async';
-import 'package:flutter/material.dart';
+
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/common.dart';
 import 'package:onlipos/ui/app_theme.dart';
 import 'package:onlipos/ui/app_header.dart';

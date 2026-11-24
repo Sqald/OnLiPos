@@ -2,7 +2,7 @@
 /// 面付け数を選んでプレビュー表示または直接印刷する。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/sale/cart_panel.dart';
 import 'package:onlipos/ui/common.dart';
 import 'package:onlipos/ui/app_theme.dart';

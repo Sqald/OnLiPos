@@ -1,7 +1,7 @@
 // サーバーに受け付けられなかったオフライン会計の確認と再送
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/common.dart';
 import 'package:onlipos/ui/app_theme.dart';
 import 'package:onlipos/ui/app_session.dart';

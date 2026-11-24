@@ -2,7 +2,7 @@
 // ハードウェアバーコードスキャナからのキー入力をバッファリングして商品を検索・
 // カートに追加し、店舗モード（標準/飲食店/小売店）ごとにテーブル注文・保留・
 // クライアント→ホスト転送といった機能を切り替える。
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/common.dart';
 import 'package:onlipos/ui/app_theme.dart';
 import 'package:onlipos/ui/app_header.dart';

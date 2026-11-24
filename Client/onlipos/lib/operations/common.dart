@@ -1,5 +1,5 @@
 // 店舗運営の画面（勤怠・棚卸・入荷・予約・厨房など）で共通に使う部品
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/common.dart';
 import 'package:onlipos/ui/app_header.dart';
 

@@ -1,7 +1,7 @@
 /// 従業員番号とPINの入力（テンキー付き）。ログイン・担当者認証・勤怠で共通に使う。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/app_theme.dart';
 import 'package:onlipos/ui/num_pad.dart';
 

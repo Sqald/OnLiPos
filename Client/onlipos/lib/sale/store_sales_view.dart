@@ -1,6 +1,6 @@
 // 店舗売上閲覧画面。「店舗売上閲覧」権限を持つ担当者コード＋パスワードで
 // 認証した後、今日/今月/期間指定の売上サマリーを表示する。
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/common.dart';
 import 'package:onlipos/ui/app_theme.dart';
 import 'package:onlipos/ui/app_header.dart';

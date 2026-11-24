@@ -4,9 +4,10 @@
 library;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:onlipos/ui/common.dart';
 import 'package:onlipos/ui/app_header.dart';
+
 import 'setup_api.dart';
 import '../provisioning/provisioning_view.dart';
 
@@ -99,9 +100,8 @@ class _SetupPageState extends State<SetupPage> {
         return;
       }
       showMessage(context, '端末を登録しました', MessageType.success);
-      await Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const ProvisioningPage()));
+      await Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => const ProvisioningPage()));
     } catch (e) {
       if (!mounted) return;
       final text = e.toString().replaceFirst('Exception: ', '');

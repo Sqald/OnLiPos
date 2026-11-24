@@ -2,7 +2,7 @@
 /// 釣銭補充・雑入金・雑出金・途中回収を記録し、サーバー側の理論在高に反映させる。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:onlipos/ui/num_pad.dart';
 import 'package:onlipos/ui/common.dart';

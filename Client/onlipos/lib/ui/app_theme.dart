@@ -1,7 +1,7 @@
 /// アプリ全体の見た目（色・文字・ボタン・入力欄）。画面側で色や大きさを直接指定せず、ここの値を使う。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// 意味を持つ色
 class AppColors {

@@ -2,7 +2,7 @@
 /// 左に合計、中央に枚数の入力欄、右にテンキーを置く。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:onlipos/ui/app_theme.dart';
 import 'package:onlipos/ui/common.dart';
